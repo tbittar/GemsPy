@@ -20,8 +20,7 @@ from pandas import DataFrame
 from pydantic import BaseModel
 
 
-def resolve_path(path_str: Path) -> Path:
-    path = Path(path_str)
+def resolve_path(path: Path) -> Path:
     if not path.exists():
         raise FileNotFoundError
 
@@ -33,6 +32,26 @@ def check_file_exists(input_path: Path) -> bool:
     if input_path.exists() and input_path.is_file() and input_path.stat().st_size > 0:
         return True
     return False
+
+
+def match_area_pattern(
+    object: Any, param_value: str, model_area_pattern: str = "${area}"
+) -> Any:
+    if isinstance(object, dict):
+        return {
+            match_area_pattern(k, param_value, model_area_pattern): match_area_pattern(
+                v, param_value, model_area_pattern
+            )
+            for k, v in object.items()
+        }
+    elif isinstance(object, list):
+        return [
+            match_area_pattern(elem, param_value, model_area_pattern) for elem in object
+        ]
+    elif isinstance(object, str):
+        return object.replace(model_area_pattern, param_value)
+    else:
+        return object
 
 
 def check_dataframe_validity(df: DataFrame) -> bool:
@@ -52,7 +71,9 @@ def check_dataframe_validity(df: DataFrame) -> bool:
 def transform_to_yaml(model: BaseModel, output_path: Path) -> None:
     with open(output_path, "w", encoding="utf-8") as yaml_file:
         yaml.dump(
-            {"system": model.model_dump(by_alias=True, exclude_unset=True)},
+            {
+                "system": model.model_dump(by_alias=True, exclude_unset=True),
+            },
             yaml_file,
             allow_unicode=True,
         )
@@ -68,7 +89,7 @@ def read_yaml_file(file_path: Path) -> dict[str, Any]:
             raise yaml.YAMLError(f"Error trying to read yaml file {file_path}: {e}")
 
 
-def save_to_csv(series: Union[pd.DataFrame, pd.Series], output_file: PurePath) -> None:
+def save_to_file(series: Union[pd.DataFrame, pd.Series], output_file: PurePath) -> None:
     output_dir = os.path.dirname(output_file)
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)

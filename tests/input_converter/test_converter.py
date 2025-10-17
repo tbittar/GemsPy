@@ -20,8 +20,13 @@ from antares.craft.model.study import Study
 from gems.input_converter.src.converter import AntaresStudyConverter
 from gems.input_converter.src.data_preprocessing.data_classes import Operation
 from gems.input_converter.src.logger import Logger
-from gems.input_converter.src.utils import read_yaml_file, transform_to_yaml
+from gems.input_converter.src.utils import (
+    check_file_exists,
+    read_yaml_file,
+    transform_to_yaml,
+)
 from gems.study.parsing import (
+    InputAreaConnections,
     InputComponent,
     InputComponentParameter,
     InputPortConnections,
@@ -38,6 +43,7 @@ RESOURCES_FOLDER = (
     / "data"
     / "model_configuration"
 )
+LOCAL_PATH = "mini_test_batterie_BP23"
 DATAFRAME_PREPRO_SERIES = (create_dataframe_from_constant(lines=8760),)  # series
 
 DATAFRAME_PREPRO_THERMAL_CONFIG = (
@@ -49,24 +55,37 @@ DATAFRAME_PREPRO_BC_CONFIG = (
     create_dataframe_from_constant(lines=8760, columns=6),  # modulation
     create_dataframe_from_constant(lines=8760, columns=4),  # series
 )
+MODEL_LIST = [
+    "src/gems/libs/antares_historic/antares_historic.yml",
+    "src/gems/libs/reference_models/andromede_v1_models.yml",
+]
+MODEL_LIST_WITH_BASE = [str(Path(os.getcwd()) / suffix) for suffix in MODEL_LIST]
 
 
 class TestConverter:
-    def _init_converter_from_study(self, local_study):
+    def _init_converter_from_study(self, local_study, mode: str = "full"):
         logger = Logger(__name__, local_study.path)
         converter: AntaresStudyConverter = AntaresStudyConverter(
-            study_input=local_study, logger=logger
+            study_input=local_study, logger=logger, mode=mode, lib_paths=MODEL_LIST
         )
         return converter
 
     def _init_converter_from_path(
-        self, local_path: Path, tmp_path: Path, mode: str = "full"
+        self,
+        input_path: Path,
+        output_path: Path,
+        mode: str = "full",
+        lib_paths: list = None,
+        model_list: list = None,
     ):
-        test_path = tmp_path / "mini_test_batterie_BP23"
-        shutil.copytree(local_path, test_path)
-        logger = Logger(__name__, str(test_path))
+        logger = Logger(__name__, str(input_path))
         converter: AntaresStudyConverter = AntaresStudyConverter(
-            study_input=test_path, logger=logger
+            study_input=input_path,
+            logger=logger,
+            mode=mode,
+            output_folder=output_path,
+            lib_paths=lib_paths,
+            model_list=model_list,
         )
         return converter
 
@@ -75,7 +94,8 @@ class TestConverter:
         input_study = converter.convert_study_to_input_study()
 
         expected_input_study = InputSystem(
-            nodes=[
+            id="studyTest",
+            components=[
                 InputComponent(
                     id="fr",
                     model="antares-historic.area",
@@ -119,10 +139,7 @@ class TestConverter:
                     ],
                 ),
             ],
-            components=[],
-            connections=[],
         )
-
         assert input_study == expected_input_study
 
     def test_convert_area_to_component(self, local_study_w_areas: Study, lib_id: str):
@@ -181,18 +198,18 @@ class TestConverter:
         area_components = converter._convert_area_to_component_list(
             lib_id, ["fr", "it"]
         )
-        input_study = InputSystem(nodes=area_components)
+        input_study = InputSystem(id=converter.study.name, components=area_components)
 
         # Dump model into yaml file
         yaml_path = converter.study_path / "study_path.yaml"
         transform_to_yaml(model=input_study, output_path=yaml_path)
-
         # Open yaml file to validate
         with open(yaml_path, "r", encoding="utf-8") as yaml_file:
             validated_data = parse_yaml_components(yaml_file)
 
         expected_validated_data = InputSystem(
-            nodes=[
+            id="studyTest",
+            components=[
                 InputComponent(
                     id="it",
                     model="antares-historic.area",
@@ -236,12 +253,10 @@ class TestConverter:
                     ],
                 ),
             ],
-            components=[],
-            connections=[],
         )
 
-        expected_validated_data.nodes.sort(key=lambda x: x.id)
-        validated_data.nodes.sort(key=lambda x: x.id)
+        expected_validated_data.components.sort(key=lambda x: x.id)
+        validated_data.components.sort(key=lambda x: x.id)
         assert validated_data == expected_validated_data
 
     def test_convert_st_storages_to_component(
@@ -259,17 +274,14 @@ class TestConverter:
         (
             storage_components,
             storage_connections,
+            _,
         ) = converter._convert_model_to_component_list(valid_areas, resource_content)
-        study_path = converter.study_path
 
-        default_path = (
-            study_path / "input" / "st-storage" / "series" / "fr" / "storage_1"
-        )
-        inflows_path = default_path / "inflows"
-        lower_rule_curve_path = default_path / "lower-rule-curve"
-        pmax_injection_path = default_path / "PMAX-injection"
-        pmax_withdrawal_path = default_path / "PMAX-withdrawal"
-        upper_rule_curve_path = default_path / "upper-rule-curve"
+        inflows_path = "inflows_fr_storage_1"
+        lower_rule_curve_path = "lower_rule_curve_fr_storage_1"
+        pmax_injection_path = "p_max_injection_modulation_fr_storage_1"
+        pmax_withdrawal_path = "p_max_withdrawal_modulation_fr_storage_1"
+        upper_rule_curve_path = "upper_rule_curve_fr_storage_1"
         expected_storage_connections = [
             InputPortConnections(
                 component1="fr_storage_1",
@@ -391,13 +403,13 @@ class TestConverter:
         (
             thermals_components,
             thermals_connections,
+            _,
         ) = converter._convert_model_to_component_list(valid_areas, resource_content)
-
-        study_path = converter.study_path
+        study_path = converter.thermal_input_path
         series_path = study_path / "input" / "thermal" / "series" / "fr" / "gaz"
         expected_thermals_connections = [
             InputPortConnections(
-                component1="gaz",
+                component1="fr_gaz",
                 port1="balance_port",
                 component2="fr",
                 port2="balance_port",
@@ -405,7 +417,7 @@ class TestConverter:
         ]
         expected_thermals_components = [
             InputComponent(
-                id="gaz",
+                id="fr_gaz",
                 model="antares-historic.thermal",
                 scenario_group=None,
                 parameters=[
@@ -522,14 +534,18 @@ class TestConverter:
         assert thermals_connections == expected_thermals_connections
 
     def test_convert_load_to_component_from_path(self, tmp_path: Path):
-        local_path = Path(__file__).parent / "resources" / "mini_test_batterie_BP23"
+        local_path = Path(__file__).parent / "resources" / LOCAL_PATH
 
         output_path = local_path / "reference.yaml"
         expected_data = read_yaml_file(output_path)["system"]
         expected_components = expected_data["components"]
         expected_connections = expected_data["connections"]
 
-        converter = self._init_converter_from_path(local_path, tmp_path, "full")
+        input_path = tmp_path / "input" / LOCAL_PATH
+        output_path = tmp_path / "output" / LOCAL_PATH
+        shutil.copytree(local_path, input_path)
+
+        converter = self._init_converter_from_path(input_path, output_path, "full")
         path_load = RESOURCES_FOLDER / "load.yaml"
 
         resource_content = read_yaml_file(path_load).get("template", {})
@@ -541,6 +557,7 @@ class TestConverter:
         (
             load_components,
             load_connections,
+            _,
         ) = converter._convert_model_to_component_list(valid_areas, resource_content)
 
         ### Compare connections
@@ -555,7 +572,6 @@ class TestConverter:
                 None,
             )
         )
-
         assert connection == expected_connection
         ### Compare components
         expected_component = next(
@@ -583,10 +599,13 @@ class TestConverter:
             component.model_dump()
             for component in dict(load_components[0])["parameters"]
         ]
+        path_to_remove = converter.output_folder / "input" / "data-series"
         obtained_parameters = TestConverter._match_area_pattern(
-            obtained_parameters_to_dict, "", str(converter.study_path) + "/"
+            obtained_parameters_to_dict, "", str(path_to_remove) + "/"
         )
+
         assert obtained_parameters == expected_component["parameters"]
+        # TODO enrich
 
     @pytest.mark.parametrize(
         "fr_solar",
@@ -607,6 +626,7 @@ class TestConverter:
         (
             solar_components,
             solar_connections,
+            _,
         ) = converter._convert_model_to_component_list(valid_areas, resource_content)
         solar_fr_component = next(
             (comp for comp in solar_components if comp.id == "solar_fr"), None
@@ -614,9 +634,7 @@ class TestConverter:
         solar_fr_connection = next(
             (conn for conn in solar_connections if conn.component1 == "solar_fr"), None
         )
-        solar_timeseries = str(
-            converter.study_path / "input" / "solar" / "series" / "generation_fr"
-        )
+        solar_timeseries = "generation_fr"
         expected_solar_connection = InputPortConnections(
             component1="solar_fr",
             port1="balance_port",
@@ -668,6 +686,7 @@ class TestConverter:
         (
             load_components,
             load_connections,
+            _,
         ) = converter._convert_model_to_component_list(valid_areas, resource_content)
         load_fr_component = next(
             (comp for comp in load_components if comp.id == "load_fr"), None
@@ -676,9 +695,7 @@ class TestConverter:
             (conn for conn in load_connections if conn.component1 == "load_fr"), None
         )
 
-        load_timeseries = str(
-            converter.study_path / "input" / "load" / "series" / "load_fr"
-        )
+        load_timeseries = "load_fr"
         expected_load_connection = InputPortConnections(
             component1="load_fr",
             port1="balance_port",
@@ -721,6 +738,7 @@ class TestConverter:
         (
             wind_components,
             wind_connections,
+            _,
         ) = converter._convert_model_to_component_list(valid_areas, resource_content)
         wind_fr_component = next(
             (comp for comp in wind_components if comp.id == "wind_fr"), None
@@ -729,9 +747,6 @@ class TestConverter:
             (conn for conn in wind_connections if conn.component1 == "wind_fr"), None
         )
 
-        wind_timeseries = str(
-            converter.study_path / "input" / "wind" / "series" / "generation_fr"
-        )
         expected_wind_connection = InputPortConnections(
             component1="wind_fr",
             port1="balance_port",
@@ -762,7 +777,7 @@ class TestConverter:
                     time_dependent=True,
                     scenario_dependent=True,
                     scenario_group=None,
-                    value=f"{wind_timeseries}",
+                    value="generation_fr",
                 ),
             ],
         )
@@ -793,6 +808,7 @@ class TestConverter:
         (
             wind_components,
             _,
+            _,
         ) = converter._convert_model_to_component_list(valid_areas, resource_content)
         assert wind_components == []
 
@@ -817,6 +833,7 @@ class TestConverter:
         (
             wind_components,
             _,
+            _,
         ) = converter._convert_model_to_component_list(valid_areas, resource_content)
         assert wind_components == []
 
@@ -833,17 +850,15 @@ class TestConverter:
         (
             links_components,
             links_connections,
+            _,
         ) = converter._convert_model_to_component_list(valid_areas, resource_content)
-        study_path = converter.study_path
 
-        fr_prefix_path = study_path / "input" / "links" / "fr" / "capacities"
-        at_prefix_path = study_path / "input" / "links" / "at" / "capacities"
-        fr_it_direct_links_timeseries = str(fr_prefix_path / "it_direct")
-        fr_it_indirect_links_timeseries = str(fr_prefix_path / "it_indirect")
-        at_fr_direct_links_timeseries = str(at_prefix_path / "fr_direct")
-        at_fr_indirect_links_timeseries = str(at_prefix_path / "fr_indirect")
-        at_it_direct_links_timeseries = str(at_prefix_path / "it_direct")
-        at_it_indirect_links_timeseries = str(at_prefix_path / "it_indirect")
+        fr_it_direct_links_timeseries = "capacity_direct_fr_it"
+        fr_it_indirect_links_timeseries = "capacity_indirect_fr_it"
+        at_fr_direct_links_timeseries = "capacity_direct_at_fr"
+        at_fr_indirect_links_timeseries = "capacity_indirect_at_fr"
+        at_it_direct_links_timeseries = "capacity_direct_at_it"
+        at_it_indirect_links_timeseries = "capacity_indirect_at_it"
         expected_link_component = [
             InputComponent(
                 id="fr / it",
@@ -975,14 +990,19 @@ class TestConverter:
     def test_convert_binding_constraints_to_component(
         self, lib_id: str, tmp_path: Path
     ):
-        local_path = Path(__file__).parent / "resources" / "mini_test_batterie_BP23"
+        local_path = Path(__file__).parent / "resources" / LOCAL_PATH
 
         output_path = local_path / "reference.yaml"
         expected_data = read_yaml_file(output_path)["system"]
 
         expected_components = expected_data["components"]
         expected_connections = expected_data["connections"]
-        converter = self._init_converter_from_path(local_path, tmp_path, "full")
+
+        input_path = tmp_path / "input" / LOCAL_PATH
+        output_path = tmp_path / "output" / LOCAL_PATH
+        shutil.copytree(local_path, input_path)
+
+        converter = self._init_converter_from_path(input_path, output_path, "full")
         path_cc = RESOURCES_FOLDER / "battery.yaml"
 
         bc_data = read_yaml_file(path_cc).get("template", {})
@@ -990,9 +1010,12 @@ class TestConverter:
         (
             binding_components,
             binding_connections,
+            area_connections,
         ) = converter._convert_model_to_component_list(valid_areas, bc_data)
-        connection = binding_connections[0]
 
+        connection = binding_connections[0]
+        ### Compare area connections
+        assert area_connections == []
         # Compare connections
 
         expected_connection: InputPortConnections = InputPortConnections(
@@ -1000,7 +1023,7 @@ class TestConverter:
                 (
                     connection
                     for connection in expected_connections
-                    if connection["component1"] == "battery_fr"
+                    if connection["component2"] == "fr"
                 ),
                 None,
             )
@@ -1034,19 +1057,135 @@ class TestConverter:
             for component in dict(binding_components[0])["parameters"]
         ]
         obtained_parameters = TestConverter._match_area_pattern(
-            obtained_parameters_to_dict, "", str(converter.study_path) + "/"
+            obtained_parameters_to_dict, "", str(converter.output_folder) + "/"
         )
         assert obtained_parameters == expected_component["parameters"]
+        # TODO enrich
 
-    @pytest.mark.skip(
-        reason="We disable this as the reference.yaml is not working with thermal/battery combination"
-    )
-    def test_convert_study_path_to_input_study(self, tmp_path: Path):
-        local_path = Path(__file__).parent / "resources" / "mini_test_batterie_BP23"
-        output_path = local_path / "reference.yaml"
+    def test_hybrid_data_series_presence(self, tmp_path: Path):
+        local_path = Path(__file__).parent / "resources" / LOCAL_PATH
+        lib_paths: list = MODEL_LIST
+        model_list: list = "battery"
+
+        input_path = tmp_path / "input" / LOCAL_PATH
+        output_path = tmp_path / "output" / LOCAL_PATH
+        shutil.copytree(local_path, input_path)
+
+        converter = self._init_converter_from_path(
+            input_path, output_path, "hybrid", lib_paths, model_list
+        )
+        path_cc = (
+            Path(__file__).parent.parent.parent
+            / "src"
+            / "gems"
+            / "input_converter"
+            / "data"
+            / "model_configuration"
+            / "battery.yaml"
+        )
+
+        bc_data = read_yaml_file(path_cc).get("template", {})
+        valid_areas: dict = converter._validate_resources_not_excluded(bc_data, "area")
+
+        (
+            _,
+            _,
+            area_connections,
+        ) = converter._convert_model_to_component_list(valid_areas, bc_data)
+
+        output_path = converter.output_folder
+        path1 = (
+            output_path / "input" / "data-series" / "marginal_cost_fr_z_batteries.txt"
+        )
+        path2 = (
+            output_path
+            / "input"
+            / "data-series"
+            / "p_max_injection_modulation_fr_z_batteries.txt"
+        )
+        path3 = (
+            output_path
+            / "input"
+            / "data-series"
+            / "p_max_withdrawal_modulation_fr_fr_batteries_inj.txt"
+        )
+        path4 = (
+            output_path
+            / "input"
+            / "data-series"
+            / "upper_rule_curve_z_batteries_z_batteries_batteries_fr_1.txt"
+        )
+        assert check_file_exists(path1)
+        assert check_file_exists(path2)
+        assert check_file_exists(path3)
+        assert check_file_exists(path4)
+        ### Compare area connections
+        expected_area_connections = [
+            InputAreaConnections(
+                component="battery_fr", port="injection_port", area="fr"
+            )
+        ]
+        assert area_connections == expected_area_connections
+
+    def test_hybrid_convert_study_path_to_input_study(self, tmp_path: Path):
+        local_path = Path(__file__).parent / "resources" / LOCAL_PATH
+
+        output_path = local_path / "reference_hybrid.yaml"
         expected_data = read_yaml_file(output_path)["system"]
-        converter = self._init_converter_from_path(local_path, tmp_path, "full")
+
+        model_list: list = ["battery"]
+
+        input_path = tmp_path / "input" / LOCAL_PATH
+        output_path = tmp_path / "output" / LOCAL_PATH
+        shutil.copytree(local_path, input_path)
+
+        converter = self._init_converter_from_path(
+            input_path, output_path, "hybrid", MODEL_LIST_WITH_BASE, model_list
+        )
+        thermal_cluster_filepath = (
+            converter.output_folder
+            / "input"
+            / "thermal"
+            / "clusters"
+            / "z_batteries"
+            / "list.ini"
+        )
+        bc_filepath = (
+            converter.output_folder
+            / "input"
+            / "bindingconstraints"
+            / "bindingconstraints.ini"
+        )
+        links_filepath = (
+            converter.output_folder / "input" / "links" / "fr" / "properties.ini"
+        )
+        assert thermal_cluster_filepath.stat().st_size > 0
+        assert bc_filepath.stat().st_size > 0
+        assert links_filepath.stat().st_size > 0
         obtained_data = converter.convert_study_to_input_study()
+
+        # Check files have been correctly deleted
+        thermal_cluster_filepath = (
+            converter.output_folder
+            / "input"
+            / "thermal"
+            / "clusters"
+            / "z_batteries"
+            / "list.ini"
+        )
+        bc_filepath = (
+            converter.output_folder
+            / "input"
+            / "bindingconstraints"
+            / "bindingconstraints.ini"
+        )
+        links_filepath = (
+            converter.output_folder / "input" / "links" / "fr" / "properties.ini"
+        )
+        assert thermal_cluster_filepath.stat().st_size == 0
+        assert bc_filepath.stat().st_size == 0
+        assert links_filepath.stat().st_size == 0
+        # TODO check folder data-models is present
 
         # A little formatting of expected parameters:
         # Convert tiret fields with snake_case version
@@ -1067,6 +1206,71 @@ class TestConverter:
         ]
         obtained_components = TestConverter._match_area_pattern(
             obtained_components_to_dict, "", str(converter.study_path) + "/"
+        )
+
+        def normalize_components(components):
+            return [
+                {
+                    **c,
+                    "parameters": [
+                        {
+                            k: p[k]
+                            for k in (
+                                "id",
+                                "value",
+                                "scenario_dependent",
+                                "time_dependent",
+                                "scenario_group",
+                            )
+                        }
+                        for p in c["parameters"]
+                    ],
+                }
+                for c in components
+            ]
+
+        assert sorted(
+            normalize_components(obtained_components), key=lambda x: x["id"]
+        ) == sorted(expected_data["components"], key=lambda x: x["id"])
+
+    def test_convert_study_path_to_input_study(self, tmp_path: Path):
+        local_path = Path(__file__).parent / "resources" / LOCAL_PATH
+        output_path = local_path / "reference.yaml"
+        expected_data = read_yaml_file(output_path)["system"]
+
+        input_path = tmp_path / "input" / LOCAL_PATH
+        output_path = tmp_path / "output" / LOCAL_PATH
+        shutil.copytree(local_path, input_path)
+        converter = self._init_converter_from_path(
+            input_path, output_path, "full", MODEL_LIST_WITH_BASE
+        )
+        obtained_data = converter.convert_study_to_input_study()
+
+        # A little formatting of expected parameters:
+        # Convert tiret fields with snake_case version
+        # Add scenario group to None, if not present
+        for component in expected_data["components"]:
+            if not component.get("scenario_group"):
+                component["scenario_group"] = None
+            for item in component["parameters"]:
+                item["scenario_dependent"] = item.pop("scenario-dependent")
+                item["time_dependent"] = item.pop("time-dependent")
+                if not item.get("scenario_group"):
+                    item["scenario_group"] = None
+        # A little formatting of obtained parameters:
+        # Convert list of objects to list of dictionaries
+
+        obtained_components_to_dict = [
+            component.model_dump() for component in dict(obtained_data)["components"]
+        ]
+        # Replace absolute path of preprocessing thermal with relative path
+        # TODO keep it like that?
+        obtained_components = TestConverter._match_area_pattern(
+            obtained_components_to_dict, "", str(converter.study_path) + "/"
+        )
+        # Replace absolute path of data-series files with relative path
+        obtained_components = TestConverter._match_area_pattern(
+            obtained_components, "", str(converter.output_folder) + "/"
         )
 
         def normalize_components(components):
