@@ -47,8 +47,11 @@ from gems.study.parsing import (
     InputSystem,
 )
 
+ANTARES_HISTORIC_LIB_ID = "antares-historic"
 RESOURCES_FOLDER = Path(__file__).parents[1] / "data" / "model_configuration"
 LIBS_FOLDER = "model-libraries"
+
+# TODO: Move all global variables in a config class, that is used in AntaresStudyConverter constructor
 
 
 class AntaresStudyConverter:
@@ -68,13 +71,12 @@ class AntaresStudyConverter:
         self.logger = logger
         self.period: int = period if period else 168
         self.lib_paths: list[str] = lib_paths if lib_paths else []
-        self.model_list: list[str] = model_list if model_list else []
 
         try:
             self.mode = ConversionMode(mode)
         except ValueError:
             raise ValueError(
-                f"Invalid conversionmode: {mode}, possible values are {[conv_mode.value for conv_mode in ConversionMode]}"
+                f"Invalid conversion mode: {mode}, possible values are {[conv_mode.value for conv_mode in ConversionMode]}"
             )
 
         # TODO: The logic is still too complicated, needs more refacto / to understand why thermal preprocessing sometimes needs different paths
@@ -86,6 +88,7 @@ class AntaresStudyConverter:
         self.output_folder = output_folder / study_input_path
 
         if self.mode == ConversionMode.HYBRID:
+            self.model_list = model_list if model_list else []
             # In hybrid mode, the output is the input study from which we replace converted components by Gems ones, hence we copy the original study
             shutil.copytree(
                 study_input.path if isinstance(study_input, Study) else study_input,
@@ -95,6 +98,7 @@ class AntaresStudyConverter:
             if isinstance(study_input, Path):
                 study_input = self.output_folder
         else:
+            self.model_list = list(MODEL_NAME_TO_FILE_NAME.keys())
             # In full mode, the output is a full Gems study so no need to copy the original study, we start "from scratch"
             self.output_folder.mkdir(parents=True, exist_ok=True)
 
@@ -267,42 +271,44 @@ class AntaresStudyConverter:
         return components
 
     def _delete_legacy_objects(self) -> None:
-        for item in self.legacy_objects:
-            item_type = item.get("type")
+        for legacy_component_properties in self.legacy_objects:
+            legacy_component_type = legacy_component_properties.get("type")
             try:
-                if item_type in STUDY_LEVEL_DELETION:
+                if legacy_component_type in STUDY_LEVEL_DELETION:
                     id = (
-                        item["binding-constraint-id"]
-                        if item_type == "binding_constraint"
-                        else item[item_type]
+                        legacy_component_properties["binding-constraint-id"]
+                        if legacy_component_type == "binding_constraint"
+                        else legacy_component_properties[legacy_component_type]
                     )
-                    getattr(self.study, STUDY_LEVEL_DELETION[item_type])(
-                        getattr(self.study, STUDY_LEVEL_GET[item_type])()[id]
+                    getattr(self.study, STUDY_LEVEL_DELETION[legacy_component_type])(
+                        getattr(self.study, STUDY_LEVEL_GET[legacy_component_type])()[
+                            id
+                        ]
                     )
-                elif item_type in TEMPLATE_CLUSTER_TYPE_TO_DELETE_METHOD:
+                elif legacy_component_type in TEMPLATE_CLUSTER_TYPE_TO_DELETE_METHOD:
                     getattr(
-                        self.areas[item.get("area")],
-                        TEMPLATE_CLUSTER_TYPE_TO_DELETE_METHOD[item_type],
+                        self.areas[legacy_component_properties.get("area")],
+                        TEMPLATE_CLUSTER_TYPE_TO_DELETE_METHOD[legacy_component_type],
                     )(
                         getattr(
-                            self.areas[item.get("area")],
-                            TEMPLATE_CLUSTER_TYPE_TO_GET_METHOD[item_type],
-                        )()[item.get("cluster")]
+                            self.areas[legacy_component_properties.get("area")],
+                            TEMPLATE_CLUSTER_TYPE_TO_GET_METHOD[legacy_component_type],
+                        )()[legacy_component_properties.get("cluster")]
                     )
-                elif item_type in MATRIX_TYPES_TO_SET_METHOD:
+                elif legacy_component_type in MATRIX_TYPES_TO_SET_METHOD:
                     # To "delete" legacy wind, solar or load object, we simply set an empty timeseries
                     getattr(
-                        self.areas[item.get("area")],
-                        MATRIX_TYPES_TO_SET_METHOD[item_type],
+                        self.areas[legacy_component_properties.get("area")],
+                        MATRIX_TYPES_TO_SET_METHOD[legacy_component_type],
                     )(pd.DataFrame())
 
             except ReferencedObjectDeletionNotAllowed:
                 self.logger.warning(
-                    f"Item {item} will not be deleted because it is referenced in a binding constraint"
+                    f"Item {legacy_component_properties} will not be deleted because it is referenced in a binding constraint"
                 )
             except NotImplementedError:
                 self.logger.warning(
-                    f"Failure to delete {item} because the method is not implemented yet on antares craft"
+                    f"Failure to delete {legacy_component_properties} because the method is not implemented yet on antares craft"
                 )
 
         self.legacy_objects = []
@@ -487,24 +493,16 @@ class AntaresStudyConverter:
         models = lib_data.get("models", [])
         return lib_data["id"], [model["id"] for model in models]
 
-    def _check_converted_models_are_in_libs(self) -> None:
+    def _check_converted_models_are_in_libs(
+        self, model_conversion_configs: dict[str, dict[str, Any]]
+    ) -> None:
         lib_to_model_ids = {}
         for lib_path in self.lib_paths:
             lib_id, model_ids = self._extract_lib_and_model_ids(lib_path)
             lib_to_model_ids[lib_id] = model_ids
 
         for model in self.model_list:
-            model_conversion_config_file = (
-                RESOURCES_FOLDER / MODEL_NAME_TO_FILE_NAME[model]
-            )
-            if not model_conversion_config_file.exists():
-                raise FileNotFoundError(
-                    f"The model configuration file for {model} has not been found at the location {model_conversion_config_file}"
-                )
-            lib_and_model_id = read_yaml_file(model_conversion_config_file)["template"][
-                "model"
-            ]
-            lib_id, model_id = lib_and_model_id.split(".")
+            lib_id, model_id = model_conversion_configs[model]["model"].split(".")
             if lib_id not in lib_to_model_ids:
                 raise ValueError(
                     "Library {lib_id} has not been found in provided libraries"
@@ -513,6 +511,19 @@ class AntaresStudyConverter:
                 raise ValueError(
                     f"Model {model_id} has not been found in library {lib_id}"
                 )
+
+    # TODO: Does not depend on self for now, but will be once the config is a class attribute
+    def _get_model_conversion_config(self, model: str) -> dict[str, Any]:
+        model_conversion_config_file = RESOURCES_FOLDER / MODEL_NAME_TO_FILE_NAME[model]
+        if not model_conversion_config_file.exists():
+            raise FileNotFoundError(
+                f"The model configuration file for {model} has not been found at the location {model_conversion_config_file}"
+            )
+        model_conversion_config = read_yaml_file(model_conversion_config_file)[
+            "template"
+        ]
+
+        return model_conversion_config
 
     def _copy_libs_to_model_librairies(self) -> None:
         # Retrieve library files and put it in the output study (as fro now libs must be contained in modeler studies)
@@ -528,67 +539,77 @@ class AntaresStudyConverter:
                 return lib_name
         return "antares-historic"
 
+    def _convert_single_model(
+        self,
+        model: str,
+        list_valid_areas: set[str],
+        all_excluded_areas: set[Any],
+        components: list[InputComponent],
+        connections: list[InputPortConnections],
+        area_connections: list[InputAreaConnections],
+        model_conversion_configs: dict[str, dict[str, Any]],
+    ) -> None:
+        self.logger.info("Converting components of model {model}...")
+
+        conversion_config = model_conversion_configs[model]
+        valid_areas = self._validate_resources_not_excluded(conversion_config, "area")
+
+        (
+            components_from_model,
+            connections_from_model,
+            area_connections_from_model,
+        ) = self._convert_model_to_component_list(valid_areas, conversion_config)
+        components.extend(components_from_model)
+        connections.extend(connections_from_model)
+        area_connections.extend(area_connections_from_model)
+
+        for param in conversion_config.get("template-parameters", []):
+            if param.get("name") == "area":
+                all_excluded_areas.update(
+                    item["id"] for item in param.get("exclude", [])
+                )
+
+        list_valid_areas.difference_update(all_excluded_areas)
+
     def convert_study_to_input_system(self) -> InputSystem:
         self._copy_libs_to_model_librairies()
-        if self.mode == ConversionMode.HYBRID:
-            self._check_converted_models_are_in_libs()
-        # TODO : Needs to add a check that all legacy models are in provided libs in full mode
 
-        list_components: list[InputComponent] = []
-        list_connections: list[InputPortConnections] = []
-        list_area_connections: list[InputAreaConnections] = []
+        model_conversion_configs = {}
+        for model in self.model_list:
+            model_conversion_configs[model] = self._get_model_conversion_config(model)
+        self._check_converted_models_are_in_libs(model_conversion_configs)
+
+        components: list[InputComponent] = []
+        connections: list[InputPortConnections] = []
+        area_connections: list[InputAreaConnections] = []
 
         list_valid_areas: set[str] = set(self.areas.keys())
         all_excluded_areas: set[Any] = set()
 
-        def _conversion_loop(model: str) -> None:
-            file_path = RESOURCES_FOLDER / MODEL_NAME_TO_FILE_NAME[model]
-            if not file_path.exists():
-                return
-            resource_content = read_yaml_file(file_path).get("template", {})
-            valid_areas = self._validate_resources_not_excluded(
-                resource_content, "area"
-            )
-
-            (
+        for model in self.model_list:
+            self._convert_single_model(
+                model,
+                list_valid_areas,
+                all_excluded_areas,
                 components,
                 connections,
                 area_connections,
-            ) = self._convert_model_to_component_list(valid_areas, resource_content)
-            list_components.extend(components)
-            list_connections.extend(connections)
-            list_area_connections.extend(area_connections)
-
-            for param in resource_content.get("template-parameters", []):
-                if param.get("name") == "area":
-                    all_excluded_areas.update(
-                        item["id"] for item in param.get("exclude", [])
-                    )
-
-            list_valid_areas.difference_update(all_excluded_areas)
-
+                model_conversion_configs,
+            )
         if self.mode == ConversionMode.HYBRID:
-            for model in self.model_list:
-                _conversion_loop(model)
-                self._delete_legacy_objects()
+            self._delete_legacy_objects()
         else:
-            for model in MODEL_NAME_TO_FILE_NAME:
-                _conversion_loop(model)
-
-            list_components.extend(
+            components.extend(
                 self._convert_area_to_component_list(
-                    self.get_model_name_among_libs("area"), list(list_valid_areas)
+                    ANTARES_HISTORIC_LIB_ID, list(list_valid_areas)
                 )
             )
 
-        self.logger.info(
-            "Converting node, components and connections into Input study..."
-        )
         system = InputSystem(
             id=self.study.name,
-            components=list_components,
-            connections=list_connections or None,
-            area_connections=list_area_connections or None,
+            components=components,
+            connections=connections or None,
+            area_connections=area_connections or None,
         )
         data = system.model_dump(exclude_none=True)
         return InputSystem(**data)
