@@ -22,8 +22,8 @@ from gems.input_converter.src.data_preprocessing.data_classes import Operation
 from gems.input_converter.src.logger import Logger
 from gems.input_converter.src.utils import (
     check_file_exists,
+    dump_to_yaml,
     read_yaml_file,
-    transform_to_yaml,
 )
 from gems.study.parsing import (
     InputAreaConnections,
@@ -55,18 +55,18 @@ DATAFRAME_PREPRO_BC_CONFIG = (
     create_dataframe_from_constant(lines=8760, columns=6),  # modulation
     create_dataframe_from_constant(lines=8760, columns=4),  # series
 )
-MODEL_LIST = [
+LIB_PATHS = [
     "src/gems/libs/antares_historic/antares_historic.yml",
     "src/gems/libs/reference_models/andromede_v1_models.yml",
 ]
-MODEL_LIST_WITH_BASE = [str(Path(os.getcwd()) / suffix) for suffix in MODEL_LIST]
+MODEL_LIST_WITH_BASE = [str(Path(os.getcwd()) / suffix) for suffix in LIB_PATHS]
 
 
 class TestConverter:
     def _init_converter_from_study(self, local_study, mode: str = "full"):
         logger = Logger(__name__, local_study.path)
         converter: AntaresStudyConverter = AntaresStudyConverter(
-            study_input=local_study, logger=logger, mode=mode, lib_paths=MODEL_LIST
+            study_input=local_study, logger=logger, mode=mode, lib_paths=LIB_PATHS
         )
         return converter
 
@@ -91,7 +91,7 @@ class TestConverter:
 
     def test_convert_study_to_input_study(self, local_study_w_areas: Study):
         converter = self._init_converter_from_study(local_study_w_areas)
-        input_study = converter.convert_study_to_input_study()
+        input_study = converter.convert_study_to_input_system()
 
         expected_input_study = InputSystem(
             id="studyTest",
@@ -201,8 +201,8 @@ class TestConverter:
         input_study = InputSystem(id=converter.study.name, components=area_components)
 
         # Dump model into yaml file
-        yaml_path = converter.study_path / "study_path.yaml"
-        transform_to_yaml(model=input_study, output_path=yaml_path)
+        yaml_path = converter.output_folder / "study_path.yaml"
+        dump_to_yaml(model=input_study, output_path=yaml_path)
         # Open yaml file to validate
         with open(yaml_path, "r", encoding="utf-8") as yaml_file:
             validated_data = parse_yaml_components(yaml_file)
@@ -1064,7 +1064,7 @@ class TestConverter:
 
     def test_hybrid_data_series_presence(self, tmp_path: Path):
         local_path = Path(__file__).parent / "resources" / LOCAL_PATH
-        lib_paths: list = MODEL_LIST
+        lib_paths: list = LIB_PATHS
         model_list: list = "battery"
 
         input_path = tmp_path / "input" / LOCAL_PATH
@@ -1162,7 +1162,7 @@ class TestConverter:
         assert thermal_cluster_filepath.stat().st_size > 0
         assert bc_filepath.stat().st_size > 0
         assert links_filepath.stat().st_size > 0
-        obtained_data = converter.convert_study_to_input_study()
+        obtained_data = converter.convert_study_to_input_system()
 
         # Check files have been correctly deleted
         thermal_cluster_filepath = (
@@ -1205,7 +1205,7 @@ class TestConverter:
             component.model_dump() for component in dict(obtained_data)["components"]
         ]
         obtained_components = TestConverter._match_area_pattern(
-            obtained_components_to_dict, "", str(converter.study_path) + "/"
+            obtained_components_to_dict, "", str(converter.output_folder) + "/"
         )
 
         def normalize_components(components):
@@ -1244,7 +1244,7 @@ class TestConverter:
         converter = self._init_converter_from_path(
             input_path, output_path, "full", MODEL_LIST_WITH_BASE
         )
-        obtained_data = converter.convert_study_to_input_study()
+        obtained_data = converter.convert_study_to_input_system()
 
         # A little formatting of expected parameters:
         # Convert tiret fields with snake_case version
@@ -1265,12 +1265,14 @@ class TestConverter:
         ]
         # Replace absolute path of preprocessing thermal with relative path
         # TODO keep it like that?
+        # TODO : Improve match area pattern function
+        # TODO : Add directly in the converter the relative path writing
         obtained_components = TestConverter._match_area_pattern(
-            obtained_components_to_dict, "", str(converter.study_path) + "/"
+            obtained_components_to_dict, "", str(input_path) + "/"
         )
         # Replace absolute path of data-series files with relative path
         obtained_components = TestConverter._match_area_pattern(
-            obtained_components, "", str(converter.output_folder) + "/"
+            obtained_components, "", str(input_path) + "/"
         )
 
         def normalize_components(components):
