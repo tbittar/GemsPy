@@ -37,7 +37,7 @@ class CommandRunner:
 
     def run(self) -> int:
         if not self.check_command():
-            # TODO For now, it will return 0 as if nothing is wrong
+            # TODO For now, it will return 0 as if nothing is wrong (not to have errors in CI as executable will not be there)
             # eventually if should return an error
             # maybe wait when we separate unit tests from integration tests
             # modify with bender_decomposed's read_solution
