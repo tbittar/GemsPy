@@ -169,6 +169,14 @@ def _resolve_model(input_model: InputModel, port_types: Dict[str, PortType]) -> 
         variables={v.id for v in input_model.variables},
         parameters={p.id for p in input_model.parameters},
     )
+
+    objective_contributions = None
+    if input_model.objective_contributions:
+        objective_contributions = {
+            contrib.id: parse_expression(contrib.expression, identifiers)
+            for contrib in input_model.objective_contributions
+        }
+
     extra_outputs = (
         {
             eo.id: parse_expression(eo.expression, identifiers)
@@ -190,9 +198,7 @@ def _resolve_model(input_model: InputModel, port_types: Dict[str, PortType]) -> 
             _to_constraint(c, identifiers) for c in input_model.binding_constraints
         ],
         constraints=[_to_constraint(c, identifiers) for c in input_model.constraints],
-        objective_operational_contribution=_to_expression_if_present(
-            input_model.objective, identifiers
-        ),
+        objective_contributions=objective_contributions,
         extra_outputs=extra_outputs,
     )
 

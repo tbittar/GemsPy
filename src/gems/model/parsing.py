@@ -16,7 +16,7 @@ from typing import List, Optional
 from pydantic import Field, ValidationError
 from yaml import safe_load
 
-from gems.utils import ModifiedBaseModel, _to_kebab
+from gems.utils import ModifiedBaseModel
 
 
 def parse_yaml_library(input: typing.TextIO) -> "InputLibrary":
@@ -73,6 +73,11 @@ class InputPortFieldDefinition(ModifiedBaseModel):
     definition: str
 
 
+class InputObjectiveContribution(ModifiedBaseModel):
+    id: str
+    expression: str
+
+
 @dataclass
 class InputExtraOutput(ModifiedBaseModel):
     id: str
@@ -87,7 +92,9 @@ class InputModel(ModifiedBaseModel):
     port_field_definitions: List[InputPortFieldDefinition] = Field(default_factory=list)
     binding_constraints: List[InputConstraint] = Field(default_factory=list)
     constraints: List[InputConstraint] = Field(default_factory=list)
-    objective: Optional[str] = None
+    objective_contributions: List[InputObjectiveContribution] = Field(
+        default_factory=list, alias="objective-contributions"
+    )
     description: Optional[str] = None
     extra_outputs: Optional[List[InputExtraOutput]] = None
 
