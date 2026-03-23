@@ -22,6 +22,8 @@ from gems.expression.expression import (
     ComparisonNode,
     PortFieldAggregatorNode,
     PortFieldNode,
+    maximum,
+    minimum,
 )
 from gems.expression.parsing.antlr.ExprLexer import ExprLexer
 from gems.expression.parsing.antlr.ExprParser import ExprParser
@@ -160,11 +162,21 @@ class ExpressionNodeBuilderVisitor(ExprVisitor):
     # Visit a parse tree produced by ExprParser#function.
     def visitFunction(self, ctx: ExprParser.FunctionContext) -> ExpressionNode:
         function_name: str = ctx.IDENTIFIER().getText()  # type: ignore
-        operand: ExpressionNode = ctx.expr().accept(self)  # type: ignore
-        fn = _FUNCTIONS.get(function_name, None)
-        if fn is None:
-            raise ValueError(f"Encountered invalid function name {function_name}")
-        return fn(operand)
+        arg_list = ctx.argList()  # type: ignore
+        args: list[ExpressionNode] = (
+            [expr.accept(self) for expr in arg_list.expr()]  # type: ignore
+            if arg_list is not None
+            else []
+        )
+        if function_name in _UNARY_FUNCTIONS:
+            if len(args) != 1:
+                raise ValueError(
+                    f"Function {function_name} requires exactly 1 argument, got {len(args)}"
+                )
+            return _UNARY_FUNCTIONS[function_name](args[0])
+        if function_name in _N_ARY_FUNCTIONS:
+            return _N_ARY_FUNCTIONS[function_name](*args)
+        raise ValueError(f"Encountered invalid function name {function_name}")
 
     # Visit a parse tree produced by ExprParser#shift.
     def visitShift(self, ctx: ExprParser.ShiftContext) -> ExpressionNode:
@@ -233,8 +245,15 @@ class ExpressionNodeBuilderVisitor(ExprVisitor):
         return ctx.atom().accept(self)  # type: ignore
 
 
-_FUNCTIONS = {
+_UNARY_FUNCTIONS = {
     "expec": ExpressionNode.expec,
+    "floor": ExpressionNode.floor,
+    "ceil": ExpressionNode.ceil,
+}
+
+_N_ARY_FUNCTIONS = {
+    "max": maximum,
+    "min": minimum,
 }
 
 

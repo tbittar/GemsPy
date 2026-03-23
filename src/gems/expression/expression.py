@@ -13,6 +13,7 @@
 """
 Defines the model for generic expressions.
 """
+
 import enum
 import inspect
 from dataclasses import dataclass
@@ -116,6 +117,12 @@ class ExpressionNode:
 
     def eval(self, time: AnyExpression) -> "ExpressionNode":
         return TimeEvalNode(self, _wrap_in_node(time))
+
+    def floor(self) -> "ExpressionNode":
+        return FloorNode(self)
+
+    def ceil(self) -> "ExpressionNode":
+        return CeilNode(self)
 
     def expec(self) -> "ExpressionNode":
         return _apply_if_node(self, lambda x: ScenarioOperatorNode(x, "Expectation"))
@@ -369,6 +376,16 @@ class NegationNode(UnaryOperatorNode):
 
 
 @dataclass(frozen=True, eq=False)
+class FloorNode(UnaryOperatorNode):
+    pass
+
+
+@dataclass(frozen=True, eq=False)
+class CeilNode(UnaryOperatorNode):
+    pass
+
+
+@dataclass(frozen=True, eq=False)
 class BinaryOperatorNode(ExpressionNode):
     left: ExpressionNode
     right: ExpressionNode
@@ -398,6 +415,24 @@ class MultiplicationNode(BinaryOperatorNode):
 @dataclass(frozen=True, eq=False)
 class DivisionNode(BinaryOperatorNode):
     pass
+
+
+@dataclass(frozen=True, eq=False)
+class MaxNode(ExpressionNode):
+    operands: List[ExpressionNode]
+
+
+@dataclass(frozen=True, eq=False)
+class MinNode(ExpressionNode):
+    operands: List[ExpressionNode]
+
+
+def maximum(*operands: "ExpressionNode") -> "MaxNode":
+    return MaxNode(list(operands))
+
+
+def minimum(*operands: "ExpressionNode") -> "MinNode":
+    return MinNode(list(operands))
 
 
 @dataclass(frozen=True, eq=False)

@@ -28,8 +28,12 @@ from gems.expression import (
 from gems.expression.expression import (
     AllTimeSumNode,
     BinaryOperatorNode,
+    CeilNode,
     ComponentParameterNode,
     ComponentVariableNode,
+    FloorNode,
+    MaxNode,
+    MinNode,
     PortFieldAggregatorNode,
     PortFieldNode,
     ProblemParameterNode,
@@ -111,6 +115,14 @@ class EqualityVisitor:
             right, PortFieldAggregatorNode
         ):
             return self.port_field_aggregator(left, right)
+        if isinstance(left, FloorNode) and isinstance(right, FloorNode):
+            return self.floor(left, right)
+        if isinstance(left, CeilNode) and isinstance(right, CeilNode):
+            return self.ceil(left, right)
+        if isinstance(left, MaxNode) and isinstance(right, MaxNode):
+            return self.maximum(left, right)
+        if isinstance(left, MinNode) and isinstance(right, MinNode):
+            return self.minimum(left, right)
         raise NotImplementedError(f"Equality not implemented for {left.__class__}")
 
     def literal(self, left: LiteralNode, right: LiteralNode) -> bool:
@@ -213,6 +225,22 @@ class EqualityVisitor:
     ) -> bool:
         return left.aggregator == right.aggregator and self.visit(
             left.operand, right.operand
+        )
+
+    def floor(self, left: FloorNode, right: FloorNode) -> bool:
+        return self.visit(left.operand, right.operand)
+
+    def ceil(self, left: CeilNode, right: CeilNode) -> bool:
+        return self.visit(left.operand, right.operand)
+
+    def maximum(self, left: MaxNode, right: MaxNode) -> bool:
+        return len(left.operands) == len(right.operands) and all(
+            self.visit(l, r) for l, r in zip(left.operands, right.operands)
+        )
+
+    def minimum(self, left: MinNode, right: MinNode) -> bool:
+        return len(left.operands) == len(right.operands) and all(
+            self.visit(l, r) for l, r in zip(left.operands, right.operands)
         )
 
 

@@ -78,6 +78,10 @@ class ExprVisitor(ParseTreeVisitor):
     def visitFunction(self, ctx: ExprParser.FunctionContext):
         return self.visitChildren(ctx)
 
+    # Visit a parse tree produced by ExprParser#argList.
+    def visitArgList(self, ctx: ExprParser.ArgListContext):
+        return self.visitChildren(ctx)
+
     # Visit a parse tree produced by ExprParser#number.
     def visitNumber(self, ctx: ExprParser.NumberContext):
         return self.visitChildren(ctx)
