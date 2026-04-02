@@ -462,7 +462,6 @@ def _create_constraint(
                 expanded, block_timestep, scenario
             )
 
-            # What happens if there is some time_operator in the bounds ?
             constraint_data = ConstraintData(
                 name=constraint.name,
                 lower_bound=_compute_expression_value(
@@ -680,9 +679,15 @@ class OptimizationProblem:
                     instantiated_lb_expr = _instantiate_model_expression(
                         model_var.lower_bound, component.id, self.context
                     )
+                    instantiated_lb_expr = self.context.expand_operators(
+                        instantiated_lb_expr
+                    )
                 if model_var.upper_bound:
                     instantiated_ub_expr = _instantiate_model_expression(
                         model_var.upper_bound, component.id, self.context
+                    )
+                    instantiated_ub_expr = self.context.expand_operators(
+                        instantiated_ub_expr
                     )
 
                 time_indices: Iterable[Optional[int]] = [None]
@@ -697,13 +702,23 @@ class OptimizationProblem:
                     lower_bound = -self.solver.infinity()
                     upper_bound = self.solver.infinity()
                     if instantiated_lb_expr:
-                        lower_bound = _compute_expression_value(
-                            instantiated_lb_expr, self.context, t, s
+                        lb_linear = self.context.linearize_expression(
+                            instantiated_lb_expr, t, s
                         )
+                        if lb_linear.terms:
+                            raise ValueError(
+                                f"Lower bound of variable '{model_var.name}' must be a constant expression (no decision variables)."
+                            )
+                        lower_bound = lb_linear.constant
                     if instantiated_ub_expr:
-                        upper_bound = _compute_expression_value(
-                            instantiated_ub_expr, self.context, t, s
+                        ub_linear = self.context.linearize_expression(
+                            instantiated_ub_expr, t, s
                         )
+                        if ub_linear.terms:
+                            raise ValueError(
+                                f"Upper bound of variable '{model_var.name}' must be a constant expression (no decision variables)."
+                            )
+                        upper_bound = ub_linear.constant
 
                     solver_var_name = self._solver_variable_name(
                         component.id, model_var.name, t, s
