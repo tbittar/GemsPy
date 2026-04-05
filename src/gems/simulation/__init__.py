@@ -15,7 +15,11 @@ from .benders_decomposed import (
     build_benders_decomposed_problem,
 )
 from .decision_tree import DecisionTreeNode, InterDecisionTimeScenarioConfig
-from .optimization import BlockBorderManagement, OptimizationProblem, build_problem
+from .linopy_problem import (
+    BlockBorderManagement,
+    LinopyOptimizationProblem,
+    build_problem,
+)
 from .output_values import BendersSolution, OutputValues
 from .runner import BendersRunner, MergeMPSRunner
 from .strategy import MergedProblemStrategy, ModelSelectionStrategy

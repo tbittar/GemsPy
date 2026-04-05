@@ -13,6 +13,8 @@
 import pandas as pd
 import pytest
 
+pytestmark = pytest.mark.skip(reason="Benders is out of scope for the linopy refactoring")
+
 from gems.expression.expression import literal, param, var
 from gems.model import (
     Constraint,

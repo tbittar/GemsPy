@@ -68,11 +68,10 @@ def test_large_sum_inside_model_with_loop() -> None:
     network.add_component(cost_model)
 
     problem = build_problem(network, database, time_blocks[0], scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
     assert math.isclose(
-        problem.solver.Objective().Value(), sum([1 / i for i in range(1, nb_terms)])
+        problem.objective_value, sum([1 / i for i in range(1, nb_terms)])
     )
 
 
@@ -104,10 +103,9 @@ def test_large_sum_outside_model_with_loop() -> None:
     network.add_component(simple_model)
 
     problem = build_problem(network, database, time_blocks[0], scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == obj_coeff
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == obj_coeff
 
 
 # Takes 3 minutes with current implementation !!
@@ -150,10 +148,9 @@ def test_large_sum_inside_model_with_sum_operator() -> None:
     network.add_component(cost_model)
 
     problem = build_problem(network, database, time_blocks[0], scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == 3 * nb_terms
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == 3 * nb_terms
 
 
 def test_large_sum_of_port_connections() -> None:
@@ -193,11 +190,9 @@ def test_large_sum_of_port_connections() -> None:
         )
 
     problem = build_problem(network, database, time_block, scenarios)
-
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == 5 * nb_generators
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == 5 * nb_generators
 
 
 def test_basic_balance_on_whole_year() -> None:
@@ -232,10 +227,9 @@ def test_basic_balance_on_whole_year() -> None:
     with cProfile.Profile() as pr:
         problem = build_problem(network, database, time_block, scenarios)
         pr.print_stats(sort=SortKey.CUMULATIVE)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == 30 * 100 * horizon
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == 30 * 100 * horizon
 
 
 def test_basic_balance_on_whole_year_with_large_sum() -> None:
@@ -270,7 +264,6 @@ def test_basic_balance_on_whole_year_with_large_sum() -> None:
     network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     problem = build_problem(network, database, time_block, scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == 30 * 100 * horizon
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == 30 * 100 * horizon

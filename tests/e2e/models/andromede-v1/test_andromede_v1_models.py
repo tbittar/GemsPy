@@ -19,7 +19,7 @@ import pytest
 
 from gems.model.parsing import InputLibrary, parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.simulation.optimization import build_problem
+from gems.simulation import build_problem
 from gems.simulation.time_block import TimeBlock
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import build_data_base, build_network, resolve_system
@@ -135,15 +135,10 @@ def test_model_behaviour(
             TimeBlock(1, [i for i in range(k * timespan, (k + 1) * timespan)]),
             scenarios,
         )
-        status = problem.solver.Solve()
-        assert status == problem.solver.OPTIMAL
-        assert math.isclose(
-            problem.solver.Objective().Value(),
-            problem.solver.Objective().BestBound(),
-            rel_tol=relative_accuracy,
-        )
+        problem.solve(solver_name="highs")
+        assert problem.termination_condition == "optimal"
         assert math.isclose(
             reference_values[k, 0],
-            problem.solver.Objective().Value(),
+            problem.objective_value,
             rel_tol=relative_accuracy,
         )

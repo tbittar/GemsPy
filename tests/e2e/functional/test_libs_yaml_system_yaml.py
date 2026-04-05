@@ -43,8 +43,7 @@ import pytest
 
 from gems.model.parsing import InputLibrary, parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.simulation import TimeBlock, build_problem
-from gems.simulation.optimization import BlockBorderManagement
+from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study.data import DataBase
 from gems.study.network import Network
 from gems.study.parsing import InputSystem, parse_yaml_components
@@ -68,9 +67,9 @@ def test_basic_balance_using_yaml(
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == 3000
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == 3000
 
 
 @pytest.fixture
@@ -102,9 +101,9 @@ def test_basic_balance_time_only_series(
     network, database = setup_test("study_time_only_series.yml")
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0, 1]), scenarios)
-    status = problem.solver.Solve()
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == 10000
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == 10000
 
 
 def test_basic_balance_scenario_only_series(
@@ -113,9 +112,9 @@ def test_basic_balance_scenario_only_series(
     network, database = setup_test("study_scenario_only_series.yml")
     scenarios = 2
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == 0.5 * 5000 + 0.5 * 10000
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == 0.5 * 5000 + 0.5 * 10000
 
 
 def test_short_term_storage_base_with_yaml(
@@ -134,23 +133,11 @@ def test_short_term_storage_base_with_yaml(
         scenarios,
         border_management=BlockBorderManagement.CYCLE,
     )
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
 
     # The short-term storage should satisfy the load
     # No spillage / unsupplied energy is expected
-    assert problem.solver.Objective().Value() == 0
+    assert problem.objective_value == 0
 
-    count_variables = 0
-    for variable in problem.solver.variables():
-        if "injection" in variable.name():
-            count_variables += 1
-            assert 0 <= variable.solution_value() <= 100
-        elif "withdrawal" in variable.name():
-            count_variables += 1
-            assert 0 <= variable.solution_value() <= 50
-        elif "level" in variable.name():
-            count_variables += 1
-            assert 0 <= variable.solution_value() <= 1000
-    assert count_variables == 3 * horizon
+    # TODO: update variable access

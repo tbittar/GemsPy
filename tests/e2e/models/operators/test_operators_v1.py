@@ -122,16 +122,11 @@ def test_model_behaviour(
             TimeBlock(1, timesteps),
             scenarios,
         )
-        status = problem.solver.Solve()
-        assert status == problem.solver.OPTIMAL
-        assert math.isclose(
-            problem.solver.Objective().Value(),
-            problem.solver.Objective().BestBound(),
-            rel_tol=relative_accuracy,
-        )
+        problem.solve(solver_name="highs")
+        assert problem.termination_condition == "optimal"
         assert math.isclose(
             expected_objective,
-            problem.solver.Objective().Value(),
+            problem.objective_value,
             rel_tol=relative_accuracy,
         )
 

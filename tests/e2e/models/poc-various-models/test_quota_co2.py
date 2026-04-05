@@ -76,15 +76,15 @@ def test_quota_co2() -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
+    problem.solve(solver_name="highs")
 
     output = OutputValues(problem)
     oil1_p = output.component("Oil1").var("p").value
     coal1_p = output.component("Coal1").var("p").value
     l12_flow = output.component("L12").var("flow").value
 
-    assert status == problem.solver.OPTIMAL
-    assert math.isclose(problem.solver.Objective().Value(), 5500)
+    assert problem.termination_condition == "optimal"
+    assert math.isclose(problem.objective_value, 5500)
     assert math.isclose(oil1_p, 50)  # type: ignore
     assert math.isclose(coal1_p, 50)  # type: ignore
     assert math.isclose(l12_flow, -50)  # type: ignore

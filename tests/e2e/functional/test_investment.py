@@ -227,10 +227,9 @@ def test_generation_xpansion_single_time_step_single_scenario(
         scenarios,
         build_strategy=MergedProblemStrategy(),
     )
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == pytest.approx(
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == pytest.approx(
         490 * 100 + 100 * 10 + 200 * 40
     )
 
@@ -303,10 +302,9 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
 
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
 
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == pytest.approx(
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == pytest.approx(
         (45 * 200) + (490 * 100 + 10 * 100) + (200 * 100 + 10 * 100)
     )
 
@@ -380,14 +378,13 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
     network.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
 
     problem = build_problem(network, database, time_block, scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
     # assert problem.solver.NumVariables() == 2 * scenarios * horizon + 1
     # assert (
     #     problem.solver.NumConstraints() == 3 * scenarios * horizon
     # )  # Flow balance, Max generation for each cluster
-    assert problem.solver.Objective().Value() == pytest.approx(
+    assert problem.objective_value == pytest.approx(
         490 * 300
         + 0.5 * (10 * 300 + 10 * 300 + 40 * 200)
         + 0.5 * (10 * 200 + 10 * 300 + 40 * 100)

@@ -5,17 +5,19 @@
 # This file is part of the Antares project.
 
 """
-Utility classes to obtain solver results.
+Utility classes to obtain solver results from a linopy-based optimization problem.
 """
 
 import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Mapping, Optional, Set, TypeVar
 
+import xarray as xr
+
 from gems.expression import evaluate
 from gems.expression.evaluate import EvaluationError
 from gems.simulation.extra_output import ExtraOutput, ExtraOutputValueProvider
-from gems.simulation.optimization import OptimizationProblem
+from gems.simulation.linopy_problem import LinopyOptimizationProblem
 from gems.simulation.output_values_base import BaseOutputValue
 from gems.study.data import TimeScenarioIndex
 
@@ -24,7 +26,7 @@ from gems.study.data import TimeScenarioIndex
 class OutputVariable(BaseOutputValue):
     """
     Contains a single solver variable's values and status.
-    All shared logic is now in BaseOutputValue.
+    All shared logic is in BaseOutputValue.
     """
 
     _basis_status: Dict[TimeScenarioIndex, str] = field(
@@ -34,10 +36,8 @@ class OutputVariable(BaseOutputValue):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, OutputVariable):
             return NotImplemented
-        # Check base equality first (name, size, value)
         if not super().__eq__(other):
             return False
-        # Then check the unique field
         return (self.ignore or other.ignore) or (
             self._basis_status == other._basis_status
         )
@@ -57,7 +57,6 @@ class OutputVariable(BaseOutputValue):
             size_s = max(self._size[0], scenario + 1)
             size_t = max(self._size[1], timestep + 1)
             self._size = (size_s, size_t)
-
         self._value[key] = value
         if not is_mip and status is not None:
             self._basis_status[key] = status
@@ -111,11 +110,8 @@ class OutputComponent:
             self._extra_outputs[output_name] = ExtraOutput(output_name)
         return self._extra_outputs[output_name]
 
-    def evaluate_extra_outputs(self, problem: OptimizationProblem) -> None:
-        """Evaluate all model-defined extra outputs and populate self._extra_outputs."""
-        if problem is None:
-            raise ValueError("Expected a valid OptimizationProblem, got None.")
-
+    def evaluate_extra_outputs(self, problem: LinopyOptimizationProblem) -> None:
+        """Evaluate all model-defined extra outputs for this component."""
         if self.model is None or self.model.extra_outputs is None:
             return
 
@@ -124,7 +120,6 @@ class OutputComponent:
         for out_id, expr_node in self.model.extra_outputs.items():
             if out_id not in self._extra_outputs:
                 self._extra_outputs[out_id] = ExtraOutput(out_id)
-
             self._evaluate_single_extra_output(
                 self._extra_outputs[out_id], problem, expr_node
             )
@@ -132,13 +127,9 @@ class OutputComponent:
     def _evaluate_single_extra_output(
         self,
         extra_output: ExtraOutput,
-        problem: OptimizationProblem,
+        problem: LinopyOptimizationProblem,
         expr_node: Any,
     ) -> None:
-        """
-        Evaluate a single ExtraOutput for all time/scenario indices
-        from the component's variables.
-        """
         all_indices: Set[TimeScenarioIndex] = set()
         for var in self._variables.values():
             all_indices.update(var._value.keys())
@@ -149,7 +140,9 @@ class OutputComponent:
 
         for idx in sorted_indices:
             try:
-                expanded_expr = problem.context.expand_operators(expr_node)
+                expanded_expr = problem.expand_operators_for_extra_output(
+                    expr_node, self._id
+                )
                 provider = ExtraOutputValueProvider(self, problem, idx)
                 val = float(evaluate(expanded_expr, provider))
             except EvaluationError as e:
@@ -170,10 +163,14 @@ class OutputComponent:
 @dataclass
 class OutputValues:
     """
-    Contains variables and extra outputs after solver work completion.
+    Contains variables and extra outputs after solver completion.
+
+    If constructed with a LinopyOptimizationProblem, variable solution values
+    are extracted from linopy_model.solution.  If constructed without arguments,
+    an empty container is created (useful for building expected values in tests).
     """
 
-    problem: Optional[OptimizationProblem] = field(default=None)
+    problem: Optional[LinopyOptimizationProblem] = field(default=None)
     _components: Dict[str, OutputComponent] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -196,26 +193,14 @@ class OutputValues:
         return "\n" + "".join(f"{comp}\n" for comp in self._components.values())
 
     def _build_components(self) -> None:
-        """
-        Initializes component objects and links them to their models.
-        It only creates the structure, no values are set.
-        """
         if self.problem is None:
             return
-
-        # Ensure a Component object exists for every component in the network
-        for cmp in self.problem.context.network.all_components:
+        for cmp in self.problem.network.all_components:
             comp = self.component(cmp.id)
             comp.model = cmp.model
 
     def _fill_components(self) -> None:
-        """
-        Fills all output values (Variables from solver, ExtraOutputs from evaluation).
-        """
-        # 1. Populate Variables
         self._evaluate_variables()
-
-        # 2. Evaluate Extra Outputs, which depend on the variables being set
         self._evaluate_extra_outputs()
 
     def component(self, component_id: str) -> OutputComponent:
@@ -224,26 +209,52 @@ class OutputValues:
         return self._components[component_id]
 
     def _evaluate_variables(self) -> None:
-        """
-        Populates the OutputVariable values from the solver results. # Docstring updated
-        """
+        """Extract variable solution values from linopy_model.solution."""
         if self.problem is None:
             return
 
-        is_mip = self.problem.solver.IsMip()
+        solution = self.problem.linopy_model.solution
+        if solution is None:
+            return
 
-        for key, value in self.problem.context.get_all_component_variables().items():
-            status = None if is_mip else value.basis_status()
-            self.component(key.component_id).var(str(key.variable_name))._set(
-                key.block_timestep,
-                key.scenario,
-                value.solution_value(),
-                status=status,
-                is_mip=is_mip,
-            )
+        # Iterate over all linopy variables registered in the problem
+        for (_model_key, var_name), lv in self.problem._linopy_vars.items():
+            lv_name = lv.name
+            if lv_name not in solution:
+                continue
+
+            sol_da: xr.DataArray = solution[lv_name]
+
+            # Use the variable's own component coords to avoid iterating over
+            # NaN-padded entries from the outer-join solution Dataset.
+            own_components = lv.coords["component"].values
+            for comp_id in own_components:
+                comp_da = sol_da.sel(component=comp_id)
+
+                if "time" in comp_da.dims and "scenario" in comp_da.dims:
+                    for t_idx in range(comp_da.sizes["time"]):
+                        for s_idx in range(comp_da.sizes["scenario"]):
+                            val = float(comp_da.isel(time=t_idx, scenario=s_idx).values)
+                            self.component(str(comp_id)).var(var_name)._set(
+                                t_idx, s_idx, val
+                            )
+                elif "time" in comp_da.dims:
+                    for t_idx in range(comp_da.sizes["time"]):
+                        val = float(comp_da.isel(time=t_idx).values)
+                        self.component(str(comp_id)).var(var_name)._set(
+                            t_idx, None, val
+                        )
+                elif "scenario" in comp_da.dims:
+                    for s_idx in range(comp_da.sizes["scenario"]):
+                        val = float(comp_da.isel(scenario=s_idx).values)
+                        self.component(str(comp_id)).var(var_name)._set(
+                            None, s_idx, val
+                        )
+                else:
+                    val = float(comp_da.values)
+                    self.component(str(comp_id)).var(var_name)._set(None, None, val)
 
     def _evaluate_extra_outputs(self) -> None:
-        """Evaluate extra outputs for all components."""
         if self.problem is None:
             return
         for comp in self._components.values():
@@ -262,17 +273,14 @@ def _are_mappings_close(
     lhs_keys = lhs.keys()
     rhs_keys = rhs.keys()
 
-    # Keys present only on the left
     for key in lhs_keys - rhs_keys:
         if not lhs[key].ignore:
             return False
 
-    # Keys present only on the right
     for key in rhs_keys - lhs_keys:
         if not rhs[key].ignore:
             return False
 
-    # Keys in common
     for key in lhs_keys & rhs_keys:
         left_item = lhs[key]
         right_item = rhs[key]
@@ -385,4 +393,4 @@ class BendersDecomposedSolution(BendersSolution):
 
     @property
     def duration(self) -> float:
-        return self.data["run_duration"]
+        return self.data["solution"]["run_duration"]

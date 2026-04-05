@@ -36,9 +36,9 @@ class SimulationTableBuilder:
         if output_values.problem is None:
             raise ValueError("OutputValues problem is not set.")
 
-        context = output_values.problem.context
-        block = context._block.id
-        block_size = context.block_length()
+        problem = output_values.problem
+        block = problem.block.id
+        block_size = problem.block_length
 
         absolute_time_offset = absolute_time_offset or (block - 1) * block_size
         assert absolute_time_offset is not None
@@ -124,9 +124,6 @@ class SimulationTableBuilder:
         self, output_values: OutputValues, block: int
     ) -> dict[str, Any]:
         assert output_values.problem is not None, "OutputValues problem is not set"
-        assert (
-            output_values.problem.solver is not None
-        ), "OutputValues problem.solver is not set"
         return {
             SimulationColumns.BLOCK.value: block,
             SimulationColumns.COMPONENT.value: None,
@@ -134,7 +131,7 @@ class SimulationTableBuilder:
             SimulationColumns.ABSOLUTE_TIME_INDEX.value: None,
             SimulationColumns.BLOCK_TIME_INDEX.value: None,
             SimulationColumns.SCENARIO_INDEX.value: None,
-            SimulationColumns.VALUE.value: output_values.problem.solver.Objective().Value(),
+            SimulationColumns.VALUE.value: output_values.problem.objective_value,
             SimulationColumns.BASIS_STATUS.value: None,
         }
 

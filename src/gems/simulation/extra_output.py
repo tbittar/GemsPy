@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from gems.expression.evaluate import ValueProvider
-from gems.simulation.optimization import OptimizationProblem
 from gems.simulation.output_values_base import BaseOutputValue
 from gems.study.data import ComponentParameterIndex, TimeScenarioIndex
 
@@ -40,7 +39,7 @@ class ExtraOutputValueProvider(ValueProvider):
     def __init__(
         self,
         component: Any,
-        problem: OptimizationProblem,
+        problem: Any,
         idx: TimeScenarioIndex,
     ) -> None:
         self.component = component
@@ -66,7 +65,10 @@ class ExtraOutputValueProvider(ValueProvider):
         if model is not None and hasattr(model, "parameters"):
             for pname in model.parameters:
                 try:
-                    val = self.problem.context.database.get_value(
+                    db = getattr(self.problem, "database", None) or getattr(
+                        getattr(self.problem, "context", None), "database", None
+                    )
+                    val = db.get_value(  # type: ignore[union-attr]
                         ComponentParameterIndex(self.component._id, pname),
                         self.idx.time,
                         self.idx.scenario,
