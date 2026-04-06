@@ -258,9 +258,14 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
         except (ValueError, KeyError):
             pass
 
-        # Evaluate the shift expression — may produce a per-component DataArray.
+        # Evaluate the shift expression — must be a parameter (DataArray).
         shift_result = visit(node.time_shift, self)
-        if not isinstance(shift_result, xr.DataArray) or not shift_result.dims:
+        if not isinstance(shift_result, xr.DataArray):
+            raise ValueError(
+                f"Time shift expression must evaluate to a parameter (DataArray), "
+                f"got {type(shift_result).__name__!r}."
+            )
+        if not shift_result.dims:
             # Dimensionless scalar — safe to extract as int.
             return self._apply_time_shift(operand, _da_to_int(shift_result))
 
@@ -335,18 +340,21 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
             else visit(node.to_time, self)
         )
         # Convert to integer arrays (shape [component] or scalar).
-        from_int = (
-            from_da.astype(int) if isinstance(from_da, xr.DataArray) else int(from_da)
-        )
-        to_int = to_da.astype(int) if isinstance(to_da, xr.DataArray) else int(to_da)
-        min_from = (
-            int(from_int.values.min())
-            if isinstance(from_int, xr.DataArray)
-            else from_int
-        )
-        max_to = (
-            int(to_int.values.max()) if isinstance(to_int, xr.DataArray) else to_int
-        )
+        # Both must evaluate to DataArrays (parameter expressions, not variables).
+        if not isinstance(from_da, xr.DataArray):
+            raise ValueError(
+                f"time_sum from_time must be a parameter expression (DataArray), "
+                f"got {type(from_da).__name__!r}."
+            )
+        if not isinstance(to_da, xr.DataArray):
+            raise ValueError(
+                f"time_sum to_time must be a parameter expression (DataArray), "
+                f"got {type(to_da).__name__!r}."
+            )
+        from_int = from_da.astype(int)
+        to_int = to_da.astype(int)
+        min_from = int(from_int.values.min())
+        max_to = int(to_int.values.max())
 
         acc: Optional[LinopyExpression] = None
         for shift in range(min_from, max_to + 1):

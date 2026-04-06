@@ -124,19 +124,6 @@ class LinopyOptimizationProblem:
         """Objective function value after solving."""
         return float(self.linopy_model.objective.value) + self._objective_constant  # type: ignore[arg-type]
 
-    def get_solution(self, model_id: str, var_name: str) -> xr.DataArray:
-        """
-        Return the solution DataArray for a given (model_id, var_name).
-
-        Dims: a subset of [component, time, scenario].
-        """
-        lv = self._linopy_vars.get((model_id, var_name))
-        if lv is None:
-            raise KeyError(
-                f"No linopy variable found for ({model_id!r}, {var_name!r})."
-            )
-        return self.linopy_model.solution[lv.name]
-
     def expand_operators_for_extra_output(
         self,
         expression: ExpressionNode,
