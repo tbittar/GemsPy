@@ -10,10 +10,6 @@
 #
 # This file is part of the Antares project.
 
-from .benders_decomposed import (
-    BendersDecomposedProblem,
-    build_benders_decomposed_problem,
-)
 from .decision_tree import DecisionTreeNode, InterDecisionTimeScenarioConfig
 from .linopy_problem import (
     BlockBorderManagement,
