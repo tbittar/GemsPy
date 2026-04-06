@@ -13,9 +13,20 @@
 """
 Linopy-based optimization problem builder.
 
-Replaces the OR-Tools based OptimizationProblem / build_problem pipeline with
-a vectorized linopy pipeline that processes all components of a model in a
-single pass, instead of iterating per (component, time-step, scenario).
+Provides :func:`build_problem` and :class:`LinopyOptimizationProblem`.
+The builder groups network components by model, then constructs the full
+optimization problem in four phases:
+
+1. Parameter arrays — convert database values to xarray DataArrays indexed
+   on ``[component, time, scenario]``.
+2. Decision variables — create one linopy ``Variable`` per model variable,
+   covering all components of that model at once.
+3. Port arrays — resolve port connections via an incidence matrix so that
+   port-field expressions are available as linopy ``LinearExpression`` objects.
+4. Constraints and objective — traverse each constraint AST once with
+   :class:`~gems.simulation.linopy_linearize.VectorizedLinopyBuilder` to
+   produce vectorized linopy constraints added in a single
+   ``Model.add_constraints()`` call per constraint type.
 """
 
 from collections import defaultdict

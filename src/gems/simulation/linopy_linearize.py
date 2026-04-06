@@ -13,9 +13,12 @@
 """
 Vectorized linopy expression builder.
 
-Instead of instantiating ASTs per-component (scalar pipeline), this visitor
-traverses a model-level AST once and produces a linopy LinearExpression that
-covers all components × all time steps × all scenarios simultaneously.
+Provides :class:`VectorizedLinopyBuilder`, an :class:`ExpressionVisitor` that
+traverses a model-level AST once and produces a linopy ``LinearExpression``
+covering all components × all time steps × all scenarios simultaneously.
+Each AST node type (arithmetic, time operators, port fields, scenario
+operators) is handled by a dedicated visitor method that operates on
+xarray-backed linopy objects, enabling vectorized constraint generation.
 """
 
 from dataclasses import dataclass
