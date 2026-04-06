@@ -229,9 +229,7 @@ def test_generation_xpansion_single_time_step_single_scenario(
     )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
-    assert problem.objective_value == pytest.approx(
-        490 * 100 + 100 * 10 + 200 * 40
-    )
+    assert problem.objective_value == pytest.approx(490 * 100 + 100 * 10 + 200 * 40)
 
     output = OutputValues(problem)
     expected_output = OutputValues()

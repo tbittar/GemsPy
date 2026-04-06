@@ -127,7 +127,9 @@ def test_stochastic_model_with_HD_for_thermal_startup(
     for block in time_blocks:  # TODO : To manage blocks simply for now
         problem = build_problem(network, database, block, scenarios)
         problem.solve(solver_name="highs")
-        assert problem.termination_condition == "optimal"  # Tester qu'on trouve bien la solution optimale
+        assert (
+            problem.termination_condition == "optimal"
+        )  # Tester qu'on trouve bien la solution optimale
 
         # Generation, nb_on, nb_start, nb_stop for each of 3 thermal clusters
         nb_anticipative_time_varying_var = 4 * 3
@@ -181,7 +183,9 @@ def test_stochastic_model_with_DH_for_thermal_startup(
     for block in time_blocks:  # TODO : To manage blocks simply for now
         problem = build_problem(network, database, block, scenarios)
         problem.solve(solver_name="highs")
-        assert problem.termination_condition == "optimal"  # Tester qu'on trouve bien la solution optimale
+        assert (
+            problem.termination_condition == "optimal"
+        )  # Tester qu'on trouve bien la solution optimale
 
         # Generation for each of 3 thermal clusters
         nb_anticipative_time_varying_var = 3

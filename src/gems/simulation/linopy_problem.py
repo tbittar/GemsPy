@@ -250,7 +250,9 @@ class _LinopyProblemBuilder:
 
         # Extract constant objective contribution (linopy cannot hold pure constants).
         objective_constant = 0.0
-        if total_obj is not None and not isinstance(total_obj, (xr.DataArray, int, float)):
+        if total_obj is not None and not isinstance(
+            total_obj, (xr.DataArray, int, float)
+        ):
             self.linopy_model.add_objective(total_obj)  # type: ignore[arg-type]
         elif total_obj is not None:
             if isinstance(total_obj, xr.DataArray):
@@ -386,8 +388,10 @@ class _LinopyProblemBuilder:
 
             # Shape of this variable (used to broadcast scalar bounds)
             var_shape = tuple(
-                len(comp_ids) if d == "component"
-                else len(self.time_coord) if d == "time"
+                len(comp_ids)
+                if d == "component"
+                else len(self.time_coord)
+                if d == "time"
                 else len(self.scenario_coord)
                 for d in dims
             )
@@ -442,8 +446,16 @@ class _LinopyProblemBuilder:
             upper_arr = upper if isinstance(upper, np.ndarray) else np.array(upper)
             for ci, comp_id in enumerate(comp_ids):
                 # Slice first element if multi-dim, else use scalar
-                lo_val = float(lower_arr[ci].flat[0]) if lower_arr.ndim > 0 else float(lower_arr)
-                up_val = float(upper_arr[ci].flat[0]) if upper_arr.ndim > 0 else float(upper_arr)
+                lo_val = (
+                    float(lower_arr[ci].flat[0])
+                    if lower_arr.ndim > 0
+                    else float(lower_arr)
+                )
+                up_val = (
+                    float(upper_arr[ci].flat[0])
+                    if upper_arr.ndim > 0
+                    else float(upper_arr)
+                )
                 if not np.isinf(lo_val) and not np.isinf(up_val) and up_val < lo_val:
                     raise ValueError(
                         f"Upper bound ({up_val:g}) must be strictly greater than "
@@ -569,11 +581,7 @@ class _LinopyProblemBuilder:
 
             contribution = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
 
-            total = (
-                contribution
-                if total is None
-                else _linopy_add(total, contribution)
-            )
+            total = contribution if total is None else _linopy_add(total, contribution)
 
         return total if total is not None else xr.DataArray(0.0)
 
@@ -673,9 +681,7 @@ class _LinopyProblemBuilder:
 # ---------------------------------------------------------------------------
 
 
-def _linopy_add(
-    a: LinopyExpression, b: LinopyExpression
-) -> LinopyExpression:
+def _linopy_add(a: LinopyExpression, b: LinopyExpression) -> LinopyExpression:
     """
     Add two linopy-compatible expressions, ensuring linopy types are on the left.
 

@@ -76,7 +76,9 @@ def _da_to_int(da: xr.DataArray) -> int:
     """Extract the first element of a DataArray as an integer (for constant time shifts)."""
     val = float(da.values.flat[0])
     if not val.is_integer():
-        raise ValueError(f"Expected integer DataArray value for time shift, got {val!r}.")
+        raise ValueError(
+            f"Expected integer DataArray value for time shift, got {val!r}."
+        )
     return int(val)
 
 
@@ -336,18 +338,14 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
         from_int = (
             from_da.astype(int) if isinstance(from_da, xr.DataArray) else int(from_da)
         )
-        to_int = (
-            to_da.astype(int) if isinstance(to_da, xr.DataArray) else int(to_da)
-        )
+        to_int = to_da.astype(int) if isinstance(to_da, xr.DataArray) else int(to_da)
         min_from = (
             int(from_int.values.min())
             if isinstance(from_int, xr.DataArray)
             else from_int
         )
         max_to = (
-            int(to_int.values.max())
-            if isinstance(to_int, xr.DataArray)
-            else to_int
+            int(to_int.values.max()) if isinstance(to_int, xr.DataArray) else to_int
         )
 
         acc: Optional[LinopyExpression] = None
