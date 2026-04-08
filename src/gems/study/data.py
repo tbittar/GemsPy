@@ -51,9 +51,7 @@ class Scenarization:
 @dataclass(frozen=True)
 class AbstractDataStructure(ABC):
     @abstractmethod
-    def get_value(
-        self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
-    ) -> float:
+    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
         raise NotImplementedError()
 
     @abstractmethod
@@ -69,9 +67,7 @@ class AbstractDataStructure(ABC):
 class ConstantData(AbstractDataStructure):
     value: float
 
-    def get_value(
-        self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
-    ) -> float:
+    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
         return self.value
 
     # ConstantData can be used for time varying or constant models
@@ -91,9 +87,7 @@ class TimeSeriesData(AbstractDataStructure):
 
     time_series: Mapping[TimeIndex, float]
 
-    def get_value(
-        self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
-    ) -> float:
+    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
         if timestep is None:
             raise KeyError("Time series data requires a time index.")
         return self.time_series[TimeIndex(timestep)]
@@ -116,9 +110,7 @@ class ScenarioSeriesData(AbstractDataStructure):
     scenario_series: Mapping[ScenarioIndex, float]
     scenarization: Optional[Scenarization] = None
 
-    def get_value(
-        self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
-    ) -> float:
+    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
         if scenario is None:
             raise KeyError("Scenario series data requires a scenario index.")
         if self.scenarization:
@@ -201,9 +193,7 @@ class TimeScenarioSeriesData(AbstractDataStructure):
     time_scenario_series: pd.DataFrame
     scenarization: Optional[Scenarization] = None
 
-    def get_value(
-        self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
-    ) -> float:
+    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
         if timestep is None:
             raise KeyError("Time scenario data requires a time index.")
         if scenario is None:
@@ -218,22 +208,6 @@ class TimeScenarioSeriesData(AbstractDataStructure):
             raise ValueError("Invalid data type for TimeScenarioSeriesData")
 
         return time and scenario
-
-
-@dataclass(frozen=True)
-class TreeData(AbstractDataStructure):
-    data: Mapping[str, AbstractDataStructure]
-
-    def get_value(
-        self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
-    ) -> float:
-        return self.data[node_id].get_value(timestep, scenario)
-
-    def check_requirement(self, time: bool, scenario: bool) -> bool:
-        return all(
-            node_data.check_requirement(time, scenario)
-            for node_data in self.data.values()
-        )
 
 
 @dataclass(frozen=True)
