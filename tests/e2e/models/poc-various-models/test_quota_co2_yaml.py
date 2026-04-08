@@ -89,6 +89,12 @@ def test_quota_co2(
     assert math.isclose(problem.objective_value, 5500)
 
     df = SimulationTableBuilder().build(problem)
-    assert math.isclose(df[(df["component"] == "Oil1") & (df["output"] == "p")]["value"].iloc[0], 50)
-    assert math.isclose(df[(df["component"] == "Coal1") & (df["output"] == "p")]["value"].iloc[0], 50)
-    assert math.isclose(df[(df["component"] == "L12") & (df["output"] == "flow")]["value"].iloc[0], -50)
+    assert math.isclose(
+        df[(df["component"] == "Oil1") & (df["output"] == "p")]["value"].iloc[0], 50
+    )
+    assert math.isclose(
+        df[(df["component"] == "Coal1") & (df["output"] == "p")]["value"].iloc[0], 50
+    )
+    assert math.isclose(
+        df[(df["component"] == "L12") & (df["output"] == "flow")]["value"].iloc[0], -50
+    )

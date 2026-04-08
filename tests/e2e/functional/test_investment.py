@@ -232,9 +232,15 @@ def test_generation_xpansion_single_time_step_single_scenario(
     assert problem.objective_value == pytest.approx(490 * 100 + 100 * 10 + 200 * 40)
 
     df = SimulationTableBuilder().build(problem)
-    assert df[(df["component"] == "G1") & (df["output"] == "generation")]["value"].iloc[0] == pytest.approx(200.0)
-    assert df[(df["component"] == "CAND") & (df["output"] == "generation")]["value"].iloc[0] == pytest.approx(100.0)
-    assert df[(df["component"] == "CAND") & (df["output"] == "p_max")]["value"].iloc[0] == pytest.approx(100.0)
+    assert df[(df["component"] == "G1") & (df["output"] == "generation")]["value"].iloc[
+        0
+    ] == pytest.approx(200.0)
+    assert df[(df["component"] == "CAND") & (df["output"] == "generation")][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
+    assert df[(df["component"] == "CAND") & (df["output"] == "p_max")]["value"].iloc[
+        0
+    ] == pytest.approx(100.0)
 
 
 def test_two_candidates_xpansion_single_time_step_single_scenario(
@@ -302,12 +308,24 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
     )
 
     df = SimulationTableBuilder().build(problem)
-    assert df[(df["component"] == "G1") & (df["output"] == "generation")]["value"].iloc[0] == pytest.approx(200.0)
-    assert df[(df["component"] == "CAND") & (df["output"] == "generation")]["value"].iloc[0] == pytest.approx(100.0)
-    assert df[(df["component"] == "CAND") & (df["output"] == "p_max")]["value"].iloc[0] == pytest.approx(100.0)
-    assert df[(df["component"] == "DISCRETE") & (df["output"] == "generation")]["value"].iloc[0] == pytest.approx(100.0)
-    assert df[(df["component"] == "DISCRETE") & (df["output"] == "p_max")]["value"].iloc[0] == pytest.approx(100.0)
-    assert df[(df["component"] == "DISCRETE") & (df["output"] == "nb_units")]["value"].iloc[0] == pytest.approx(10.0)
+    assert df[(df["component"] == "G1") & (df["output"] == "generation")]["value"].iloc[
+        0
+    ] == pytest.approx(200.0)
+    assert df[(df["component"] == "CAND") & (df["output"] == "generation")][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
+    assert df[(df["component"] == "CAND") & (df["output"] == "p_max")]["value"].iloc[
+        0
+    ] == pytest.approx(100.0)
+    assert df[(df["component"] == "DISCRETE") & (df["output"] == "generation")][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
+    assert df[(df["component"] == "DISCRETE") & (df["output"] == "p_max")][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
+    assert df[(df["component"] == "DISCRETE") & (df["output"] == "nb_units")][
+        "value"
+    ].iloc[0] == pytest.approx(10.0)
 
 
 def test_generation_xpansion_two_time_steps_two_scenarios(
@@ -382,15 +400,33 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
     df = SimulationTableBuilder().build(problem)
 
     g1 = df[(df["component"] == "G1") & (df["output"] == "generation")]
-    assert g1[(g1["scenario-index"] == 0) & (g1["block-time-index"] == 0)]["value"].iloc[0] == pytest.approx(0.0)
-    assert g1[(g1["scenario-index"] == 0) & (g1["block-time-index"] == 1)]["value"].iloc[0] == pytest.approx(200.0)
-    assert g1[(g1["scenario-index"] == 1) & (g1["block-time-index"] == 0)]["value"].iloc[0] == pytest.approx(0.0)
-    assert g1[(g1["scenario-index"] == 1) & (g1["block-time-index"] == 1)]["value"].iloc[0] == pytest.approx(100.0)
+    assert g1[(g1["scenario-index"] == 0) & (g1["block-time-index"] == 0)][
+        "value"
+    ].iloc[0] == pytest.approx(0.0)
+    assert g1[(g1["scenario-index"] == 0) & (g1["block-time-index"] == 1)][
+        "value"
+    ].iloc[0] == pytest.approx(200.0)
+    assert g1[(g1["scenario-index"] == 1) & (g1["block-time-index"] == 0)][
+        "value"
+    ].iloc[0] == pytest.approx(0.0)
+    assert g1[(g1["scenario-index"] == 1) & (g1["block-time-index"] == 1)][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
 
     cand = df[(df["component"] == "CAND") & (df["output"] == "generation")]
-    assert cand[(cand["scenario-index"] == 0) & (cand["block-time-index"] == 0)]["value"].iloc[0] == pytest.approx(300.0)
-    assert cand[(cand["scenario-index"] == 0) & (cand["block-time-index"] == 1)]["value"].iloc[0] == pytest.approx(300.0)
-    assert cand[(cand["scenario-index"] == 1) & (cand["block-time-index"] == 0)]["value"].iloc[0] == pytest.approx(200.0)
-    assert cand[(cand["scenario-index"] == 1) & (cand["block-time-index"] == 1)]["value"].iloc[0] == pytest.approx(300.0)
+    assert cand[(cand["scenario-index"] == 0) & (cand["block-time-index"] == 0)][
+        "value"
+    ].iloc[0] == pytest.approx(300.0)
+    assert cand[(cand["scenario-index"] == 0) & (cand["block-time-index"] == 1)][
+        "value"
+    ].iloc[0] == pytest.approx(300.0)
+    assert cand[(cand["scenario-index"] == 1) & (cand["block-time-index"] == 0)][
+        "value"
+    ].iloc[0] == pytest.approx(200.0)
+    assert cand[(cand["scenario-index"] == 1) & (cand["block-time-index"] == 1)][
+        "value"
+    ].iloc[0] == pytest.approx(300.0)
 
-    assert df[(df["component"] == "CAND") & (df["output"] == "p_max")]["value"].iloc[0] == pytest.approx(300.0)
+    assert df[(df["component"] == "CAND") & (df["output"] == "p_max")]["value"].iloc[
+        0
+    ] == pytest.approx(300.0)
