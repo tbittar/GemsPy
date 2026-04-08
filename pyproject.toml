@@ -37,7 +37,9 @@ dependencies = [
     "anytree>=2.12",
     "linopy>=0.6",
     "xarray",
-    "highspy",
+    "highspy",  # HiGHS solver backend, called via linopy solve(solver_name="highs")
+    "pandas",
+    "attrs",
 ]
 classifiers = [
    #    Classifiers here: https://pypi.org/classifiers/
