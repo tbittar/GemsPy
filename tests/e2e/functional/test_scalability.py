@@ -4,12 +4,22 @@ import numpy as np
 import pandas as pd
 
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component, TimeScenarioSeriesData
+from gems.study import (
+    ConstantData,
+    DataBase,
+    Network,
+    Node,
+    PortRef,
+    TimeScenarioSeriesData,
+    create_component,
+)
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,
     GENERATOR_MODEL_WITH_STORAGE,
     NODE_BALANCE_MODEL,
 )
+
+
 def generate_scalar_matrix_data(
     value: float, horizon: int, scenarios: int
 ) -> TimeScenarioSeriesData:
@@ -27,13 +37,13 @@ def test_basic_balance_on_whole_year_with_large_sum() -> None:
     for horizon in [10000]:
         durations[int(horizon)] = build_for_horizon(int(horizon), 1)
 
-    duration_df = pd.DataFrame.from_dict(durations, orient='index')
-    duration_df.columns = ['build time']
+    duration_df = pd.DataFrame.from_dict(durations, orient="index")
+    duration_df.columns = ["build time"]
     print(duration_df)
     duration_df.to_csv("build_time_scalability.csv")
 
-def build_for_horizon(horizon_size, scenario_count):
 
+def build_for_horizon(horizon_size, scenario_count):
     scenarios = scenario_count
     time_block = TimeBlock(1, list(range(horizon_size)))
     database = DataBase()
@@ -63,6 +73,7 @@ def build_for_horizon(horizon_size, scenario_count):
     end = time.time()
     print(f"Time elapsed for horizon {horizon_size}: {end - start:.4f}")
     return end - start
+
 
 if __name__ == "__main__":
     test_basic_balance_on_whole_year_with_large_sum()
