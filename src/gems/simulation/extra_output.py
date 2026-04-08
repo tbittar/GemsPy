@@ -285,4 +285,3 @@ class VectorizedExtraOutputBuilder(ExpressionVisitor[xr.DataArray]):
         for op in operands[1:]:
             result = xr.where(result <= op, result, op)  # type: ignore[no-untyped-call,assignment]
         return result
-

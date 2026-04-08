@@ -42,6 +42,7 @@ class ParameterResolver(CopyVisitor):
         value: float = self.context.get_parameter_value(node.name)
         return LiteralNode(value)
 
+
 def resolve_parameters(
     expression: ExpressionNode, parameter_provider: ParameterValueProvider
 ) -> ExpressionNode:

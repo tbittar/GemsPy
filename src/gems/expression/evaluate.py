@@ -54,6 +54,7 @@ class ValueProvider(ABC):
     def get_parameter_value(self, name: str) -> float:
         ...
 
+
 @dataclass(frozen=True)
 class EvaluationContext(ValueProvider):
     """
@@ -69,6 +70,7 @@ class EvaluationContext(ValueProvider):
 
     def get_parameter_value(self, name: str) -> float:
         return self.parameters[name]
+
 
 @dataclass(frozen=True)
 class EvaluationVisitor(ExpressionVisitorOperations[float]):

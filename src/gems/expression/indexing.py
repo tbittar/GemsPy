@@ -50,6 +50,7 @@ class IndexingStructureProvider(ABC):
     def get_variable_structure(self, name: str) -> IndexingStructure:
         ...
 
+
 @dataclass(frozen=True)
 class TimeScenarioIndexingVisitor(ExpressionVisitor[IndexingStructure]):
     """
