@@ -62,7 +62,7 @@ from gems.study.data import (
     TimeSeriesData,
     TreeData,
 )
-from gems.study.network import Component, Network, PortsConnection
+from gems.study.network import Component, Network
 
 
 class BlockBorderManagement(Enum):
@@ -407,65 +407,41 @@ class _LinopyProblemBuilder:
                 scenarios_count=self.scenarios,
             )
 
-            def _to_bound_array(val: object) -> np.ndarray:
-                """Convert a bound value to a numpy array shaped like var_shape.
+            lower: object = (
+                np.full(var_shape, -np.inf)
+                if var.lower_bound is None
+                else self._to_bound_array(
+                    visit(var.lower_bound, bound_builder), var_shape, dims
+                )
+            )
+            upper: object = (
+                np.full(var_shape, np.inf)
+                if var.upper_bound is None
+                else self._to_bound_array(
+                    visit(var.upper_bound, bound_builder), var_shape, dims
+                )
+            )
 
-                Handles scalar DataArrays, partial-dim DataArrays (e.g. a
-                constant parameter used as bound for a time×scenario variable),
-                plain floats, and raw numpy arrays.
-                """
-                if isinstance(val, xr.DataArray):
-                    if val.dims == ():
-                        return np.full(var_shape, float(val.item()))
-                    # Expand missing dims so numpy can broadcast to var_shape.
-                    arr = val.values  # shape may be a subset of var_shape dims
-                    for ax, d in enumerate(dims):
-                        if d not in val.dims:
-                            arr = np.expand_dims(arr, axis=ax)
-                    return np.broadcast_to(arr, var_shape).copy()  # type: ignore[return-value]
-                if isinstance(val, (int, float)):
-                    return np.full(var_shape, float(val))
-                return val  # type: ignore[return-value]
-
-            # Lower bound
-            lower: object
-            if var.lower_bound is None:
-                lower = np.full(var_shape, -np.inf)
-            else:
-                lower = _to_bound_array(visit(var.lower_bound, bound_builder))
-
-            # Upper bound
-            upper: object
-            if var.upper_bound is None:
-                upper = np.full(var_shape, np.inf)
-            else:
-                upper = _to_bound_array(visit(var.upper_bound, bound_builder))
-
-            # Validate bounds: upper must be strictly > lower for each component
+            # Validate bounds: upper must be >= lower across all timesteps/scenarios
             lower_arr = lower if isinstance(lower, np.ndarray) else np.array(lower)
             upper_arr = upper if isinstance(upper, np.ndarray) else np.array(upper)
             for ci, comp_id in enumerate(comp_ids):
-                # Slice first element if multi-dim, else use scalar
-                lo_val = (
-                    float(lower_arr[ci].flat[0])
-                    if lower_arr.ndim > 0
-                    else float(lower_arr)
-                )
-                up_val = (
-                    float(upper_arr[ci].flat[0])
-                    if upper_arr.ndim > 0
-                    else float(upper_arr)
-                )
-                if not np.isinf(lo_val) and not np.isinf(up_val) and up_val < lo_val:
+                lo = np.asarray(lower_arr[ci] if lower_arr.ndim > 0 else lower_arr)
+                up = np.asarray(upper_arr[ci] if upper_arr.ndim > 0 else upper_arr)
+                finite = np.isfinite(lo) & np.isfinite(up)
+                violation = finite & (up < lo)
+                if np.any(violation):
+                    idx = int(np.argmax(violation))
                     raise ValueError(
-                        f"Upper bound ({up_val:g}) must be strictly greater than "
-                        f"lower bound ({lo_val:g}) for variable {comp_id}.{var.name}"
+                        f"Upper bound ({float(up.flat[idx]):g}) must be strictly "
+                        f"greater than lower bound ({float(lo.flat[idx]):g}) "
+                        f"for variable {comp_id}.{var.name}"
                     )
 
             prefix = self.model_var_prefix[id(model)]
             name = f"{prefix}__{var.name}"
             binary = var.data_type == ValueType.BOOLEAN
-            integer = var.data_type in (ValueType.INTEGER, ValueType.BOOLEAN)
+            integer = var.data_type == ValueType.INTEGER
 
             lv = self.linopy_model.add_variables(
                 lower=lower,
@@ -473,7 +449,7 @@ class _LinopyProblemBuilder:
                 coords=coords,
                 name=name,
                 binary=binary,
-                integer=integer and not binary,
+                integer=integer,
             )
             self.linopy_vars[(id(model), var.name)] = lv
 
@@ -509,16 +485,15 @@ class _LinopyProblemBuilder:
                 else:
                     # M is the slave — collect contributions from connected masters
                     port_arrays[pf_id] = self._build_slave_port_array(
-                        model, comp_ids, n, port_name, field_name
+                        comp_ids, n, port_name, field_name
                     )
 
         self.port_arrays[id(model)] = port_arrays
 
     def _build_slave_port_array(
         self,
-        model: Model,
         comp_ids: List[str],
-        n: int,
+        n_components: int,
         port_name: str,
         field_name: str,
     ) -> LinopyExpression:
@@ -535,10 +510,16 @@ class _LinopyProblemBuilder:
             Tuple[int, PortFieldId], List[Tuple[int, Component]]
         ] = defaultdict(list)
 
-        for i, comp_m in enumerate(comp_ids):
-            for cnx in self.network.connections:
-                if not _involves(cnx, comp_m, port_name):
+        comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
+        comp_id_set = set(comp_ids)
+        for cnx in self.network.connections:
+            for port_ref in [cnx.port1, cnx.port2]:
+                if (
+                    port_ref.port_id != port_name
+                    or port_ref.component.id not in comp_id_set
+                ):
                     continue
+                i = comp_index[port_ref.component.id]
                 master_ref = cnx.master_port.get(PortField(name=field_name))
                 if master_ref is None:
                     continue
@@ -559,7 +540,7 @@ class _LinopyProblemBuilder:
             n_prime = len(master_comps)
 
             # Incidence matrix A[i, j] = 1 if master_comps[j] connects to comp_ids[i]
-            A_data = np.zeros((n, n_prime))
+            A_data = np.zeros((n_components, n_prime))
             for i, master_comp in conn_list:
                 j = master_comp_ids.index(master_comp.id)
                 A_data[i, j] += 1.0
@@ -652,8 +633,32 @@ class _LinopyProblemBuilder:
         return total_obj
 
     # ------------------------------------------------------------------
-    # Helper
+    # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _to_bound_array(
+        val: object,
+        var_shape: Tuple[int, ...],
+        dims: List[str],
+    ) -> np.ndarray:
+        """Convert a bound value to a numpy array shaped like *var_shape*.
+
+        Handles scalar DataArrays, partial-dim DataArrays (e.g. a constant
+        parameter used as a bound for a time×scenario variable), plain floats,
+        and raw numpy arrays.
+        """
+        if isinstance(val, xr.DataArray):
+            if val.dims == ():
+                return np.full(var_shape, float(val.item()))
+            arr = val.values  # shape may be a subset of var_shape dims
+            for ax, d in enumerate(dims):
+                if d not in val.dims:
+                    arr = np.expand_dims(arr, axis=ax)
+            return np.broadcast_to(arr, var_shape).copy()  # type: ignore[return-value]
+        if isinstance(val, (int, float)):
+            return np.full(var_shape, float(val))
+        return val  # type: ignore[return-value]
 
     def _make_builder(
         self,
@@ -686,13 +691,6 @@ def _linopy_add(a: LinopyExpression, b: LinopyExpression) -> LinopyExpression:
     if isinstance(a, xr.DataArray) and not isinstance(b, xr.DataArray):
         return b + a  # type: ignore[operator]  # linopy on left
     return a + b  # type: ignore[operator]
-
-
-def _involves(cnx: PortsConnection, component_id: str, port_name: str) -> bool:
-    """Return True if *cnx* connects *component_id* at *port_name*."""
-    return (
-        cnx.port1.component.id == component_id and cnx.port1.port_id == port_name
-    ) or (cnx.port2.component.id == component_id and cnx.port2.port_id == port_name)
 
 
 def _make_network_structure_provider(network: Network) -> IndexingStructureProvider:
