@@ -29,7 +29,6 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import xarray as xr
 
-from gems.expression.evaluate import EvaluationContext, EvaluationVisitor
 from gems.expression.expression import (
     AdditionNode,
     AllTimeSumNode,
@@ -59,6 +58,7 @@ from gems.expression.expression import (
 from gems.expression.visitor import ExpressionVisitor, visit
 from gems.model.model import Model
 from gems.model.port import PortFieldId
+from gems.simulation.linopy_linearize import _da_to_int, _eval_int, _has_dim
 from gems.simulation.linopy_problem import (
     _build_incidence_matrix,
     _group_port_connections_by_master,
@@ -66,34 +66,6 @@ from gems.simulation.linopy_problem import (
 from gems.simulation.output_values_base import BaseOutputValue
 from gems.study.data import TimeScenarioIndex
 from gems.study.network import Component, Network
-
-
-def _eval_int(node: ExpressionNode) -> int:
-    """Evaluate a constant expression node to an integer (e.g. a time shift)."""
-    visitor = EvaluationVisitor(EvaluationContext())
-    value = visit(node, visitor)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    raise ValueError(
-        f"Expected an integer constant expression, got {value!r} from {node!r}."
-    )
-
-
-def _da_to_int(da: xr.DataArray) -> int:
-    """Extract the first element of a DataArray as an integer."""
-    val = float(da.values.flat[0])
-    if not float(val).is_integer():
-        raise ValueError(
-            f"Expected integer DataArray value for time shift, got {val!r}."
-        )
-    return int(val)
-
-
-def _has_dim(da: xr.DataArray, dim: str) -> bool:
-    """Return True if the DataArray has the named dimension."""
-    return dim in da.dims
 
 
 @dataclass
