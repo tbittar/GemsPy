@@ -511,28 +511,9 @@ class _LinopyProblemBuilder:
         Build port array by summing contributions from all connected master components,
         using an incidence matrix for each contributing master model.
         """
-        # Group connections by (id(master_model), master_port_field_id).
-        # Using id(master_model) instead of master_model.id ensures two distinct Model
-        # objects with the same .id string are never confused.
-        # Grouping by master_pf_id is critical: a component can connect via different
-        # ports (e.g. link.in_port and link.out_port) which have different definitions.
-        per_master: Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]] = (
-            defaultdict(list)
+        per_master = _group_port_connections_by_master(
+            comp_ids, port_name, field_name, self.network
         )
-
-        for i, comp_m in enumerate(comp_ids):
-            for cnx in self.network.connections:
-                if not _involves(cnx, comp_m, port_name):
-                    continue
-                master_ref = cnx.master_port.get(PortField(name=field_name))
-                if master_ref is None:
-                    continue
-                master_comp = master_ref.component
-                master_pf_id = PortFieldId(master_ref.port_id, field_name)
-                per_master[(id(master_comp.model), master_pf_id)].append(
-                    (i, master_comp)
-                )
-
         if not per_master:
             return xr.DataArray(0.0)
 
@@ -541,31 +522,16 @@ class _LinopyProblemBuilder:
         for (master_mk, master_pf_id), conn_list in per_master.items():
             master_comps = self.model_components[master_mk]
             master_comp_ids = [c.id for c in master_comps]
-            n_prime = len(master_comps)
 
-            # Incidence matrix A[i, j] = 1 if master_comps[j] connects to comp_ids[i]
-            A_data = np.zeros((n, n_prime))
-            for i, master_comp in conn_list:
-                j = master_comp_ids.index(master_comp.id)
-                A_data[i, j] += 1.0
+            A = _build_incidence_matrix(comp_ids, master_comp_ids, conn_list)
 
-            A = xr.DataArray(
-                A_data,
-                dims=["component", "component_master"],
-                coords={"component": comp_ids, "component_master": master_comp_ids},
-            )
-
-            # Visit the master's port field definition for this specific port
             master_model = self.models[master_mk]
             defn = master_model.port_fields_definitions[master_pf_id].definition
             master_builder = self._make_builder(master_model, port_arrays={})
             expr_master = visit(defn, master_builder)
 
-            # Rename master's 'component' dim to 'component_master' for broadcasting
             expr_master_r = expr_master.rename({"component": "component_master"})  # type: ignore[union-attr]
-
             contribution = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
-
             total = contribution if total is None else _linopy_add(total, contribution)
 
         return total if total is not None else xr.DataArray(0.0)
@@ -678,6 +644,58 @@ def _involves(cnx: PortsConnection, component_id: str, port_name: str) -> bool:
     return (
         cnx.port1.component.id == component_id and cnx.port1.port_id == port_name
     ) or (cnx.port2.component.id == component_id and cnx.port2.port_id == port_name)
+
+
+def _group_port_connections_by_master(
+    comp_ids: List[str],
+    port_name: str,
+    field_name: str,
+    network: Network,
+) -> Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]]:
+    """
+    Group port connections by (master_model_key, master_port_field_id).
+
+    Returns a mapping from each ``(id(master_model), master_pf_id)`` to the list
+    of ``(slave_index, master_component)`` pairs that connect to that master port.
+    Using ``id(master_model)`` ensures two distinct Model objects with the same
+    ``.id`` string are never confused.
+    """
+    per_master: Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]] = (
+        defaultdict(list)
+    )
+    for i, comp_m in enumerate(comp_ids):
+        for cnx in network.connections:
+            if not _involves(cnx, comp_m, port_name):
+                continue
+            master_ref = cnx.master_port.get(PortField(name=field_name))
+            if master_ref is None:
+                continue
+            master_comp = master_ref.component
+            master_pf_id = PortFieldId(master_ref.port_id, field_name)
+            per_master[(id(master_comp.model), master_pf_id)].append((i, master_comp))
+    return per_master
+
+
+def _build_incidence_matrix(
+    comp_ids: List[str],
+    master_comp_ids: List[str],
+    conn_list: List[Tuple[int, Component]],
+) -> xr.DataArray:
+    """
+    Build incidence matrix A where ``A[i, j] = 1`` if ``master_comps[j]``
+    connects to ``comp_ids[i]``.
+    """
+    n = len(comp_ids)
+    n_prime = len(master_comp_ids)
+    A_data = np.zeros((n, n_prime))
+    for i, master_comp in conn_list:
+        j = master_comp_ids.index(master_comp.id)
+        A_data[i, j] += 1.0
+    return xr.DataArray(
+        A_data,
+        dims=["component", "component_master"],
+        coords={"component": comp_ids, "component_master": master_comp_ids},
+    )
 
 
 # ---------------------------------------------------------------------------

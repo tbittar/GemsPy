@@ -23,7 +23,6 @@ DataArrays from the linopy solution, enabling ``sum_connections`` in extra
 output expressions.
 """
 
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -59,10 +58,14 @@ from gems.expression.expression import (
 )
 from gems.expression.visitor import ExpressionVisitor, visit
 from gems.model.model import Model
-from gems.model.port import PortField, PortFieldId
+from gems.model.port import PortFieldId
+from gems.simulation.linopy_problem import (
+    _build_incidence_matrix,
+    _group_port_connections_by_master,
+)
 from gems.simulation.output_values_base import BaseOutputValue
 from gems.study.data import TimeScenarioIndex
-from gems.study.network import Component, Network, PortsConnection
+from gems.study.network import Component, Network
 
 
 def _eval_int(node: ExpressionNode) -> int:
@@ -91,13 +94,6 @@ def _da_to_int(da: xr.DataArray) -> int:
 def _has_dim(da: xr.DataArray, dim: str) -> bool:
     """Return True if the DataArray has the named dimension."""
     return dim in da.dims
-
-
-def _involves(cnx: PortsConnection, component_id: str, port_name: str) -> bool:
-    """Return True if *cnx* connects *component_id* at *port_name*."""
-    return (
-        cnx.port1.component.id == component_id and cnx.port1.port_id == port_name
-    ) or (cnx.port2.component.id == component_id and cnx.port2.port_id == port_name)
 
 
 @dataclass
@@ -524,24 +520,11 @@ def _build_slave_port_array_xarray(
 ) -> xr.DataArray:
     """
     Build a slave port array as a sum over connected master contributions,
-    using an incidence matrix (same logic as _LinopyProblemBuilder._build_slave_port_array).
+    using the shared incidence-matrix helpers from linopy_problem.
     """
-    n = len(comp_ids)
-    per_master: Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]] = (
-        defaultdict(list)
+    per_master = _group_port_connections_by_master(
+        comp_ids, port_name, field_name, network
     )
-
-    for i, comp_m in enumerate(comp_ids):
-        for cnx in network.connections:
-            if not _involves(cnx, comp_m, port_name):
-                continue
-            master_ref = cnx.master_port.get(PortField(name=field_name))
-            if master_ref is None:
-                continue
-            master_comp = master_ref.component
-            master_pf_id = PortFieldId(master_ref.port_id, field_name)
-            per_master[(id(master_comp.model), master_pf_id)].append((i, master_comp))
-
     if not per_master:
         return xr.DataArray(0.0)
 
@@ -550,18 +533,8 @@ def _build_slave_port_array_xarray(
     for (master_mk, master_pf_id), conn_list in per_master.items():
         master_comps = all_model_components[master_mk]
         master_comp_ids = [c.id for c in master_comps]
-        n_prime = len(master_comps)
 
-        A_data = np.zeros((n, n_prime))
-        for i, master_comp in conn_list:
-            j = master_comp_ids.index(master_comp.id)
-            A_data[i, j] += 1.0
-
-        A = xr.DataArray(
-            A_data,
-            dims=["component", "component_master"],
-            coords={"component": comp_ids, "component_master": master_comp_ids},
-        )
+        A = _build_incidence_matrix(comp_ids, master_comp_ids, conn_list)
 
         master_model = all_models[master_mk]
         defn = master_model.port_fields_definitions[master_pf_id].definition
@@ -578,7 +551,6 @@ def _build_slave_port_array_xarray(
 
         expr_master_r = expr_master.rename({"component": "component_master"})
         contribution: xr.DataArray = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
-
         total = contribution if total is None else total + contribution  # type: ignore[operator]
 
     return total if total is not None else xr.DataArray(0.0)
