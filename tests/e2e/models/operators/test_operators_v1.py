@@ -79,6 +79,7 @@ def input_libraries(input_dir: Path) -> List[InputLibrary]:
         Path(__file__).parent / "optest1",
         Path(__file__).parent / "optest2",
         Path(__file__).parent / "optest3",
+        Path(__file__).parent / "optest4",
     ],
     indirect=True,
 )
