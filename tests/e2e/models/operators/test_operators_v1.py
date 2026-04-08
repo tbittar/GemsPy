@@ -19,7 +19,8 @@ import pytest
 
 from gems.model.parsing import InputLibrary, parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.simulation import OutputValues, build_problem
+from gems.simulation import build_problem
+from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.simulation.time_block import TimeBlock
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import build_data_base, build_network, resolve_system
@@ -131,8 +132,9 @@ def test_model_behaviour(
             rel_tol=relative_accuracy,
         )
 
-        output = OutputValues(problem)
-        gen3_values = output.component("unique_prod3").var("generation").value[0]
+        df = SimulationTableBuilder().build(problem)
+        sub = df[(df["component"] == "unique_prod3") & (df["output"] == "generation") & (df["scenario-index"] == 0)]
+        gen3_values = sub.sort_values("block-time-index")["value"].tolist()
 
         for t, (ref_val, sol_val) in enumerate(zip(ref_gen3, gen3_values)):
             assert math.isclose(

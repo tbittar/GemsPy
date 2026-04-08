@@ -17,7 +17,8 @@ from libs.standard import BALANCE_PORT_TYPE, DEMAND_MODEL, GENERATOR_MODEL
 from gems.model.library import Library, library
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.simulation import OutputValues, TimeBlock, build_problem
+from gems.simulation import TimeBlock, build_problem
+from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
 
 
@@ -134,9 +135,8 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3500, abs=0.01)
 
-    assert OutputValues(problem).component("L").var("flow").value == pytest.approx(
-        -100, abs=0.01
-    )
+    df = SimulationTableBuilder().build(problem)
+    assert df[(df["component"] == "L") & (df["output"] == "flow")]["value"].iloc[0] == pytest.approx(-100, abs=0.01)
 
 
 def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
@@ -202,12 +202,9 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3500, abs=0.01)
 
-    assert OutputValues(problem).component("L1").var("flow").value == pytest.approx(
-        -66.67, abs=0.01
-    )
-    assert OutputValues(problem).component("L2").var("flow").value == pytest.approx(
-        -33.33, abs=0.01
-    )
+    df = SimulationTableBuilder().build(problem)
+    assert df[(df["component"] == "L1") & (df["output"] == "flow")]["value"].iloc[0] == pytest.approx(-66.67, abs=0.01)
+    assert df[(df["component"] == "L2") & (df["output"] == "flow")]["value"].iloc[0] == pytest.approx(-33.33, abs=0.01)
 
 
 def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
@@ -278,12 +275,7 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3550, abs=0.01)
 
-    assert OutputValues(problem).component("L").var("flow").value == pytest.approx(
-        -50, abs=0.01
-    )
-    assert OutputValues(problem).component("T").var("flow").value == pytest.approx(
-        -50, abs=0.01
-    )
-    assert OutputValues(problem).component("T").var(
-        "phase_shift"
-    ).value == pytest.approx(-50, abs=0.01)
+    df = SimulationTableBuilder().build(problem)
+    assert df[(df["component"] == "L") & (df["output"] == "flow")]["value"].iloc[0] == pytest.approx(-50, abs=0.01)
+    assert df[(df["component"] == "T") & (df["output"] == "flow")]["value"].iloc[0] == pytest.approx(-50, abs=0.01)
+    assert df[(df["component"] == "T") & (df["output"] == "phase_shift")]["value"].iloc[0] == pytest.approx(-50, abs=0.01)

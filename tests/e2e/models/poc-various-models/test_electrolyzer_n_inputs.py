@@ -21,7 +21,8 @@ from libs.standard_sc import (
     TWO_INPUTS_CONVERTOR_MODEL,
 )
 
-from gems.simulation import OutputValues, TimeBlock, build_problem
+from gems.simulation import TimeBlock, build_problem
+from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
 
 """
@@ -121,20 +122,13 @@ def test_electrolyzer_n_inputs_1() -> None:
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
-    output = OutputValues(problem)
-    ep1_gen = output.component("ep1").var("generation").value
-    ep2_gen = output.component("ep2").var("generation").value
-    gp_gen = output.component("gp").var("generation").value
-    print(ep1_gen)
-    print(ep2_gen)
-    print(gp_gen)
-
-    assert math.isclose(ep1_gen, 70)  # type: ignore
-    assert math.isclose(ep2_gen, 42)  # type: ignore
-    assert math.isclose(gp_gen, 30)  # type: ignore
-
     assert problem.termination_condition == "optimal"
     assert math.isclose(problem.objective_value, 1990)
+
+    df = SimulationTableBuilder().build(problem)
+    assert math.isclose(df[(df["component"] == "ep1") & (df["output"] == "generation")]["value"].iloc[0], 70)
+    assert math.isclose(df[(df["component"] == "ep2") & (df["output"] == "generation")]["value"].iloc[0], 42)
+    assert math.isclose(df[(df["component"] == "gp") & (df["output"] == "generation")]["value"].iloc[0], 30)
 
 
 def test_electrolyzer_n_inputs_2() -> None:
@@ -210,20 +204,13 @@ def test_electrolyzer_n_inputs_2() -> None:
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
-    output = OutputValues(problem)
-    ep1_gen = output.component("ep1").var("generation").value
-    ep2_gen = output.component("ep2").var("generation").value
-    gp_gen = output.component("gp").var("generation").value
-    print(ep1_gen)
-    print(ep2_gen)
-    print(gp_gen)
-
-    assert math.isclose(ep1_gen, 70)  # type: ignore
-    assert math.isclose(ep2_gen, 42)  # type: ignore
-    assert math.isclose(gp_gen, 30)  # type: ignore
-
     assert problem.termination_condition == "optimal"
     assert math.isclose(problem.objective_value, 1990)
+
+    df = SimulationTableBuilder().build(problem)
+    assert math.isclose(df[(df["component"] == "ep1") & (df["output"] == "generation")]["value"].iloc[0], 70)
+    assert math.isclose(df[(df["component"] == "ep2") & (df["output"] == "generation")]["value"].iloc[0], 42)
+    assert math.isclose(df[(df["component"] == "gp") & (df["output"] == "generation")]["value"].iloc[0], 30)
 
 
 def test_electrolyzer_n_inputs_3() -> None:
@@ -308,17 +295,13 @@ def test_electrolyzer_n_inputs_3() -> None:
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
-    output = OutputValues(problem)
-    ep1_gen = output.component("ep1").var("generation").value
-    ep2_gen = output.component("ep2").var("generation").value
-    gp_gen = output.component("gp").var("generation").value
-
-    assert math.isclose(ep1_gen, 70)  # type: ignore
-    assert math.isclose(ep2_gen, 30)  # type: ignore
-    assert math.isclose(gp_gen, 30)  # type: ignore
-
     assert problem.termination_condition == "optimal"
     assert math.isclose(problem.objective_value, 1750)
+
+    df = SimulationTableBuilder().build(problem)
+    assert math.isclose(df[(df["component"] == "ep1") & (df["output"] == "generation")]["value"].iloc[0], 70)
+    assert math.isclose(df[(df["component"] == "ep2") & (df["output"] == "generation")]["value"].iloc[0], 30)
+    assert math.isclose(df[(df["component"] == "gp") & (df["output"] == "generation")]["value"].iloc[0], 30)
 
 
 def test_electrolyzer_n_inputs_4() -> None:
@@ -395,14 +378,10 @@ def test_electrolyzer_n_inputs_4() -> None:
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
 
-    output = OutputValues(problem)
-    ep1_gen = output.component("ep1").var("generation").value
-    ep2_gen = output.component("ep2").var("generation").value
-    gp_gen = output.component("gp").var("generation").value
-
-    assert math.isclose(ep1_gen, 70)  # type: ignore
-    assert math.isclose(ep2_gen, 30)  # type: ignore
-    assert math.isclose(gp_gen, 30)  # type: ignore
-
     assert problem.termination_condition == "optimal"
     assert math.isclose(problem.objective_value, 1750)
+
+    df = SimulationTableBuilder().build(problem)
+    assert math.isclose(df[(df["component"] == "ep1") & (df["output"] == "generation")]["value"].iloc[0], 70)
+    assert math.isclose(df[(df["component"] == "ep2") & (df["output"] == "generation")]["value"].iloc[0], 30)
+    assert math.isclose(df[(df["component"] == "gp") & (df["output"] == "generation")]["value"].iloc[0], 30)

@@ -70,7 +70,7 @@ The pipeline flows: **YAML input → parsing → model resolution → network bu
 - `LinearExpression`: the linearized form of model constraints used by the solver
 - `BendersDecomposedProblem`: temporal decomposition strategy for large problems
 - `TimeBlock`: structure for defining temporal decomposition
-- `OutputValues`: result extraction and formatting
+- `SimulationTableBuilder`: result extraction as a flat pandas DataFrame
 
 ### Key Design Patterns
 
