@@ -523,17 +523,20 @@ class _LinopyProblemBuilder:
         field_name: str,
     ) -> LinopyExpression:
         """
-        Build port array by summing contributions from all connected master components,
-        using an incidence matrix for each contributing master model.
+        Build port array by aggregating contributions from all connected master
+        components, using an incidence matrix for each contributing master model.
+
+        The aggregation operator is determined per master group via
+        :meth:`_apply_port_aggregation`; currently only ``PortSum`` is supported.
         """
         # Group connections by (id(master_model), master_port_field_id).
         # Using id(master_model) instead of master_model.id ensures two distinct Model
         # objects with the same .id string are never confused.
         # Grouping by master_pf_id is critical: a component can connect via different
         # ports (e.g. link.in_port and link.out_port) which have different definitions.
-        per_master: Dict[
-            Tuple[int, PortFieldId], List[Tuple[int, Component]]
-        ] = defaultdict(list)
+        per_master: Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]] = (
+            defaultdict(list)
+        )
 
         for i, comp_m in enumerate(comp_ids):
             for cnx in self.network.connections:
@@ -574,16 +577,59 @@ class _LinopyProblemBuilder:
             master_model = self.models[master_mk]
             defn = master_model.port_fields_definitions[master_pf_id].definition
             master_builder = self._make_builder(master_model, port_arrays={})
+
+            # Validate that the expression carries the expected time/scenario dims
+            expected_structure = compute_indexation(
+                defn, _make_model_structure_provider(master_model)
+            )
             expr_master = visit(defn, master_builder)
+            actual_dims: set = (
+                set(expr_master.dims)  # type: ignore[union-attr]
+                if hasattr(expr_master, "dims")
+                else set()
+            )
+            if expected_structure.time and "time" not in actual_dims:
+                raise ValueError(
+                    f"Port field {master_pf_id} on model {master_model.id!r} "
+                    f"should be time-indexed but produced dims {actual_dims}."
+                )
+            if expected_structure.scenario and "scenario" not in actual_dims:
+                raise ValueError(
+                    f"Port field {master_pf_id} on model {master_model.id!r} "
+                    f"should be scenario-indexed but produced dims {actual_dims}."
+                )
 
             # Rename master's 'component' dim to 'component_master' for broadcasting
             expr_master_r = expr_master.rename({"component": "component_master"})  # type: ignore[union-attr]
 
-            contribution = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
+            contribution = self._apply_port_aggregation(
+                (A * expr_master_r),  # type: ignore[operator]
+                aggregator_name="PortSum",
+            )
 
             total = contribution if total is None else _linopy_add(total, contribution)
 
         return total if total is not None else xr.DataArray(0.0)
+
+    def _apply_port_aggregation(
+        self,
+        contribution: LinopyExpression,
+        aggregator_name: str,
+    ) -> LinopyExpression:
+        """
+        Aggregate *contribution* over the ``component_master`` dimension using
+        the operator named by *aggregator_name*.
+
+        Currently only ``"PortSum"`` is supported.  Adding a new aggregator
+        requires a corresponding :class:`~gems.expression.port_operator.PortAggregator`
+        subclass and a new branch here.
+        """
+        if aggregator_name == "PortSum":
+            return contribution.sum("component_master")  # type: ignore[union-attr]
+        raise NotImplementedError(
+            f"Port aggregator {aggregator_name!r} is not supported. "
+            "Only 'PortSum' is currently implemented."
+        )
 
     # ------------------------------------------------------------------
     # Phase 4 — Constraints and Objectives
@@ -717,6 +763,41 @@ def _make_network_structure_provider(network: Network) -> IndexingStructureProvi
         def get_variable_structure(self, name: str) -> IndexingStructure:
             raise RuntimeError(
                 "Component context must be set before retrieving variable structure."
+            )
+
+    return _Provider()
+
+
+def _make_model_structure_provider(model: Model) -> IndexingStructureProvider:
+    """
+    Create an :class:`IndexingStructureProvider` backed by a single *model*'s
+    declared variable and parameter structures.
+
+    This is used to compute the expected time/scenario indexing of a port field
+    definition expression before the expression is actually evaluated.
+    """
+
+    class _Provider(IndexingStructureProvider):
+        def get_variable_structure(self, name: str) -> IndexingStructure:
+            return model.variables[name].structure
+
+        def get_parameter_structure(self, name: str) -> IndexingStructure:
+            return model.parameters[name].structure
+
+        def get_component_variable_structure(
+            self, component_id: str, name: str
+        ) -> IndexingStructure:
+            raise NotImplementedError(
+                "Component-specific variable structures are not available "
+                "in a model-level structure provider."
+            )
+
+        def get_component_parameter_structure(
+            self, component_id: str, name: str
+        ) -> IndexingStructure:
+            raise NotImplementedError(
+                "Component-specific parameter structures are not available "
+                "in a model-level structure provider."
             )
 
     return _Provider()
