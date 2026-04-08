@@ -36,7 +36,6 @@ import pytest
 from gems.model.library import Library
 from gems.simulation import (
     BlockBorderManagement,
-    OutputValues,
     TimeBlock,
     build_problem,
 )
@@ -324,8 +323,6 @@ def test_min_up_down_times(lib_dict: dict[str, Library]) -> None:
     )
     problem.solve(solver_name="highs")
 
-    print(OutputValues(problem).component("G").var("nb_units_on").value)
-
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(72000, abs=0.01)
 
@@ -472,8 +469,6 @@ def test_min_up_down_times_2(lib_dict: dict[str, Library]) -> None:
         border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
-
-    print(OutputValues(problem).component("G").var("nb_units_on").value)
 
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(61000)
