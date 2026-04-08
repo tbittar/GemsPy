@@ -31,22 +31,22 @@ optimization problem in four phases:
 
 from collections import defaultdict
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import linopy
 import numpy as np
 import xarray as xr
 
-from gems.expression.evaluate import EvaluationContext, EvaluationVisitor
-from gems.expression.expression import ExpressionNode, is_unbounded
-from gems.expression.indexing import IndexingStructureProvider, compute_indexation
-from gems.expression.indexing_structure import IndexingStructure
-from gems.expression.operators_expansion import ProblemDimensions, expand_operators
+from gems.expression.expression import is_unbounded
 from gems.expression.visitor import visit
 from gems.model.common import ValueType
 from gems.model.model import Model
 from gems.model.port import PortField, PortFieldId
-from gems.simulation.linopy_linearize import LinopyExpression, VectorizedLinopyBuilder
+from gems.simulation.linopy_linearize import (
+    LinopyExpression,
+    VectorizedLinopyBuilder,
+    _linopy_add,
+)
 from gems.simulation.strategy import (
     MergedProblemStrategy,
     ModelSelectionStrategy,
@@ -62,7 +62,138 @@ from gems.study.data import (
     TimeSeriesData,
     TreeData,
 )
-from gems.study.network import Component, Network
+from gems.study.network import Component, Network, PortsConnection
+
+
+def build_port_arrays(
+    model: Model,
+    components: List[Component],
+    models: Dict[int, Model],
+    model_components: Dict[int, List[Component]],
+    network: "Network",
+    make_builder: Callable[[int, Model], Any],
+) -> Dict[PortFieldId, Any]:
+    """Build port arrays for all ports of *model*.
+
+    For each PortFieldId (port_name, field_name):
+    - If *model* defines the field (master): evaluate the definition with
+      ``make_builder(id(model), model)``.
+    - Otherwise (slave): sum contributions from connected master components
+      via incidence matrices.
+
+    Parameters
+    ----------
+    model :
+        The model for which to build port arrays.
+    components :
+        Components of this model.
+    models :
+        All models keyed by ``id(model)``.
+    model_components :
+        Components grouped by ``id(model)``.
+    network :
+        The network, used for connection lookup.
+    make_builder :
+        Factory ``(model_key: int, model: Model) -> builder``.
+        Called with an empty port_arrays context for master-field evaluation.
+    """
+    comp_ids = [c.id for c in components]
+    n = len(components)
+    port_arrays: Dict[PortFieldId, Any] = {}
+
+    for port_name, model_port in model.ports.items():
+        for port_field_obj in model_port.port_type.fields:
+            field_name = port_field_obj.name
+            pf_id = PortFieldId(port_name, field_name)
+
+            if pf_id in model.port_fields_definitions:
+                builder = make_builder(id(model), model)
+                defn = model.port_fields_definitions[pf_id].definition
+                port_arrays[pf_id] = visit(defn, builder)
+            else:
+                port_arrays[pf_id] = _build_slave_port_array(
+                    comp_ids,
+                    n,
+                    port_name,
+                    field_name,
+                    models,
+                    model_components,
+                    network,
+                    make_builder,
+                )
+
+    return port_arrays
+
+
+def _build_slave_port_array(
+    comp_ids: List[str],
+    n_components: int,
+    port_name: str,
+    field_name: str,
+    models: Dict[int, Model],
+    model_components: Dict[int, List[Component]],
+    network: "Network",
+    make_builder: Callable[[int, Model], Any],
+) -> Any:
+    """Build a slave port array by summing contributions from connected masters.
+
+    Groups connections by (id(master_model), master_port_field_id), builds an
+    incidence matrix A[i, j] for each group, and accumulates
+    ``sum_j A[i,j] * expr_master[j]`` into the result.
+    """
+    per_master: Dict[
+        Tuple[int, PortFieldId], List[Tuple[int, Component]]
+    ] = defaultdict(list)
+
+    comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
+    comp_id_set = set(comp_ids)
+    for cnx in network.connections:
+        for port_ref in [cnx.port1, cnx.port2]:
+            if (
+                port_ref.port_id != port_name
+                or port_ref.component.id not in comp_id_set
+            ):
+                continue
+            i = comp_index[port_ref.component.id]
+            master_ref = cnx.master_port.get(PortField(name=field_name))
+            if master_ref is None:
+                continue
+            master_comp = master_ref.component
+            master_pf_id = PortFieldId(master_ref.port_id, field_name)
+            per_master[(id(master_comp.model), master_pf_id)].append((i, master_comp))
+
+    if not per_master:
+        return xr.DataArray(0.0)
+
+    total: Optional[Any] = None
+
+    for (master_mk, master_pf_id), conn_list in per_master.items():
+        master_comps = model_components[master_mk]
+        master_comp_ids = [c.id for c in master_comps]
+        n_prime = len(master_comps)
+
+        A_data = np.zeros((n_components, n_prime))
+        for i, master_comp in conn_list:
+            j = master_comp_ids.index(master_comp.id)
+            A_data[i, j] += 1.0
+
+        A = xr.DataArray(
+            A_data,
+            dims=["component", "component_master"],
+            coords={"component": comp_ids, "component_master": master_comp_ids},
+        )
+
+        master_model = models[master_mk]
+        defn = master_model.port_fields_definitions[master_pf_id].definition
+        master_builder = make_builder(master_mk, master_model)
+        expr_master = visit(defn, master_builder)
+
+        expr_master_r = expr_master.rename({"component": "component_master"})  # type: ignore[union-attr]
+        contribution = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
+
+        total = contribution if total is None else _linopy_add(total, contribution)
+
+    return total if total is not None else xr.DataArray(0.0)
 
 
 class BlockBorderManagement(Enum):
@@ -94,6 +225,9 @@ class LinopyOptimizationProblem:
         linopy_vars: Dict[Tuple[int, str], linopy.Variable],
         build_strategy: ModelSelectionStrategy,
         decision_tree_node: str,
+        param_arrays: Dict[Tuple[int, str], xr.DataArray],
+        model_components: Dict[int, List[Component]],
+        models: Dict[int, Model],
         objective_constant: float = 0.0,
     ) -> None:
         self.name = name
@@ -105,6 +239,9 @@ class LinopyOptimizationProblem:
         self._linopy_vars = linopy_vars
         self._build_strategy = build_strategy
         self._decision_tree_node = decision_tree_node
+        self.param_arrays = param_arrays
+        self.model_components = model_components
+        self.models = models
         # Constant term of the objective (linopy cannot represent pure-constant objectives).
         self._objective_constant: float = objective_constant
 
@@ -134,26 +271,6 @@ class LinopyOptimizationProblem:
     def objective_value(self) -> float:
         """Objective function value after solving."""
         return float(self.linopy_model.objective.value) + self._objective_constant  # type: ignore[arg-type]
-
-    def expand_operators_for_extra_output(
-        self,
-        expression: ExpressionNode,
-        component_id: str,
-    ) -> ExpressionNode:
-        """
-        Expand temporal and scenario operators for extra output evaluation.
-        Replicates the role of OptimizationContext.expand_operators().
-        """
-        from gems.expression.context_adder import add_component_context
-
-        structure_provider = _make_network_structure_provider(self.network)
-        with_context = add_component_context(component_id, expression)
-        return expand_operators(
-            with_context,
-            ProblemDimensions(self.block_length, self.scenarios),
-            _make_constant_evaluator(),
-            structure_provider,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +392,9 @@ class _LinopyProblemBuilder:
             linopy_vars=self.linopy_vars,
             build_strategy=self.build_strategy,
             decision_tree_node=self.decision_tree_node,
+            param_arrays=self.param_arrays,
+            model_components=dict(self.model_components),
+            models=self.models,
             objective_constant=objective_constant,
         )
 
@@ -460,111 +580,14 @@ class _LinopyProblemBuilder:
     def _build_port_arrays_for_model(
         self, model: Model, components: List[Component]
     ) -> None:
-        """
-        Pre-compute port arrays for all ports of *model*.
-
-        For each PortFieldId (port_name, field_name) that M owns a port for:
-          - If M defines the field (M is master): evaluate definition directly.
-          - If a connected model M' defines the field: use incidence matrix A to
-            compute sum_{j} A[i,j] * expr_M'[j] for all i.
-        """
-        comp_ids = [c.id for c in components]
-        n = len(components)
-        port_arrays: Dict[PortFieldId, LinopyExpression] = {}
-
-        for port_name, model_port in model.ports.items():
-            for port_field_obj in model_port.port_type.fields:
-                field_name = port_field_obj.name
-                pf_id = PortFieldId(port_name, field_name)
-
-                if pf_id in model.port_fields_definitions:
-                    # M is the master — evaluate definition using M's own vars/params
-                    builder = self._make_builder(model, port_arrays={})
-                    defn = model.port_fields_definitions[pf_id].definition
-                    port_arrays[pf_id] = visit(defn, builder)
-                else:
-                    # M is the slave — collect contributions from connected masters
-                    port_arrays[pf_id] = self._build_slave_port_array(
-                        comp_ids, n, port_name, field_name
-                    )
-
-        self.port_arrays[id(model)] = port_arrays
-
-    def _build_slave_port_array(
-        self,
-        comp_ids: List[str],
-        n_components: int,
-        port_name: str,
-        field_name: str,
-    ) -> LinopyExpression:
-        """
-        Build port array by summing contributions from all connected master components,
-        using an incidence matrix for each contributing master model.
-        """
-        # Group connections by (id(master_model), master_port_field_id).
-        # Using id(master_model) instead of master_model.id ensures two distinct Model
-        # objects with the same .id string are never confused.
-        # Grouping by master_pf_id is critical: a component can connect via different
-        # ports (e.g. link.in_port and link.out_port) which have different definitions.
-        per_master: Dict[
-            Tuple[int, PortFieldId], List[Tuple[int, Component]]
-        ] = defaultdict(list)
-
-        comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
-        comp_id_set = set(comp_ids)
-        for cnx in self.network.connections:
-            for port_ref in [cnx.port1, cnx.port2]:
-                if (
-                    port_ref.port_id != port_name
-                    or port_ref.component.id not in comp_id_set
-                ):
-                    continue
-                i = comp_index[port_ref.component.id]
-                master_ref = cnx.master_port.get(PortField(name=field_name))
-                if master_ref is None:
-                    continue
-                master_comp = master_ref.component
-                master_pf_id = PortFieldId(master_ref.port_id, field_name)
-                per_master[(id(master_comp.model), master_pf_id)].append(
-                    (i, master_comp)
-                )
-
-        if not per_master:
-            return xr.DataArray(0.0)
-
-        total: Optional[LinopyExpression] = None
-
-        for (master_mk, master_pf_id), conn_list in per_master.items():
-            master_comps = self.model_components[master_mk]
-            master_comp_ids = [c.id for c in master_comps]
-            n_prime = len(master_comps)
-
-            # Incidence matrix A[i, j] = 1 if master_comps[j] connects to comp_ids[i]
-            A_data = np.zeros((n_components, n_prime))
-            for i, master_comp in conn_list:
-                j = master_comp_ids.index(master_comp.id)
-                A_data[i, j] += 1.0
-
-            A = xr.DataArray(
-                A_data,
-                dims=["component", "component_master"],
-                coords={"component": comp_ids, "component_master": master_comp_ids},
-            )
-
-            # Visit the master's port field definition for this specific port
-            master_model = self.models[master_mk]
-            defn = master_model.port_fields_definitions[master_pf_id].definition
-            master_builder = self._make_builder(master_model, port_arrays={})
-            expr_master = visit(defn, master_builder)
-
-            # Rename master's 'component' dim to 'component_master' for broadcasting
-            expr_master_r = expr_master.rename({"component": "component_master"})  # type: ignore[union-attr]
-
-            contribution = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
-
-            total = contribution if total is None else _linopy_add(total, contribution)
-
-        return total if total is not None else xr.DataArray(0.0)
+        self.port_arrays[id(model)] = build_port_arrays(
+            model,
+            components,
+            self.models,
+            dict(self.model_components),
+            self.network,
+            lambda mk_, m: self._make_builder(m, port_arrays={}),
+        )
 
     # ------------------------------------------------------------------
     # Phase 4 — Constraints and Objectives
@@ -674,64 +697,6 @@ class _LinopyProblemBuilder:
             block_length=self.block_length,
             scenarios_count=self.scenarios,
         )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _linopy_add(a: LinopyExpression, b: LinopyExpression) -> LinopyExpression:
-    """
-    Add two linopy-compatible expressions, ensuring linopy types are on the left.
-
-    xarray's DataArray.__add__ doesn't know about linopy types, so mixing
-    DataArray + LinearExpression fails unless linopy is the left operand.
-    """
-    if isinstance(a, xr.DataArray) and not isinstance(b, xr.DataArray):
-        return b + a  # type: ignore[operator]  # linopy on left
-    return a + b  # type: ignore[operator]
-
-
-def _make_network_structure_provider(network: Network) -> IndexingStructureProvider:
-    """Create an IndexingStructureProvider backed by the network."""
-
-    class _Provider(IndexingStructureProvider):
-        def get_component_variable_structure(
-            self, component_id: str, name: str
-        ) -> IndexingStructure:
-            return network.get_component(component_id).model.variables[name].structure
-
-        def get_component_parameter_structure(
-            self, component_id: str, name: str
-        ) -> IndexingStructure:
-            return network.get_component(component_id).model.parameters[name].structure
-
-        def get_parameter_structure(self, name: str) -> IndexingStructure:
-            raise RuntimeError(
-                "Component context must be set before retrieving parameter structure."
-            )
-
-        def get_variable_structure(self, name: str) -> IndexingStructure:
-            raise RuntimeError(
-                "Component context must be set before retrieving variable structure."
-            )
-
-    return _Provider()
-
-
-def _make_constant_evaluator() -> "Callable[[ExpressionNode], int]":
-    """Return an evaluator that resolves only literal constant expressions."""
-    ctx = EvaluationContext()
-    visitor = EvaluationVisitor(ctx)
-
-    def _evaluate(node: ExpressionNode) -> int:
-        result = visit(node, visitor)
-        if isinstance(result, float) and result.is_integer():
-            return int(result)
-        raise ValueError(f"Expected integer literal, got {result!r}")
-
-    return _evaluate
 
 
 # ---------------------------------------------------------------------------
