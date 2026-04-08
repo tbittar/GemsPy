@@ -396,65 +396,41 @@ class _LinopyProblemBuilder:
                 scenarios_count=self.scenarios,
             )
 
-            def _to_bound_array(val: object) -> np.ndarray:
-                """Convert a bound value to a numpy array shaped like var_shape.
+            lower: object = (
+                np.full(var_shape, -np.inf)
+                if var.lower_bound is None
+                else self._to_bound_array(
+                    visit(var.lower_bound, bound_builder), var_shape, dims
+                )
+            )
+            upper: object = (
+                np.full(var_shape, np.inf)
+                if var.upper_bound is None
+                else self._to_bound_array(
+                    visit(var.upper_bound, bound_builder), var_shape, dims
+                )
+            )
 
-                Handles scalar DataArrays, partial-dim DataArrays (e.g. a
-                constant parameter used as bound for a time×scenario variable),
-                plain floats, and raw numpy arrays.
-                """
-                if isinstance(val, xr.DataArray):
-                    if val.dims == ():
-                        return np.full(var_shape, float(val.item()))
-                    # Expand missing dims so numpy can broadcast to var_shape.
-                    arr = val.values  # shape may be a subset of var_shape dims
-                    for ax, d in enumerate(dims):
-                        if d not in val.dims:
-                            arr = np.expand_dims(arr, axis=ax)
-                    return np.broadcast_to(arr, var_shape).copy()  # type: ignore[return-value]
-                if isinstance(val, (int, float)):
-                    return np.full(var_shape, float(val))
-                return val  # type: ignore[return-value]
-
-            # Lower bound
-            lower: object
-            if var.lower_bound is None:
-                lower = np.full(var_shape, -np.inf)
-            else:
-                lower = _to_bound_array(visit(var.lower_bound, bound_builder))
-
-            # Upper bound
-            upper: object
-            if var.upper_bound is None:
-                upper = np.full(var_shape, np.inf)
-            else:
-                upper = _to_bound_array(visit(var.upper_bound, bound_builder))
-
-            # Validate bounds: upper must be strictly > lower for each component
+            # Validate bounds: upper must be >= lower across all timesteps/scenarios
             lower_arr = lower if isinstance(lower, np.ndarray) else np.array(lower)
             upper_arr = upper if isinstance(upper, np.ndarray) else np.array(upper)
             for ci, comp_id in enumerate(comp_ids):
-                # Slice first element if multi-dim, else use scalar
-                lo_val = (
-                    float(lower_arr[ci].flat[0])
-                    if lower_arr.ndim > 0
-                    else float(lower_arr)
-                )
-                up_val = (
-                    float(upper_arr[ci].flat[0])
-                    if upper_arr.ndim > 0
-                    else float(upper_arr)
-                )
-                if not np.isinf(lo_val) and not np.isinf(up_val) and up_val < lo_val:
+                lo = np.asarray(lower_arr[ci] if lower_arr.ndim > 0 else lower_arr)
+                up = np.asarray(upper_arr[ci] if upper_arr.ndim > 0 else upper_arr)
+                finite = np.isfinite(lo) & np.isfinite(up)
+                violation = finite & (up < lo)
+                if np.any(violation):
+                    idx = int(np.argmax(violation))
                     raise ValueError(
-                        f"Upper bound ({up_val:g}) must be strictly greater than "
-                        f"lower bound ({lo_val:g}) for variable {comp_id}.{var.name}"
+                        f"Upper bound ({float(up.flat[idx]):g}) must be strictly "
+                        f"greater than lower bound ({float(lo.flat[idx]):g}) "
+                        f"for variable {comp_id}.{var.name}"
                     )
 
             prefix = self.model_var_prefix[id(model)]
             name = f"{prefix}__{var.name}"
             binary = var.data_type == ValueType.BOOLEAN
-            integer = var.data_type in (ValueType.INTEGER, ValueType.BOOLEAN)
+            integer = var.data_type == ValueType.INTEGER
 
             lv = self.linopy_model.add_variables(
                 lower=lower,
@@ -462,7 +438,7 @@ class _LinopyProblemBuilder:
                 coords=coords,
                 name=name,
                 binary=binary,
-                integer=integer and not binary,
+                integer=integer,
             )
             self.linopy_vars[(id(model), var.name)] = lv
 
@@ -473,14 +449,111 @@ class _LinopyProblemBuilder:
     def _build_port_arrays_for_model(
         self, model: Model, components: List[Component]
     ) -> None:
-        self.port_arrays[id(model)] = build_port_arrays(
-            model,
-            components,
-            self.models,
-            self.model_components,
-            self.network,
-            lambda mk, m: self._make_builder(m, port_arrays={}),
-        )
+        """
+        Pre-compute port arrays for all ports of *model*.
+
+        For each PortFieldId (port_name, field_name) that M owns a port for:
+          - If M defines the field (M is master): evaluate definition directly.
+          - If a connected model M' defines the field: use incidence matrix A to
+            compute sum_{j} A[i,j] * expr_M'[j] for all i.
+        """
+        comp_ids = [c.id for c in components]
+        n = len(components)
+        port_arrays: Dict[PortFieldId, LinopyExpression] = {}
+
+        for port_name, model_port in model.ports.items():
+            for port_field_obj in model_port.port_type.fields:
+                field_name = port_field_obj.name
+                pf_id = PortFieldId(port_name, field_name)
+
+                if pf_id in model.port_fields_definitions:
+                    # M is the master — evaluate definition using M's own vars/params
+                    builder = self._make_builder(model, port_arrays={})
+                    defn = model.port_fields_definitions[pf_id].definition
+                    port_arrays[pf_id] = visit(defn, builder)
+                else:
+                    # M is the slave — collect contributions from connected masters
+                    port_arrays[pf_id] = self._build_slave_port_array(
+                        comp_ids, n, port_name, field_name
+                    )
+
+        self.port_arrays[id(model)] = port_arrays
+
+    def _build_slave_port_array(
+        self,
+        comp_ids: List[str],
+        n_components: int,
+        port_name: str,
+        field_name: str,
+    ) -> LinopyExpression:
+        """
+        Build port array by summing contributions from all connected master components,
+        using an incidence matrix for each contributing master model.
+        """
+        # Group connections by (id(master_model), master_port_field_id).
+        # Using id(master_model) instead of master_model.id ensures two distinct Model
+        # objects with the same .id string are never confused.
+        # Grouping by master_pf_id is critical: a component can connect via different
+        # ports (e.g. link.in_port and link.out_port) which have different definitions.
+        per_master: Dict[
+            Tuple[int, PortFieldId], List[Tuple[int, Component]]
+        ] = defaultdict(list)
+
+        comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
+        comp_id_set = set(comp_ids)
+        for cnx in self.network.connections:
+            for port_ref in [cnx.port1, cnx.port2]:
+                if (
+                    port_ref.port_id != port_name
+                    or port_ref.component.id not in comp_id_set
+                ):
+                    continue
+                i = comp_index[port_ref.component.id]
+                master_ref = cnx.master_port.get(PortField(name=field_name))
+                if master_ref is None:
+                    continue
+                master_comp = master_ref.component
+                master_pf_id = PortFieldId(master_ref.port_id, field_name)
+                per_master[(id(master_comp.model), master_pf_id)].append(
+                    (i, master_comp)
+                )
+
+        if not per_master:
+            return xr.DataArray(0.0)
+
+        total: Optional[LinopyExpression] = None
+
+        for (master_mk, master_pf_id), conn_list in per_master.items():
+            master_comps = self.model_components[master_mk]
+            master_comp_ids = [c.id for c in master_comps]
+            n_prime = len(master_comps)
+
+            # Incidence matrix A[i, j] = 1 if master_comps[j] connects to comp_ids[i]
+            A_data = np.zeros((n_components, n_prime))
+            for i, master_comp in conn_list:
+                j = master_comp_ids.index(master_comp.id)
+                A_data[i, j] += 1.0
+
+            A = xr.DataArray(
+                A_data,
+                dims=["component", "component_master"],
+                coords={"component": comp_ids, "component_master": master_comp_ids},
+            )
+
+            # Visit the master's port field definition for this specific port
+            master_model = self.models[master_mk]
+            defn = master_model.port_fields_definitions[master_pf_id].definition
+            master_builder = self._make_builder(master_model, port_arrays={})
+            expr_master = visit(defn, master_builder)
+
+            # Rename master's 'component' dim to 'component_master' for broadcasting
+            expr_master_r = expr_master.rename({"component": "component_master"})  # type: ignore[union-attr]
+
+            contribution = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
+
+            total = contribution if total is None else _linopy_add(total, contribution)
+
+        return total if total is not None else xr.DataArray(0.0)
 
     # ------------------------------------------------------------------
     # Phase 4 — Constraints and Objectives
@@ -549,8 +622,32 @@ class _LinopyProblemBuilder:
         return total_obj
 
     # ------------------------------------------------------------------
-    # Helper
+    # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _to_bound_array(
+        val: object,
+        var_shape: Tuple[int, ...],
+        dims: List[str],
+    ) -> np.ndarray:
+        """Convert a bound value to a numpy array shaped like *var_shape*.
+
+        Handles scalar DataArrays, partial-dim DataArrays (e.g. a constant
+        parameter used as a bound for a time×scenario variable), plain floats,
+        and raw numpy arrays.
+        """
+        if isinstance(val, xr.DataArray):
+            if val.dims == ():
+                return np.full(var_shape, float(val.item()))
+            arr = val.values  # shape may be a subset of var_shape dims
+            for ax, d in enumerate(dims):
+                if d not in val.dims:
+                    arr = np.expand_dims(arr, axis=ax)
+            return np.broadcast_to(arr, var_shape).copy()  # type: ignore[return-value]
+        if isinstance(val, (int, float)):
+            return np.full(var_shape, float(val))
+        return val  # type: ignore[return-value]
 
     def _make_builder(
         self,
@@ -566,150 +663,6 @@ class _LinopyProblemBuilder:
             block_length=self.block_length,
             scenarios_count=self.scenarios,
         )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def build_port_arrays(
-    model: Model,
-    components: List[Component],
-    all_models: Dict[int, Model],
-    all_model_components: Dict[int, List[Component]],
-    network: Network,
-    make_builder: Callable[[int, Model], Any],
-) -> Dict[PortFieldId, Any]:
-    """
-    Build port arrays for *model* using the provided expression-builder factory.
-
-    Shared by the linopy problem builder (pre-solve, returns ``LinopyExpression``)
-    and the extra-output evaluator (post-solve, returns ``xr.DataArray``).
-    The caller controls which backend is used via ``make_builder``.
-
-    Parameters
-    ----------
-    model:
-        The model whose port arrays are built.
-    components:
-        All components of *model* in the network.
-    all_models:
-        ``{id(m): m}`` mapping for every model in the network.
-    all_model_components:
-        ``{id(m): [Component, ...]}`` mapping for every model in the network.
-    network:
-        Network (needed for connection lookup).
-    make_builder:
-        Called as ``make_builder(model_key, model)`` and must return an
-        :class:`~gems.expression.visitor.ExpressionVisitor` capable of
-        evaluating expressions for that model.
-    """
-    comp_ids = [c.id for c in components]
-    port_arrays: Dict[PortFieldId, Any] = {}
-
-    for port_name, model_port in model.ports.items():
-        for port_field_obj in model_port.port_type.fields:
-            field_name = port_field_obj.name
-            pf_id = PortFieldId(port_name, field_name)
-
-            if pf_id in model.port_fields_definitions:
-                # Master: evaluate definition using this model's own builder
-                builder = make_builder(id(model), model)
-                defn = model.port_fields_definitions[pf_id].definition
-                port_arrays[pf_id] = visit(defn, builder)
-            else:
-                # Slave: sum contributions from connected masters via incidence matrix
-                per_master = _group_port_connections_by_master(
-                    comp_ids, port_name, field_name, network
-                )
-                if not per_master:
-                    port_arrays[pf_id] = xr.DataArray(0.0)
-                    continue
-
-                total: Any = None
-                for (master_mk, master_pf_id), conn_list in per_master.items():
-                    master_comps = all_model_components[master_mk]
-                    master_comp_ids = [c.id for c in master_comps]
-                    A = _build_incidence_matrix(comp_ids, master_comp_ids, conn_list)
-                    master_model = all_models[master_mk]
-                    defn = master_model.port_fields_definitions[master_pf_id].definition
-                    master_builder = make_builder(master_mk, master_model)
-                    expr_master = visit(defn, master_builder)
-                    expr_master_r = expr_master.rename(  # type: ignore[union-attr]
-                        {"component": "component_master"}
-                    )
-                    contribution = (A * expr_master_r).sum(  # type: ignore[operator]
-                        "component_master"
-                    )
-                    total = (
-                        contribution
-                        if total is None
-                        else _linopy_add(total, contribution)  # type: ignore[arg-type]
-                    )
-
-                port_arrays[pf_id] = total if total is not None else xr.DataArray(0.0)
-
-    return port_arrays
-
-
-def _involves(cnx: PortsConnection, component_id: str, port_name: str) -> bool:
-    """Return True if *cnx* connects *component_id* at *port_name*."""
-    return (
-        cnx.port1.component.id == component_id and cnx.port1.port_id == port_name
-    ) or (cnx.port2.component.id == component_id and cnx.port2.port_id == port_name)
-
-
-def _group_port_connections_by_master(
-    comp_ids: List[str],
-    port_name: str,
-    field_name: str,
-    network: Network,
-) -> Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]]:
-    """
-    Group port connections by (master_model_key, master_port_field_id).
-
-    Returns a mapping from each ``(id(master_model), master_pf_id)`` to the list
-    of ``(slave_index, master_component)`` pairs that connect to that master port.
-    Using ``id(master_model)`` ensures two distinct Model objects with the same
-    ``.id`` string are never confused.
-    """
-    per_master: Dict[
-        Tuple[int, PortFieldId], List[Tuple[int, Component]]
-    ] = defaultdict(list)
-    for i, comp_m in enumerate(comp_ids):
-        for cnx in network.connections:
-            if not _involves(cnx, comp_m, port_name):
-                continue
-            master_ref = cnx.master_port.get(PortField(name=field_name))
-            if master_ref is None:
-                continue
-            master_comp = master_ref.component
-            master_pf_id = PortFieldId(master_ref.port_id, field_name)
-            per_master[(id(master_comp.model), master_pf_id)].append((i, master_comp))
-    return per_master
-
-
-def _build_incidence_matrix(
-    comp_ids: List[str],
-    master_comp_ids: List[str],
-    conn_list: List[Tuple[int, Component]],
-) -> xr.DataArray:
-    """
-    Build incidence matrix A where ``A[i, j] = 1`` if ``master_comps[j]``
-    connects to ``comp_ids[i]``.
-    """
-    n = len(comp_ids)
-    n_prime = len(master_comp_ids)
-    A_data = np.zeros((n, n_prime))
-    for i, master_comp in conn_list:
-        j = master_comp_ids.index(master_comp.id)
-        A_data[i, j] += 1.0
-    return xr.DataArray(
-        A_data,
-        dims=["component", "component_master"],
-        coords={"component": comp_ids, "component_master": master_comp_ids},
-    )
 
 
 # ---------------------------------------------------------------------------
