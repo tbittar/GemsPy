@@ -12,16 +12,6 @@ annotated-types==0.7.0
     # via
     #   -r requirements.txt
     #   pydantic
-antares-craft==0.3.0
-    # via -r requirements.txt
-antares-study-version==1.0.15
-    # via
-    #   -r requirements.txt
-    #   antares-craft
-antares-timeseries-generation==0.1.7
-    # via
-    #   -r requirements.txt
-    #   antares-craft
 antlr4-python3-runtime==4.13.1
     # via -r requirements.txt
 antlr4-tools==0.2.1
@@ -42,21 +32,15 @@ certifi==2025.1.31
     #   netcdf4
     #   pyogrio
     #   pyproj
-    #   requests
 cfgv==3.4.0
     # via pre-commit
 cftime==1.6.4.post1
     # via
     #   -r requirements.txt
     #   netcdf4
-charset-normalizer==3.4.1
-    # via
-    #   -r requirements.txt
-    #   requests
 click==8.1.8
     # via
     #   -r requirements.txt
-    #   antares-study-version
     #   black
     #   dask
 cloudpickle==3.1.1
@@ -104,10 +88,6 @@ highspy==1.10.0
     #   pypsa
 identify==2.6.10
     # via pre-commit
-idna==3.10
-    # via
-    #   -r requirements.txt
-    #   requests
 immutabledict==4.2.1
     # via
     #   -r requirements.txt
@@ -162,8 +142,6 @@ numexpr==2.10.2
 numpy==1.26.4
     # via
     #   -r requirements.txt
-    #   antares-craft
-    #   antares-timeseries-generation
     #   bottleneck
     #   cftime
     #   contourpy
@@ -199,9 +177,6 @@ pandas==2.2.3
     # via
     #   -r requirements-dev.in
     #   -r requirements.txt
-    #   antares-craft
-    #   antares-study-version
-    #   antares-timeseries-generation
     #   geopandas
     #   ortools
     #   pypsa
@@ -235,16 +210,10 @@ protobuf==6.32.0
     # via
     #   -r requirements.txt
     #   ortools
-psutil==7.0.0
-    # via
-    #   -r requirements.txt
-    #   antares-craft
 py==1.11.0
     # via pytest
 pydantic==2.11.7
-    # via
-    #   -r requirements.txt
-    #   antares-craft
+    # via -r requirements.txt
 pydantic-core==2.33.2
     # via
     #   -r requirements.txt
@@ -279,13 +248,8 @@ pytz==2025.2
 pyyaml==6.0.2
     # via
     #   -r requirements.txt
-    #   antares-timeseries-generation
     #   dask
     #   pre-commit
-requests==2.32.3
-    # via
-    #   -r requirements.txt
-    #   antares-craft
 scipy==1.10.1
     # via
     #   -r requirements.txt
@@ -336,10 +300,6 @@ tzdata==2025.2
     # via
     #   -r requirements.txt
     #   pandas
-urllib3==2.4.0
-    # via
-    #   -r requirements.txt
-    #   requests
 validators==0.34.0
     # via
     #   -r requirements.txt
