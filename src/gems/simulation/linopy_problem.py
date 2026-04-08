@@ -112,8 +112,14 @@ def build_port_arrays(
                 port_arrays[pf_id] = visit(defn, builder)
             else:
                 port_arrays[pf_id] = _build_slave_port_array(
-                    comp_ids, n, port_name, field_name,
-                    models, model_components, network, make_builder,
+                    comp_ids,
+                    n,
+                    port_name,
+                    field_name,
+                    models,
+                    model_components,
+                    network,
+                    make_builder,
                 )
 
     return port_arrays
@@ -154,9 +160,7 @@ def _build_slave_port_array(
                 continue
             master_comp = master_ref.component
             master_pf_id = PortFieldId(master_ref.port_id, field_name)
-            per_master[(id(master_comp.model), master_pf_id)].append(
-                (i, master_comp)
-            )
+            per_master[(id(master_comp.model), master_pf_id)].append((i, master_comp))
 
     if not per_master:
         return xr.DataArray(0.0)
