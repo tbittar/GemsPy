@@ -47,22 +47,9 @@ from gems.simulation.linopy_linearize import (
     VectorizedLinopyBuilder,
     _linopy_add,
 )
-from gems.simulation.strategy import (
-    MergedProblemStrategy,
-    ModelSelectionStrategy,
-    RiskManagementStrategy,
-    UniformRisk,
-)
 from gems.simulation.time_block import TimeBlock
-from gems.study.data import (
-    ConstantData,
-    DataBase,
-    ScenarioSeriesData,
-    TimeScenarioSeriesData,
-    TimeSeriesData,
-    TreeData,
-)
-from gems.study.network import Component, Network, PortsConnection
+from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
+from gems.study.network import Component, Network
 
 
 def build_port_arrays(
@@ -223,8 +210,6 @@ class LinopyOptimizationProblem:
         block: TimeBlock,
         scenarios: int,
         linopy_vars: Dict[Tuple[int, str], linopy.Variable],
-        build_strategy: ModelSelectionStrategy,
-        decision_tree_node: str,
         param_arrays: Dict[Tuple[int, str], xr.DataArray],
         model_components: Dict[int, List[Component]],
         models: Dict[int, Model],
@@ -237,8 +222,6 @@ class LinopyOptimizationProblem:
         self.block = block
         self.scenarios = scenarios
         self._linopy_vars = linopy_vars
-        self._build_strategy = build_strategy
-        self._decision_tree_node = decision_tree_node
         self.param_arrays = param_arrays
         self.model_components = model_components
         self.models = models
@@ -294,18 +277,12 @@ class _LinopyProblemBuilder:
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
-        build_strategy: ModelSelectionStrategy,
-        risk_strategy: RiskManagementStrategy,
-        decision_tree_node: str,
     ) -> None:
         self.name = name
         self.network = network
         self.database = database
         self.block = block
         self.scenarios = scenarios
-        self.build_strategy = build_strategy
-        self.risk_strategy = risk_strategy
-        self.decision_tree_node = decision_tree_node
 
         self.block_length = len(block.timesteps)
         self.time_coord = list(range(self.block_length))
@@ -390,8 +367,6 @@ class _LinopyProblemBuilder:
             block=self.block,
             scenarios=self.scenarios,
             linopy_vars=self.linopy_vars,
-            build_strategy=self.build_strategy,
-            decision_tree_node=self.decision_tree_node,
             param_arrays=self.param_arrays,
             model_components=dict(self.model_components),
             models=self.models,
@@ -445,9 +420,7 @@ class _LinopyProblemBuilder:
                     data[i] = param_data.value  # broadcasts into remaining dims
                 elif isinstance(param_data, TimeSeriesData):
                     for t in range(T):
-                        v = param_data.get_value(
-                            abs_timesteps[t], None, self.decision_tree_node
-                        )
+                        v = param_data.get_value(abs_timesteps[t], None)
                         if use_time and use_scenario:
                             data[i, t, :] = v
                         elif use_time:
@@ -456,7 +429,7 @@ class _LinopyProblemBuilder:
                             data[i] = v  # constant in time
                 elif isinstance(param_data, ScenarioSeriesData):
                     for s in range(S):
-                        v = param_data.get_value(None, s, self.decision_tree_node)
+                        v = param_data.get_value(None, s)
                         if use_time and use_scenario:
                             data[i, :, s] = v
                         elif use_scenario:
@@ -464,12 +437,10 @@ class _LinopyProblemBuilder:
                         else:
                             data[i] = v  # constant in scenario
                 else:
-                    # TimeScenarioSeriesData, TreeData, or other
+                    # TimeScenarioSeriesData or other
                     for t in range(T):
                         for s in range(S):
-                            v = param_data.get_value(
-                                abs_timesteps[t], s, self.decision_tree_node
-                            )
+                            v = param_data.get_value(abs_timesteps[t], s)
                             if use_time and use_scenario:
                                 data[i, t, s] = v
                             elif use_time:
@@ -491,7 +462,7 @@ class _LinopyProblemBuilder:
     ) -> None:
         comp_ids = [c.id for c in components]
 
-        for var in self.build_strategy.get_variables(model):
+        for var in model.variables.values():
             # Build coords for this variable
             coords: Dict[str, object] = {"component": comp_ids}
             dims = ["component"]
@@ -602,7 +573,7 @@ class _LinopyProblemBuilder:
         builder = self._make_builder(model, port_arrays=port_arrays_for_model)
 
         prefix = self.model_var_prefix[id(model)]
-        for constraint in self.build_strategy.get_constraints(model):
+        for constraint in model.get_all_constraints():
             lhs = visit(constraint.expression, builder)
 
             # Sanitize constraint name for LP format (spaces → underscores)
@@ -643,14 +614,15 @@ class _LinopyProblemBuilder:
         if model.objective_contributions:
             for expr in model.objective_contributions.values():
                 if expr is not None:
-                    modified = self.risk_strategy(expr)
-                    obj_term = visit(modified, builder)
+                    obj_term = visit(expr, builder)
                     total_obj = _accumulate(total_obj, obj_term)
         else:
-            for obj_expr in self.build_strategy.get_objectives(model):
+            for obj_expr in [
+                model.objective_operational_contribution,
+                model.objective_investment_contribution,
+            ]:
                 if obj_expr is not None:
-                    modified = self.risk_strategy(obj_expr)
-                    obj_term = visit(modified, builder)
+                    obj_term = visit(obj_expr, builder)
                     total_obj = _accumulate(total_obj, obj_term)
 
         return total_obj
@@ -712,9 +684,6 @@ def build_problem(
     *,
     problem_name: str = "optimization_problem",
     border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
-    build_strategy: ModelSelectionStrategy = MergedProblemStrategy(),
-    risk_strategy: RiskManagementStrategy = UniformRisk(),
-    decision_tree_node: str = "",
 ) -> LinopyOptimizationProblem:
     """
     Build and return a LinopyOptimizationProblem for the given time block.
@@ -733,12 +702,6 @@ def build_problem(
         Label for the linopy model.
     border_management:
         How to handle time steps at block borders (only CYCLE is implemented).
-    build_strategy:
-        Selects which variables and constraints to include.
-    risk_strategy:
-        Modifies objective expressions for risk management.
-    decision_tree_node:
-        Node identifier when operating within a decision tree.
     """
     if border_management != BlockBorderManagement.CYCLE:
         raise NotImplementedError(
@@ -754,8 +717,5 @@ def build_problem(
         database=database,
         block=block,
         scenarios=scenarios,
-        build_strategy=build_strategy,
-        risk_strategy=risk_strategy,
-        decision_tree_node=decision_tree_node,
     )
     return builder.build()

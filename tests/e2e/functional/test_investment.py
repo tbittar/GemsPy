@@ -30,11 +30,7 @@ from gems.model import (
     model,
 )
 from gems.model.port import PortFieldDefinition, PortFieldId
-from gems.simulation import (
-    MergedProblemStrategy,
-    TimeBlock,
-    build_problem,
-)
+from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.study import (
     Component,
@@ -225,7 +221,6 @@ def test_generation_xpansion_single_time_step_single_scenario(
         database,
         TimeBlock(1, [0]),
         scenarios,
-        build_strategy=MergedProblemStrategy(),
     )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
