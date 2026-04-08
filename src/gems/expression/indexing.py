@@ -21,8 +21,6 @@ from .expression import (
     AllTimeSumNode,
     CeilNode,
     ComparisonNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     DivisionNode,
     ExpressionNode,
     FloorNode,
@@ -51,19 +49,6 @@ class IndexingStructureProvider(ABC):
     @abstractmethod
     def get_variable_structure(self, name: str) -> IndexingStructure:
         ...
-
-    @abstractmethod
-    def get_component_variable_structure(
-        self, component_id: str, name: str
-    ) -> IndexingStructure:
-        ...
-
-    @abstractmethod
-    def get_component_parameter_structure(
-        self, component_id: str, name: str
-    ) -> IndexingStructure:
-        ...
-
 
 @dataclass(frozen=True)
 class TimeScenarioIndexingVisitor(ExpressionVisitor[IndexingStructure]):
@@ -115,16 +100,6 @@ class TimeScenarioIndexingVisitor(ExpressionVisitor[IndexingStructure]):
         time = self.context.get_parameter_structure(node.name).time == True
         scenario = self.context.get_parameter_structure(node.name).scenario == True
         return IndexingStructure(time, scenario)
-
-    def comp_variable(self, node: ComponentVariableNode) -> IndexingStructure:
-        return self.context.get_component_variable_structure(
-            node.component_id, node.name
-        )
-
-    def comp_parameter(self, node: ComponentParameterNode) -> IndexingStructure:
-        return self.context.get_component_parameter_structure(
-            node.component_id, node.name
-        )
 
     def time_shift(self, node: TimeShiftNode) -> IndexingStructure:
         return visit(node.operand, self)

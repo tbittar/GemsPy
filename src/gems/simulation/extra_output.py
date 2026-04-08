@@ -20,11 +20,11 @@ model-level extra output expressions (potentially nonlinear) over the full
 
 Port arrays for ``sum_connections`` support are built by calling
 :func:`~gems.simulation.linopy_problem.build_port_arrays` with a
-:class:`VectorizedExtraOutputBuilder` factory (see ``output_values.py``).
+:class:`VectorizedExtraOutputBuilder` factory.
 """
 
-from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import xarray as xr
@@ -34,8 +34,6 @@ from gems.expression.expression import (
     AllTimeSumNode,
     CeilNode,
     ComparisonNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     DivisionNode,
     ExpressionNode,
     FloorNode,
@@ -63,10 +61,51 @@ from gems.simulation.linopy_linearize import (
     _time_shift,
     _time_sum,
 )
-from gems.simulation.output_values_base import ExtraOutput
 from gems.study.network import Component, Network
 from gems.expression.evaluate import ValueProvider
 from gems.study.data import ComponentParameterIndex, TimeScenarioIndex
+
+
+@dataclass
+class ExtraOutput:
+    """
+    Stores a post-solve extra output expression as a vectorized xr.DataArray
+    with dims ⊆ {component, time, scenario}.
+    """
+
+    _name: str
+    _data: Optional[xr.DataArray] = field(init=False, default=None)
+    ignore: bool = field(default=False, init=False)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ExtraOutput):
+            return NotImplemented
+        return self.is_close(other, rel_tol=0.0, abs_tol=0.0)
+
+    def is_close(
+        self,
+        other: "ExtraOutput",
+        *,
+        rel_tol: float = 1.0e-9,
+        abs_tol: float = 0.0,
+    ) -> bool:
+        if not isinstance(other, ExtraOutput):
+            return NotImplemented  # type: ignore[return-value]
+        if self.ignore or other.ignore:
+            return True
+        if (self._data is None) != (other._data is None):
+            return False
+        if self._data is None:
+            return True
+        assert other._data is not None  # narrowing: both non-None by checks above
+        try:
+            lhs, rhs = xr.align(self._data, other._data, join="exact")
+        except ValueError:
+            return False
+        return bool(np.allclose(lhs.values, rhs.values, rtol=rel_tol, atol=abs_tol))
+
+    def __str__(self) -> str:
+        return f"{self._name} : {self._data!r} {'(ignored)' if self.ignore else ''}"
 
 
 @dataclass
@@ -247,16 +286,3 @@ class VectorizedExtraOutputBuilder(ExpressionVisitor[xr.DataArray]):
             result = xr.where(result <= op, result, op)  # type: ignore[no-untyped-call,assignment]
         return result
 
-    # ------------------------------------------------------------------ #
-    # Nodes that should not appear in model-level extra output ASTs         #
-    # ------------------------------------------------------------------ #
-
-    def comp_parameter(self, node: ComponentParameterNode) -> xr.DataArray:
-        raise ValueError(
-            f"ComponentParameterNode {node!r} should not appear in a model-level AST."
-        )
-
-    def comp_variable(self, node: ComponentVariableNode) -> xr.DataArray:
-        raise ValueError(
-            f"ComponentVariableNode {node!r} should not appear in a model-level AST."
-        )

@@ -34,8 +34,6 @@ from gems.expression.expression import (
     AllTimeSumNode,
     CeilNode,
     ComparisonNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     DivisionNode,
     ExpressionNode,
     FloorNode,
@@ -481,16 +479,3 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
         )
 
     # ------------------------------------------------------------------ #
-    # Nodes that should not appear in model-level ASTs                      #
-    # ------------------------------------------------------------------ #
-
-    def comp_parameter(self, node: ComponentParameterNode) -> LinopyExpression:
-        raise ValueError(
-            f"ComponentParameterNode {node!r} should not appear in a model-level AST. "
-            "Did you accidentally call add_component_context() before the vectorized pipeline?"
-        )
-
-    def comp_variable(self, node: ComponentVariableNode) -> LinopyExpression:
-        raise ValueError(
-            f"ComponentVariableNode {node!r} should not appear in a model-level AST."
-        )

@@ -18,8 +18,6 @@ from .expression import (
     AllTimeSumNode,
     CeilNode,
     ComparisonNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     ExpressionNode,
     FloorNode,
     LiteralNode,
@@ -59,12 +57,6 @@ class CopyVisitor(ExpressionVisitorOperations[ExpressionNode]):
 
     def parameter(self, node: ParameterNode) -> ExpressionNode:
         return ParameterNode(node.name)
-
-    def comp_variable(self, node: ComponentVariableNode) -> ExpressionNode:
-        return ComponentVariableNode(node.component_id, node.name)
-
-    def comp_parameter(self, node: ComponentParameterNode) -> ExpressionNode:
-        return ComponentParameterNode(node.component_id, node.name)
 
     def time_shift(self, node: TimeShiftNode) -> ExpressionNode:
         return TimeShiftNode(visit(node.operand, self), visit(node.time_shift, self))

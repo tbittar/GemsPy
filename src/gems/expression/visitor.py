@@ -23,8 +23,6 @@ from gems.expression.expression import (
     AllTimeSumNode,
     CeilNode,
     ComparisonNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     DivisionNode,
     ExpressionNode,
     FloorNode,
@@ -88,14 +86,6 @@ class ExpressionVisitor(ABC, Generic[T]):
         ...
 
     @abstractmethod
-    def comp_parameter(self, node: ComponentParameterNode) -> T:
-        ...
-
-    @abstractmethod
-    def comp_variable(self, node: ComponentVariableNode) -> T:
-        ...
-
-    @abstractmethod
     def time_shift(self, node: TimeShiftNode) -> T:
         ...
 
@@ -152,10 +142,6 @@ def visit(root: ExpressionNode, visitor: ExpressionVisitor[T]) -> T:
         return visitor.variable(root)
     elif isinstance(root, ParameterNode):
         return visitor.parameter(root)
-    elif isinstance(root, ComponentParameterNode):
-        return visitor.comp_parameter(root)
-    elif isinstance(root, ComponentVariableNode):
-        return visitor.comp_variable(root)
     elif isinstance(root, AdditionNode):
         return visitor.addition(root)
     elif isinstance(root, MultiplicationNode):
