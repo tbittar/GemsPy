@@ -6,12 +6,6 @@
 #
 annotated-types==0.7.0
     # via pydantic
-antares-craft==0.3.0
-    # via -r requirements.in
-antares-study-version==1.0.15
-    # via antares-craft
-antares-timeseries-generation==0.1.7
-    # via antares-craft
 antlr4-python3-runtime==4.13.1
     # via -r requirements.in
 anytree==2.12.1
@@ -23,15 +17,10 @@ certifi==2025.1.31
     #   netcdf4
     #   pyogrio
     #   pyproj
-    #   requests
 cftime==1.6.4.post1
     # via netcdf4
-charset-normalizer==3.4.1
-    # via requests
 click==8.1.8
-    # via
-    #   antares-study-version
-    #   dask
+    # via dask
 cloudpickle==3.1.1
     # via dask
 contourpy==1.3.2
@@ -52,8 +41,6 @@ geopandas==1.0.1
     # via pypsa
 highspy==1.10.0
     # via pypsa
-idna==3.10
-    # via requests
 importlib-metadata==8.6.1
     # via dask
 kiwisolver==1.4.8
@@ -75,8 +62,6 @@ numexpr==2.10.2
 numpy==1.26.4
     # via
     #   -r requirements.in
-    #   antares-craft
-    #   antares-timeseries-generation
     #   bottleneck
     #   cftime
     #   contourpy
@@ -103,9 +88,6 @@ packaging==25.0
     #   xarray
 pandas==2.2.3
     # via
-    #   antares-craft
-    #   antares-study-version
-    #   antares-timeseries-generation
     #   geopandas
     #   pypsa
     #   seaborn
@@ -116,12 +98,8 @@ pillow==11.2.1
     # via matplotlib
 polars==1.27.1
     # via linopy
-psutil==7.0.0
-    # via antares-craft
 pydantic==2.11.7
-    # via
-    #   -r requirements.in
-    #   antares-craft
+    # via -r requirements.in
 pydantic-core==2.33.2
     # via pydantic
 pyogrio==0.10.0
@@ -139,13 +117,9 @@ pytz==2025.2
 pyyaml==6.0.2
     # via
     #   -r requirements.in
-    #   antares-timeseries-generation
     #   dask
-requests==2.32.3
-    # via antares-craft
 scipy==1.10.1
     # via
-    #   -r requirements.in
     #   linopy
     #   pypsa
 seaborn==0.13.2
@@ -174,8 +148,6 @@ typing-inspection==0.4.1
     # via pydantic
 tzdata==2025.2
     # via pandas
-urllib3==2.4.0
-    # via requests
 validators==0.34.0
     # via pypsa
 xarray==2025.3.1
