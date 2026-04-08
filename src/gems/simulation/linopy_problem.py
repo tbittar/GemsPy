@@ -236,14 +236,12 @@ class _LinopyProblemBuilder:
 
         # Phase 4: constraints + objectives
         total_obj: Optional[LinopyExpression] = None
-        for mk, components in self.model_components.items():
+        for mk in self.model_components.keys():
             model = self.models[mk]
             port_arrays_for_model = self.port_arrays.get(mk, {})
-            total_obj = self._create_constraints_for_model(
-                model, components, port_arrays_for_model, total_obj
-            )
+            self._create_constraints_for_model(model, port_arrays_for_model)
             total_obj = self._add_objectives_for_model(
-                model, components, port_arrays_for_model, total_obj
+                model, port_arrays_for_model, total_obj
             )
 
         # Extract constant objective contribution (linopy cannot hold pure constants).
@@ -386,11 +384,15 @@ class _LinopyProblemBuilder:
 
             # Shape of this variable (used to broadcast scalar bounds)
             var_shape = tuple(
-                len(comp_ids)
-                if d == "component"
-                else len(self.time_coord)
-                if d == "time"
-                else len(self.scenario_coord)
+                (
+                    len(comp_ids)
+                    if d == "component"
+                    else (
+                        len(self.time_coord)
+                        if d == "time"
+                        else len(self.scenario_coord)
+                    )
+                )
                 for d in dims
             )
 
@@ -529,9 +531,9 @@ class _LinopyProblemBuilder:
         # objects with the same .id string are never confused.
         # Grouping by master_pf_id is critical: a component can connect via different
         # ports (e.g. link.in_port and link.out_port) which have different definitions.
-        per_master: Dict[
-            Tuple[int, PortFieldId], List[Tuple[int, Component]]
-        ] = defaultdict(list)
+        per_master: Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]] = (
+            defaultdict(list)
+        )
 
         for i, comp_m in enumerate(comp_ids):
             for cnx in self.network.connections:
@@ -590,10 +592,8 @@ class _LinopyProblemBuilder:
     def _create_constraints_for_model(
         self,
         model: Model,
-        components: List[Component],
         port_arrays_for_model: Dict[PortFieldId, LinopyExpression],
-        total_obj: Optional[LinopyExpression],
-    ) -> Optional[LinopyExpression]:
+    ) -> None:
         """Add all constraints for *model* to the linopy model."""
         builder = self._make_builder(model, port_arrays=port_arrays_for_model)
 
@@ -618,12 +618,9 @@ class _LinopyProblemBuilder:
                 con_ub = lhs <= ub  # type: ignore[operator]
                 self.linopy_model.add_constraints(con_ub, name=name)  # type: ignore[arg-type]
 
-        return total_obj
-
     def _add_objectives_for_model(
         self,
         model: Model,
-        components: List[Component],
         port_arrays_for_model: Dict[PortFieldId, LinopyExpression],
         total_obj: Optional[LinopyExpression],
     ) -> Optional[LinopyExpression]:
