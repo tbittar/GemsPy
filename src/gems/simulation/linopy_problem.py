@@ -534,9 +534,9 @@ class _LinopyProblemBuilder:
         # objects with the same .id string are never confused.
         # Grouping by master_pf_id is critical: a component can connect via different
         # ports (e.g. link.in_port and link.out_port) which have different definitions.
-        per_master: Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]] = (
-            defaultdict(list)
-        )
+        per_master: Dict[
+            Tuple[int, PortFieldId], List[Tuple[int, Component]]
+        ] = defaultdict(list)
 
         for i, comp_m in enumerate(comp_ids):
             for cnx in self.network.connections:
