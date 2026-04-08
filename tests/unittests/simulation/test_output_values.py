@@ -4,6 +4,7 @@
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 import xarray as xr
 
 from gems.simulation.linopy_problem import LinopyOptimizationProblem
@@ -19,20 +20,24 @@ def _make_mock_problem(
     mock_problem = MagicMock()
     mock_problem.__class__ = LinopyOptimizationProblem
 
-    # Mock network: all_components
+    # Share one model object so all components map to the same model key.
+    mock_model = MagicMock()
+    mock_model.extra_outputs = None
+
     mock_components = []
     for comp_id in component_ids:
         mock_comp = MagicMock()
         mock_comp.id = comp_id
-        mock_comp.model = MagicMock()
-        mock_comp.model.extra_outputs = None
+        mock_comp.model = mock_model
         mock_components.append(mock_comp)
 
     mock_problem.network.all_components = mock_components
 
-    # Mock linopy model solution
+    # Mock linopy model solution — use id(mock_model) as the model key,
+    # matching what _build_models() does with id(cmp.model).
     import linopy
 
+    mk = id(mock_model)
     mock_lv = MagicMock(spec=linopy.Variable)
     mock_lv.name = f"test_model__{var_name}"
     # Set up coords so _evaluate_variables can find component IDs.
@@ -40,7 +45,7 @@ def _make_mock_problem(
     component_coord.values = np.array(component_ids)
     mock_lv.coords = {"component": component_coord}
 
-    mock_problem._linopy_vars = {(0, var_name): mock_lv}
+    mock_problem._linopy_vars = {(mk, var_name): mock_lv}
     mock_problem.linopy_model.solution = {mock_lv.name: solution_values}
 
     # Extra output evaluation skipped when models is empty.
@@ -52,7 +57,7 @@ def _make_mock_problem(
 
 
 def test_output_values_single_component() -> None:
-    """Variables are correctly extracted from the linopy solution."""
+    """Variables are correctly extracted from the linopy solution as DataArrays."""
     comp_ids = ["comp_1"]
     T, S = 2, 1
     sol = xr.DataArray(
@@ -67,16 +72,23 @@ def test_output_values_single_component() -> None:
     expected = OutputValues()
     assert actual != expected
 
-    from gems.study.data import TimeScenarioIndex
+    # The DataArray is stored directly under the model key (one model shared by all comps)
+    assert len(actual._models) == 1
+    var_da = next(iter(actual._models.values())).var("x")._data
+    assert var_da is not None
+    assert float(
+        var_da.sel(component="comp_1", time=0, scenario=0).values
+    ) == pytest.approx(10.0)
+    assert float(
+        var_da.sel(component="comp_1", time=1, scenario=0).values
+    ) == pytest.approx(20.0)
 
-    assert actual.component("comp_1").var("x")._value == {
-        TimeScenarioIndex(0, 0): 10.0,
-        TimeScenarioIndex(1, 0): 20.0,
-    }
+    # Backward-compat accessor: T=2, S=1 → list-of-lists [[t0, t1]] (1 scenario)
+    assert actual.component("comp_1").var("x").value == [[10.0, 20.0]]
 
 
 def test_output_values_ignore_flag() -> None:
-    """OutputComponent.ignore allows skipping equality checks."""
+    """ComponentOutputView.ignore allows skipping equality checks."""
     comp_ids = ["comp_1"]
     sol = xr.DataArray(
         np.array([[[5.0]]]),
@@ -104,7 +116,7 @@ def test_output_values_empty() -> None:
 def test_extra_output_with_sum_connections() -> None:
     """
     Extra output using sum_connections is evaluated correctly via
-    VectorizedExtraOutputBuilder + _build_port_arrays_xarray.
+    VectorizedExtraOutputBuilder + build_port_arrays.
 
     Setup: gen_1 (GEN model, variable gen=5) connects to node_1 (NODE model).
     NODE model has extra output 'total_flow' = sum_connections(balance_port.flow).
@@ -122,7 +134,6 @@ def test_extra_output_with_sum_connections() -> None:
         Network,
         Node,
         PortRef,
-        TimeScenarioIndex,
         create_component,
     )
 
@@ -169,9 +180,9 @@ def test_extra_output_with_sum_connections() -> None:
 
     output = OutputValues(problem)
 
-    assert output.component("node_1").extra_output("total_flow")._value == {
-        TimeScenarioIndex(0, 0): 5.0
-    }
+    assert output.component("node_1").extra_output("total_flow").value == pytest.approx(
+        5.0
+    )
 
 
 def test_extra_output_nonlinear() -> None:
@@ -190,7 +201,7 @@ def test_extra_output_nonlinear() -> None:
     from gems.model.model import model
     from gems.model.variable import float_variable
     from gems.simulation import TimeBlock, build_problem
-    from gems.study import DataBase, Network, TimeScenarioIndex, create_component
+    from gems.study import DataBase, Network, create_component
 
     SIMPLE_MODEL = model(
         id="SIMPLE_NL",
@@ -209,6 +220,6 @@ def test_extra_output_nonlinear() -> None:
 
     output = OutputValues(problem)
 
-    assert output.component("comp_1").extra_output("squared")._value == {
-        TimeScenarioIndex(0, 0): 9.0
-    }
+    assert output.component("comp_1").extra_output("squared").value == pytest.approx(
+        9.0
+    )

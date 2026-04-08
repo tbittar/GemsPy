@@ -24,7 +24,7 @@ Port arrays for ``sum_connections`` support are built by calling
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import xarray as xr
@@ -65,35 +65,8 @@ from gems.simulation.linopy_linearize import (
     _time_shift,
     _time_sum,
 )
-from gems.simulation.output_values_base import BaseOutputValue
-from gems.study.data import TimeScenarioIndex
+from gems.simulation.output_values_base import ExtraOutput
 from gems.study.network import Component, Network
-
-
-@dataclass
-class ExtraOutput(BaseOutputValue):
-    """
-    Stores evaluated outputs (from ExpressionNodes), not solver variables.
-    Inherits all common fields (_name, _value, _size, ignore) and methods
-    (__eq__, is_close, __str__, value property) from BaseOutputValue.
-    """
-
-    def _set(
-        self,
-        timestep: Optional[int],
-        scenario: Optional[int],
-        value: float,
-    ) -> None:
-        timestep = 0 if timestep is None else timestep
-        scenario = 0 if scenario is None else scenario
-        key = TimeScenarioIndex(timestep, scenario)
-
-        if key not in self._value:
-            size_s = max(self._size[0], scenario + 1)
-            size_t = max(self._size[1], timestep + 1)
-            self._size = (size_s, size_t)
-
-        self._value[key] = value
 
 
 @dataclass

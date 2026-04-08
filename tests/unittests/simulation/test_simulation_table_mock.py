@@ -3,51 +3,17 @@
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
+import xarray as xr
 
-from gems.simulation.output_values import OutputValues
+from gems.simulation.output_values import OutputModel, OutputValues
+from gems.simulation.output_values_base import OutputVariable
 from gems.simulation.simulation_table import (
     SimulationColumns,
     SimulationTableBuilder,
     SimulationTableWriter,
 )
-
-
-@dataclass(frozen=True)
-class FakeTimeIndex:
-    """Represents a (time, scenario) pair for testing."""
-
-    time: int
-    scenario: int
-
-
-@dataclass(frozen=True)
-class FakeVariable:
-    """Mimics a solver variable with values and basis statuses."""
-
-    _name: str
-    _value: dict[FakeTimeIndex, float]
-    _basis_status: dict[FakeTimeIndex, str]
-
-
-@dataclass(frozen=True)
-class FakeComponent:
-    """Container for fake variables."""
-
-    _variables: dict[str, FakeVariable]
-
-
-@dataclass(frozen=True)
-class FakeSolver:
-    """Fake solver providing a fixed objective value."""
-
-    @dataclass(frozen=True)
-    class Obj:
-        def Value(self) -> float:
-            return 42.0
-
-    def Objective(self):
-        return self.Obj()
 
 
 @dataclass(frozen=True)
@@ -67,29 +33,43 @@ class FakeProblem:
 
 
 class FakeOutputValues(OutputValues):
-    """Simplified OutputValues holding fake components and optional extras."""
+    """OutputValues backed by pre-built OutputModel instances."""
 
-    def __init__(self, problem: FakeProblem, components: dict, extra_outputs=None):
-        self.problem = problem  # type: ignore
-        self._components = components
-        self._extra_outputs = extra_outputs or {}
+    def __init__(
+        self,
+        problem: FakeProblem,
+        models: dict,
+        comp_to_model_key: dict,
+    ) -> None:
+        self.problem = problem  # type: ignore[assignment]
+        self._models = models
+        self._comp_to_model_key = comp_to_model_key
 
 
 def test_simulation_table_builder_manual(tmp_path):
     """Test SimulationTableBuilder and SimulationTableWriter with fake data."""
     problem = FakeProblem()
 
-    ts0 = FakeTimeIndex(time=0, scenario=0)
-    ts1 = FakeTimeIndex(time=1, scenario=0)
-
-    var = FakeVariable(
-        _name="p",
-        _value={ts0: 10.0, ts1: 20.0},
-        _basis_status={ts0: "BASIC", ts1: "NONBASIC"},
+    var = OutputVariable("p")
+    var._data = xr.DataArray(
+        np.array([[[10.0], [20.0]]]),
+        dims=["component", "time", "scenario"],
+        coords={"component": ["compA"], "time": [0, 1], "scenario": [0]},
+    )
+    var._basis_status = xr.DataArray(
+        np.array([[["BASIC"], ["NONBASIC"]]], dtype=object),
+        dims=["component", "time", "scenario"],
+        coords={"component": ["compA"], "time": [0, 1], "scenario": [0]},
     )
 
-    component = FakeComponent(_variables={"var1": var})
-    output_values = FakeOutputValues(problem=problem, components={"compA": component})
+    model_out = OutputModel("test_model")
+    model_out._variables["p"] = var
+
+    output_values = FakeOutputValues(
+        problem=problem,
+        models={0: model_out},
+        comp_to_model_key={"compA": 0},
+    )
 
     builder = SimulationTableBuilder(simulation_id="test")
     df = builder.build(output_values)  # type: ignore
