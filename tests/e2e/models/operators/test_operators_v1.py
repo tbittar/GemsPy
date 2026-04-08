@@ -79,6 +79,7 @@ def input_libraries(input_dir: Path) -> List[InputLibrary]:
         Path(__file__).parent / "optest1",
         Path(__file__).parent / "optest2",
         Path(__file__).parent / "optest3",
+        Path(__file__).parent / "optest4",
     ],
     indirect=True,
 )
@@ -139,3 +140,41 @@ def test_model_behaviour(
                 sol_val,
                 rel_tol=relative_accuracy,
             ), f"unique_prod3.generation mismatch at timestep {t}: expected {ref_val}, got {sol_val}"
+
+
+def test_model_behaviour_scenario_and_time_dependent_bounds() -> None:
+    """
+    Verify that complex bound expressions (min, ceil) in variable bounds work
+    correctly when the parameter minimum_generation_modulation is genuinely
+    time- AND scenario-dependent with non-trivial values.
+
+    optest4 uses 2 scenarios: scenario 0 has alternating 0.0/0.3 modulation,
+    scenario 1 has alternating 0.5/0.1 modulation, so bounds differ across
+    both time steps and scenarios. Issue #9.
+    """
+    scenarios = 2
+    timesteps = list(range(0, 168))
+
+    data_dir = Path(__file__).parent / "optest4"
+    input_dir = data_dir / "input"
+
+    with open(input_dir / "system.yml") as compo_file:
+        input_component = parse_yaml_components(compo_file)
+
+    with open(input_dir / "model-libraries" / "test_lib.yml") as lib_file:
+        lib = parse_yaml_library(lib_file)
+
+    result_lib = resolve_library([lib])
+    components_input = resolve_system(input_component, result_lib)
+    database = build_data_base(input_component, input_dir / "data-series")
+    network = build_network(components_input)
+
+    problem = build_problem(network, database, TimeBlock(1, timesteps), scenarios)
+    status = problem.solver.Solve()
+
+    assert status == problem.solver.OPTIMAL
+    assert math.isclose(
+        problem.solver.Objective().Value(),
+        problem.solver.Objective().BestBound(),
+        rel_tol=1e-6,
+    )
