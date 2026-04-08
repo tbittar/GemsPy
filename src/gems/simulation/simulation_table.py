@@ -58,59 +58,58 @@ class SimulationTableBuilder:
     ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
 
-        for model_out in output_values._models.values():
-            for var in model_out._variables.values():
-                if var._data is None:
-                    continue
-                da = var._data
-                comp_dim = "component" in da.dims
-                time_dim = "time" in da.dims
-                scen_dim = "scenario" in da.dims
-                comp_ids = list(da.coords["component"].values) if comp_dim else [None]
+        for var in output_values._variables.values():
+            if var._data is None:
+                continue
+            da = var._data
+            comp_dim = "component" in da.dims
+            time_dim = "time" in da.dims
+            scen_dim = "scenario" in da.dims
+            comp_ids = list(da.coords["component"].values) if comp_dim else [None]
 
-                for i_comp, comp_id in enumerate(comp_ids):
-                    n_time = da.sizes.get("time", 1) if time_dim else 1
-                    n_scen = da.sizes.get("scenario", 1) if scen_dim else 1
-                    for t in range(n_time):
-                        for s in range(n_scen):
-                            isel: Dict[str, Any] = {}
-                            if comp_dim:
-                                isel["component"] = i_comp
-                            if time_dim:
-                                isel["time"] = t
-                            if scen_dim:
-                                isel["scenario"] = s
-                            val = float(da.isel(**isel).item()) if isel else float(da.item())  # type: ignore[arg-type]
+            for i_comp, comp_id in enumerate(comp_ids):
+                n_time = da.sizes.get("time", 1) if time_dim else 1
+                n_scen = da.sizes.get("scenario", 1) if scen_dim else 1
+                for t in range(n_time):
+                    for s in range(n_scen):
+                        isel: Dict[str, Any] = {}
+                        if comp_dim:
+                            isel["component"] = i_comp
+                        if time_dim:
+                            isel["time"] = t
+                        if scen_dim:
+                            isel["scenario"] = s
+                        val = float(da.isel(**isel).item()) if isel else float(da.item())  # type: ignore[arg-type]
 
-                            basis_status = None
-                            if var._basis_status is not None:
-                                bs_isel: Dict[str, Any] = {
-                                    k: v
-                                    for k, v in isel.items()
-                                    if k in var._basis_status.dims
-                                }
-                                bs_val = (
-                                    var._basis_status.isel(**bs_isel)
-                                    if bs_isel
-                                    else var._basis_status
-                                )
-                                basis_status = str(bs_val.item())  # type: ignore[arg-type]
-
-                            rows.append(
-                                {
-                                    SimulationColumns.BLOCK.value: block,
-                                    SimulationColumns.COMPONENT.value: str(comp_id)
-                                    if comp_id is not None
-                                    else None,
-                                    SimulationColumns.OUTPUT.value: var._name,
-                                    SimulationColumns.ABSOLUTE_TIME_INDEX.value: abs_offset
-                                    + t,
-                                    SimulationColumns.BLOCK_TIME_INDEX.value: t,
-                                    SimulationColumns.SCENARIO_INDEX.value: s,
-                                    SimulationColumns.VALUE.value: val,
-                                    SimulationColumns.BASIS_STATUS.value: basis_status,
-                                }
+                        basis_status = None
+                        if var._basis_status is not None:
+                            bs_isel: Dict[str, Any] = {
+                                k: v
+                                for k, v in isel.items()
+                                if k in var._basis_status.dims
+                            }
+                            bs_val = (
+                                var._basis_status.isel(**bs_isel)
+                                if bs_isel
+                                else var._basis_status
                             )
+                            basis_status = str(bs_val.item())  # type: ignore[arg-type]
+
+                        rows.append(
+                            {
+                                SimulationColumns.BLOCK.value: block,
+                                SimulationColumns.COMPONENT.value: str(comp_id)
+                                if comp_id is not None
+                                else None,
+                                SimulationColumns.OUTPUT.value: var._name,
+                                SimulationColumns.ABSOLUTE_TIME_INDEX.value: abs_offset
+                                + t,
+                                SimulationColumns.BLOCK_TIME_INDEX.value: t,
+                                SimulationColumns.SCENARIO_INDEX.value: s,
+                                SimulationColumns.VALUE.value: val,
+                                SimulationColumns.BASIS_STATUS.value: basis_status,
+                            }
+                        )
         return rows
 
     # -------------------------------------------------------------------------
@@ -121,45 +120,44 @@ class SimulationTableBuilder:
     ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
 
-        for model_out in output_values._models.values():
-            for eo in model_out._extra_outputs.values():
-                if eo._data is None:
-                    continue
-                da = eo._data
-                comp_dim = "component" in da.dims
-                time_dim = "time" in da.dims
-                scen_dim = "scenario" in da.dims
-                comp_ids = list(da.coords["component"].values) if comp_dim else [None]
+        for eo in output_values._extra_outputs.values():
+            if eo._data is None:
+                continue
+            da = eo._data
+            comp_dim = "component" in da.dims
+            time_dim = "time" in da.dims
+            scen_dim = "scenario" in da.dims
+            comp_ids = list(da.coords["component"].values) if comp_dim else [None]
 
-                for i_comp, comp_id in enumerate(comp_ids):
-                    n_time = da.sizes.get("time", 1) if time_dim else 1
-                    n_scen = da.sizes.get("scenario", 1) if scen_dim else 1
-                    for t in range(n_time):
-                        for s in range(n_scen):
-                            isel: Dict[str, Any] = {}
-                            if comp_dim:
-                                isel["component"] = i_comp
-                            if time_dim:
-                                isel["time"] = t
-                            if scen_dim:
-                                isel["scenario"] = s
-                            val = float(da.isel(**isel).item()) if isel else float(da.item())  # type: ignore[arg-type]
+            for i_comp, comp_id in enumerate(comp_ids):
+                n_time = da.sizes.get("time", 1) if time_dim else 1
+                n_scen = da.sizes.get("scenario", 1) if scen_dim else 1
+                for t in range(n_time):
+                    for s in range(n_scen):
+                        isel: Dict[str, Any] = {}
+                        if comp_dim:
+                            isel["component"] = i_comp
+                        if time_dim:
+                            isel["time"] = t
+                        if scen_dim:
+                            isel["scenario"] = s
+                        val = float(da.isel(**isel).item()) if isel else float(da.item())  # type: ignore[arg-type]
 
-                            rows.append(
-                                {
-                                    SimulationColumns.BLOCK.value: block,
-                                    SimulationColumns.COMPONENT.value: str(comp_id)
-                                    if comp_id is not None
-                                    else None,
-                                    SimulationColumns.OUTPUT.value: eo._name,
-                                    SimulationColumns.ABSOLUTE_TIME_INDEX.value: abs_offset
-                                    + t,
-                                    SimulationColumns.BLOCK_TIME_INDEX.value: t,
-                                    SimulationColumns.SCENARIO_INDEX.value: s,
-                                    SimulationColumns.VALUE.value: val,
-                                    SimulationColumns.BASIS_STATUS.value: None,
-                                }
-                            )
+                        rows.append(
+                            {
+                                SimulationColumns.BLOCK.value: block,
+                                SimulationColumns.COMPONENT.value: str(comp_id)
+                                if comp_id is not None
+                                else None,
+                                SimulationColumns.OUTPUT.value: eo._name,
+                                SimulationColumns.ABSOLUTE_TIME_INDEX.value: abs_offset
+                                + t,
+                                SimulationColumns.BLOCK_TIME_INDEX.value: t,
+                                SimulationColumns.SCENARIO_INDEX.value: s,
+                                SimulationColumns.VALUE.value: val,
+                                SimulationColumns.BASIS_STATUS.value: None,
+                            }
+                        )
         return rows
 
     # -------------------------------------------------------------------------

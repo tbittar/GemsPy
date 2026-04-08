@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from gems.simulation.output_values import OutputModel, OutputValues
+from gems.simulation.output_values import OutputValues
 from gems.simulation.output_values_base import OutputVariable
 from gems.simulation.simulation_table import (
     SimulationColumns,
@@ -33,17 +33,17 @@ class FakeProblem:
 
 
 class FakeOutputValues(OutputValues):
-    """OutputValues backed by pre-built OutputModel instances."""
+    """OutputValues backed by pre-built variable DataArrays."""
 
     def __init__(
         self,
         problem: FakeProblem,
-        models: dict,
-        comp_to_model_key: dict,
+        variables: dict,
     ) -> None:
         self.problem = problem  # type: ignore[assignment]
-        self._models = models
-        self._comp_to_model_key = comp_to_model_key
+        self._variables = variables
+        self._extra_outputs = {}
+        self._ignored_comps = set()
 
 
 def test_simulation_table_builder_manual(tmp_path):
@@ -62,13 +62,9 @@ def test_simulation_table_builder_manual(tmp_path):
         coords={"component": ["compA"], "time": [0, 1], "scenario": [0]},
     )
 
-    model_out = OutputModel("test_model")
-    model_out._variables["p"] = var
-
     output_values = FakeOutputValues(
         problem=problem,
-        models={0: model_out},
-        comp_to_model_key={"compA": 0},
+        variables={"p": var},
     )
 
     builder = SimulationTableBuilder(simulation_id="test")

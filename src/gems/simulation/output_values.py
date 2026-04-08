@@ -9,7 +9,7 @@ Utility classes to obtain solver results from a linopy-based optimization proble
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import Dict, List, Optional, Set, Tuple, Union, cast
 
 import numpy as np
 import xarray as xr
@@ -34,7 +34,7 @@ def _da_to_value(
 ) -> Union[float, List[float], List[List[float]]]:
     """Convert a [time?, scenario?] DataArray (no component dim) to scalar/list/list-of-list.
 
-    Mirrors the old ``BaseOutputValue.value`` getter shape convention:
+    Shape convention:
     - (T=1, S=1) → scalar float
     - (T=1, S>1) → list of floats indexed by scenario
     - (T>1, S>=1) → list of lists indexed by [scenario][time]
@@ -69,10 +69,10 @@ def _value_to_da(
 ) -> xr.DataArray:
     """Build a [component, time, scenario] DataArray from a scalar/list/list-of-list.
 
-    Mirrors the old ``BaseOutputValue.value`` setter shape convention:
+    Shape convention (mirrors _da_to_value):
     - float            → (1 comp, 1 time, 1 scenario)
-    - list of floats   → (1 comp, 1 time, S scenarios)  — indexed by scenario
-    - list of lists    → (1 comp, T times, S scenarios) — indexed by [scenario][time]
+    - list of floats   → (1 comp, 1 time, S scenarios)
+    - list of lists    → (1 comp, T times, S scenarios) indexed by [scenario][time]
     """
     if not isinstance(values, list):
         arr = np.array([[[float(values)]]])
@@ -99,47 +99,6 @@ def _value_to_da(
     )
 
 
-def _model_has_data_for_comp(model: "OutputModel", comp_id: str) -> bool:
-    """Return True if *model* has any non-None variable data for *comp_id*."""
-    for var in model._variables.values():
-        if var._data is None:
-            continue
-        if "component" not in var._data.dims:
-            return True
-        if comp_id in var._data.coords["component"].values:
-            return True
-    return False
-
-
-# ---------------------------------------------------------------------------
-# OutputModel
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class OutputModel:
-    """Groups all OutputVariable and ExtraOutput DataArrays for one GEMS model.
-
-    One ``OutputModel`` instance covers **all components** of a GEMS model,
-    with the component dimension encoded inside each DataArray.
-    """
-
-    _model_id: str
-    _variables: Dict[str, OutputVariable] = field(init=False, default_factory=dict)
-    _extra_outputs: Dict[str, ExtraOutput] = field(init=False, default_factory=dict)
-    ignore: bool = field(default=False, init=False)
-
-    def var(self, name: str) -> OutputVariable:
-        if name not in self._variables:
-            self._variables[name] = OutputVariable(name)
-        return self._variables[name]
-
-    def extra_output(self, name: str) -> ExtraOutput:
-        if name not in self._extra_outputs:
-            self._extra_outputs[name] = ExtraOutput(name)
-        return self._extra_outputs[name]
-
-
 # ---------------------------------------------------------------------------
 # Per-component views (backward-compat adapters)
 # ---------------------------------------------------------------------------
@@ -151,10 +110,6 @@ class VarOutputView:
     def __init__(self, var: OutputVariable, comp_id: str) -> None:
         self._var = var
         self._comp_id = comp_id
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _sliced_da(self) -> Optional[xr.DataArray]:
         """Return the DataArray sliced to this component (no component dim), or None."""
@@ -184,10 +139,6 @@ class VarOutputView:
             )
         except ValueError:
             return False
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     @property
     def value(self) -> Union[None, float, List[float], List[List[float]]]:
@@ -267,7 +218,7 @@ class ExtraOutputView:
 
 
 class ComponentOutputView:
-    """Backward-compat adapter: sliced view of an :class:`OutputModel` for one component.
+    """Backward-compat adapter: sliced view of :class:`OutputValues` for one component.
 
     Returned by :meth:`OutputValues.component`.  Supports the same
     ``var(name).value``, ``extra_output(name).value``, and ``ignore`` API
@@ -279,42 +230,55 @@ class ComponentOutputView:
         self._comp_id = comp_id
 
     @property
-    def _model(self) -> OutputModel:
-        return self._ov._models[self._ov._comp_to_model_key[self._comp_id]]
-
-    @property
     def ignore(self) -> bool:
-        return self._model.ignore
+        return self._comp_id in self._ov._ignored_comps
 
     @ignore.setter
     def ignore(self, val: bool) -> None:
-        self._model.ignore = val
+        if val:
+            self._ov._ignored_comps.add(self._comp_id)
+        else:
+            self._ov._ignored_comps.discard(self._comp_id)
 
     def var(self, name: str) -> VarOutputView:
-        return VarOutputView(self._model.var(name), self._comp_id)
+        if name not in self._ov._variables:
+            self._ov._variables[name] = OutputVariable(name)
+        return VarOutputView(self._ov._variables[name], self._comp_id)
 
     def extra_output(self, name: str) -> ExtraOutputView:
-        return ExtraOutputView(self._model.extra_output(name), self._comp_id)
+        if name not in self._ov._extra_outputs:
+            self._ov._extra_outputs[name] = ExtraOutput(name)
+        return ExtraOutputView(self._ov._extra_outputs[name], self._comp_id)
 
     def _is_close_to(
         self, other: "ComponentOutputView", rel_tol: float, abs_tol: float
     ) -> bool:
-        if self._model.ignore or other._model.ignore:
+        if self.ignore or other.ignore:
             return True
 
-        all_var_names = set(self._model._variables) | set(other._model._variables)
+        all_var_names = set(self._ov._variables) | set(other._ov._variables)
         for var_name in all_var_names:
-            lv = VarOutputView(self._model.var(var_name), self._comp_id)
-            rv = VarOutputView(other._model.var(var_name), other._comp_id)
+            lv = VarOutputView(
+                self._ov._variables.get(var_name, OutputVariable(var_name)),
+                self._comp_id,
+            )
+            rv = VarOutputView(
+                other._ov._variables.get(var_name, OutputVariable(var_name)),
+                other._comp_id,
+            )
             if not lv._is_close_to(rv, rel_tol, abs_tol):
                 return False
 
-        all_eo_names = set(self._model._extra_outputs) | set(
-            other._model._extra_outputs
-        )
+        all_eo_names = set(self._ov._extra_outputs) | set(other._ov._extra_outputs)
         for eo_name in all_eo_names:
-            lv_eo = ExtraOutputView(self._model.extra_output(eo_name), self._comp_id)
-            rv_eo = ExtraOutputView(other._model.extra_output(eo_name), other._comp_id)
+            lv_eo = ExtraOutputView(
+                self._ov._extra_outputs.get(eo_name, ExtraOutput(eo_name)),
+                self._comp_id,
+            )
+            rv_eo = ExtraOutputView(
+                other._ov._extra_outputs.get(eo_name, ExtraOutput(eo_name)),
+                other._comp_id,
+            )
             if not lv_eo._is_close_to(rv_eo, rel_tol, abs_tol):
                 return False
 
@@ -330,6 +294,9 @@ class ComponentOutputView:
 class OutputValues:
     """Contains variables and extra outputs after solver completion.
 
+    All variables and extra outputs are stored as vectorized xr.DataArrays
+    with dims ⊆ {component, time, scenario}, concatenated across all models.
+
     If constructed with a :class:`~gems.simulation.linopy_problem.LinopyOptimizationProblem`,
     variable solution values are extracted from ``linopy_model.solution`` and extra
     outputs are evaluated vectorized over ``[component, time, scenario]``.
@@ -339,12 +306,12 @@ class OutputValues:
     """
 
     problem: Optional[LinopyOptimizationProblem] = field(default=None)
-    _models: Dict[int, OutputModel] = field(init=False, default_factory=dict)
-    _comp_to_model_key: Dict[str, int] = field(init=False, default_factory=dict)
+    _variables: Dict[str, OutputVariable] = field(init=False, default_factory=dict)
+    _extra_outputs: Dict[str, ExtraOutput] = field(init=False, default_factory=dict)
+    _ignored_comps: Set[str] = field(init=False, default_factory=set)
 
     def __post_init__(self) -> None:
-        self._build_models()
-        self._fill_models()
+        self._collect_outputs_by_model()
 
     # ------------------------------------------------------------------
     # Comparison
@@ -358,24 +325,10 @@ class OutputValues:
     def is_close(
         self, other: "OutputValues", *, rel_tol: float = 1.0e-9, abs_tol: float = 0.0
     ) -> bool:
-        lhs_comps = set(self._comp_to_model_key)
-        rhs_comps = set(other._comp_to_model_key)
+        lhs_comps = self._all_component_ids()
+        rhs_comps = other._all_component_ids()
 
-        for comp_id in lhs_comps - rhs_comps:
-            lv_model = self._models[self._comp_to_model_key[comp_id]]
-            if lv_model.ignore:
-                continue
-            if _model_has_data_for_comp(lv_model, comp_id):
-                return False
-
-        for comp_id in rhs_comps - lhs_comps:
-            rv_model = other._models[other._comp_to_model_key[comp_id]]
-            if rv_model.ignore:
-                continue
-            if _model_has_data_for_comp(rv_model, comp_id):
-                return False
-
-        for comp_id in lhs_comps & rhs_comps:
+        for comp_id in lhs_comps | rhs_comps:
             lv = ComponentOutputView(self, comp_id)
             rv = ComponentOutputView(other, comp_id)
             if not lv._is_close_to(rv, rel_tol, abs_tol):
@@ -385,11 +338,10 @@ class OutputValues:
 
     def __str__(self) -> str:
         lines = ["\n"]
-        for model in self._models.values():
-            for var in model._variables.values():
-                lines.append(f"  {var}\n")
-            for eo in model._extra_outputs.values():
-                lines.append(f"  {eo}\n")
+        for var in self._variables.values():
+            lines.append(f"  {var}\n")
+        for eo in self._extra_outputs.values():
+            lines.append(f"  {eo}\n")
         return "".join(lines)
 
     # ------------------------------------------------------------------
@@ -397,35 +349,25 @@ class OutputValues:
     # ------------------------------------------------------------------
 
     def component(self, comp_id: str) -> ComponentOutputView:
-        """Return a per-component view (backward-compat accessor).
-
-        If *comp_id* is not yet registered (e.g. when building expected values),
-        a synthetic :class:`OutputModel` is created automatically.
-        """
-        if comp_id not in self._comp_to_model_key:
-            key = hash(comp_id)
-            self._models[key] = OutputModel(comp_id)
-            self._comp_to_model_key[comp_id] = key
+        """Return a per-component view (backward-compat accessor)."""
         return ComponentOutputView(self, comp_id)
 
-    def model(self, model_key: int) -> OutputModel:
-        """Return the :class:`OutputModel` for the given model key (``id(Model)``)."""
-        return self._models[model_key]
+    def _all_component_ids(self) -> Set[str]:
+        """Return all component IDs present in any DataArray."""
+        comps: Set[str] = set()
+        for var in self._variables.values():
+            if var._data is not None and "component" in var._data.dims:
+                comps.update(str(c) for c in var._data.coords["component"].values)
+        for eo in self._extra_outputs.values():
+            if eo._data is not None and "component" in eo._data.dims:
+                comps.update(str(c) for c in eo._data.coords["component"].values)
+        return comps
 
     # ------------------------------------------------------------------
     # Initialisation (called from __post_init__)
     # ------------------------------------------------------------------
 
-    def _build_models(self) -> None:
-        if self.problem is None:
-            return
-        for cmp in self.problem.network.all_components:
-            mk = id(cmp.model)
-            if mk not in self._models:
-                self._models[mk] = OutputModel(cmp.model.id)
-            self._comp_to_model_key[cmp.id] = mk
-
-    def _fill_models(self) -> None:
+    def _collect_outputs_by_model(self) -> None:
         self._evaluate_variables()
         self._evaluate_extra_outputs()
 
@@ -434,7 +376,7 @@ class OutputValues:
     # ------------------------------------------------------------------
 
     def _evaluate_variables(self) -> None:
-        """Assign solution DataArrays directly to OutputVariable._data."""
+        """Assign solution DataArrays into _variables, concatenating across models."""
         if self.problem is None:
             return
 
@@ -442,7 +384,7 @@ class OutputValues:
         if solution is None:
             return
 
-        for (mk, var_name), lv in self.problem._linopy_vars.items():
+        for (_, var_name), lv in self.problem._linopy_vars.items():
             lv_name = lv.name
             if lv_name not in solution:
                 continue
@@ -454,14 +396,24 @@ class OutputValues:
             own_components = list(lv.coords["component"].values)
             filtered_da = sol_da.sel(component=own_components)
 
-            self._models[mk].var(var_name)._data = filtered_da
+            if var_name not in self._variables:
+                self._variables[var_name] = OutputVariable(var_name)
+                self._variables[var_name]._data = filtered_da
+            else:
+                existing = self._variables[var_name]._data
+                if existing is None:
+                    self._variables[var_name]._data = filtered_da
+                else:
+                    self._variables[var_name]._data = xr.concat(
+                        [existing, filtered_da], dim="component"
+                    )
 
     # ------------------------------------------------------------------
     # Extra output evaluation
     # ------------------------------------------------------------------
 
     def _evaluate_extra_outputs(self) -> None:
-        """Evaluate model extra outputs and store DataArrays directly."""
+        """Evaluate model extra outputs and concatenate DataArrays into _extra_outputs."""
         if self.problem is None:
             return
         problem = self.problem  # narrow Optional for mypy + lambda capture
@@ -515,4 +467,14 @@ class OutputValues:
                     ]
                     result_da = result_da.sel(component=present)
 
-                self._models[mk].extra_output(out_id)._data = result_da
+                if out_id not in self._extra_outputs:
+                    self._extra_outputs[out_id] = ExtraOutput(out_id)
+                    self._extra_outputs[out_id]._data = result_da
+                else:
+                    existing = self._extra_outputs[out_id]._data
+                    if existing is None:
+                        self._extra_outputs[out_id]._data = result_da
+                    else:
+                        self._extra_outputs[out_id]._data = xr.concat(
+                            [existing, result_da], dim="component"
+                        )

@@ -72,9 +72,9 @@ def test_output_values_single_component() -> None:
     expected = OutputValues()
     assert actual != expected
 
-    # The DataArray is stored directly under the model key (one model shared by all comps)
-    assert len(actual._models) == 1
-    var_da = next(iter(actual._models.values())).var("x")._data
+    # DataArray is stored directly in _variables, spanning all components
+    assert "x" in actual._variables
+    var_da = actual._variables["x"]._data
     assert var_da is not None
     assert float(
         var_da.sel(component="comp_1", time=0, scenario=0).values
