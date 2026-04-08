@@ -13,16 +13,14 @@
 from abc import ABC, abstractmethod
 from typing import Generator, Optional
 
-from gems.expression import ExpressionNode, literal
+from gems.expression import ExpressionNode
 from gems.model import Constraint, Model, ProblemContext, Variable
 
 
 class ModelSelectionStrategy(ABC):
     """
     Abstract class to specify the strategy of the created problem.
-    Its derived classes select variables and constraints for the optimization problems:
-        - InvestmentProblemStrategy: Keep investment and coupling variables and constraints only for a BendersDecomposed master
-        - OperationalProblemStrategy: Keep operational and coupling variables and constraints only for a BendersDecomposed sub-problems
+    Its derived class selects variables and constraints for the optimization problem:
         - MergedProblemStrategy: Keep all variables and constraints
     """
 
@@ -58,38 +56,11 @@ class MergedProblemStrategy(ModelSelectionStrategy):
         yield model.objective_investment_contribution
 
 
-class InvestmentProblemStrategy(ModelSelectionStrategy):
-    def _keep_from_context(self, context: ProblemContext) -> bool:
-        return (
-            context == ProblemContext.INVESTMENT or context == ProblemContext.COUPLING
-        )
-
-    def get_objectives(
-        self, model: Model
-    ) -> Generator[Optional[ExpressionNode], None, None]:
-        yield model.objective_investment_contribution
-
-
-class OperationalProblemStrategy(ModelSelectionStrategy):
-    def _keep_from_context(self, context: ProblemContext) -> bool:
-        return (
-            context == ProblemContext.OPERATIONAL or context == ProblemContext.COUPLING
-        )
-
-    def get_objectives(
-        self, model: Model
-    ) -> Generator[Optional[ExpressionNode], None, None]:
-        yield model.objective_operational_contribution
-
-
 class RiskManagementStrategy(ABC):
     """
-    Abstract functor class for risk management
-    Its derived classes will implement risk measures:
-        - UniformRisk   : The default case. All expressions have the same weight
-        - ExpectedValue : Computes the product prob * expression
-    TODO For now, it will only take into account the Expected Value
-    TODO In the future could have other risk measures?
+    Abstract functor class for risk management.
+    Its derived class implements the default (uniform) risk measure:
+        - UniformRisk: All expressions have the same weight
     """
 
     def __call__(self, expr: ExpressionNode) -> ExpressionNode:
@@ -103,11 +74,3 @@ class RiskManagementStrategy(ABC):
 class UniformRisk(RiskManagementStrategy):
     def _modify_expression(self, expr: ExpressionNode) -> ExpressionNode:
         return expr
-
-
-class ExpectedValue(RiskManagementStrategy):
-    def __init__(self, prob: float) -> None:
-        self._prob = prob
-
-    def _modify_expression(self, expr: ExpressionNode) -> ExpressionNode:
-        return literal(self._prob) * expr
