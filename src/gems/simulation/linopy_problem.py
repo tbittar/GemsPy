@@ -42,7 +42,11 @@ from gems.expression.visitor import visit
 from gems.model.common import ValueType
 from gems.model.model import Model
 from gems.model.port import PortField, PortFieldId
-from gems.simulation.linopy_linearize import LinopyExpression, VectorizedLinopyBuilder
+from gems.simulation.linopy_linearize import (
+    LinopyExpression,
+    VectorizedLinopyBuilder,
+    _linopy_add,
+)
 from gems.simulation.strategy import (
     MergedProblemStrategy,
     ModelSelectionStrategy,
@@ -647,18 +651,6 @@ def build_port_arrays(
                 port_arrays[pf_id] = total if total is not None else xr.DataArray(0.0)
 
     return port_arrays
-
-
-def _linopy_add(a: LinopyExpression, b: LinopyExpression) -> LinopyExpression:
-    """
-    Add two linopy-compatible expressions, ensuring linopy types are on the left.
-
-    xarray's DataArray.__add__ doesn't know about linopy types, so mixing
-    DataArray + LinearExpression fails unless linopy is the left operand.
-    """
-    if isinstance(a, xr.DataArray) and not isinstance(b, xr.DataArray):
-        return b + a  # type: ignore[operator]  # linopy on left
-    return a + b  # type: ignore[operator]
 
 
 def _involves(cnx: PortsConnection, component_id: str, port_name: str) -> bool:

@@ -22,7 +22,7 @@ xarray-backed linopy objects, enabling vectorized constraint generation.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import linopy
 import numpy as np
@@ -88,6 +88,189 @@ def _da_to_int(da: xr.DataArray) -> int:
 def _has_dim(operand: LinopyExpression, dim: str) -> bool:
     """Return True if the operand has the named dimension."""
     return dim in operand.dims
+
+
+def _linopy_add(a: LinopyExpression, b: LinopyExpression) -> LinopyExpression:
+    """Add two linopy-compatible expressions, keeping linopy types on the left.
+
+    xarray's DataArray.__add__ does not know about linopy types, so
+    ``DataArray + LinearExpression`` fails unless the linopy operand is on the
+    left.  For two DataArrays, this reduces to plain ``a + b``.
+    """
+    if isinstance(a, xr.DataArray) and not isinstance(b, xr.DataArray):
+        return b + a  # type: ignore[operator]
+    return a + b  # type: ignore[operator]
+
+
+# ---------------------------------------------------------------------------
+# Shared time-operator helpers
+#
+# These module-level functions encapsulate the cyclic-shift / masked-sum logic
+# shared by VectorizedLinopyBuilder and VectorizedExtraOutputBuilder.
+# They accept any ExpressionVisitor (via `visitor: Any`) and use _linopy_add
+# for accumulation, which degenerates to plain `+` for pure-DataArray visitors.
+# ---------------------------------------------------------------------------
+
+
+def _apply_time_shift(
+    operand: LinopyExpression, shift: int, block_length: int
+) -> LinopyExpression:
+    """Apply a cyclic (modulo block_length) time shift to *operand*.
+
+    Works for both xr.DataArray and linopy Variable/LinearExpression operands.
+    Coordinates are reassigned after isel so that subsequent xarray arithmetic
+    aligns positionally rather than by the shifted coordinate values.
+    """
+    if not _has_dim(operand, "time"):
+        return operand
+    T = block_length
+    positions = (np.arange(T) + shift) % T
+    indexer = xr.DataArray(positions, dims="time")
+    result = operand.isel(time=indexer)  # type: ignore[union-attr]
+    if "time" in result.coords:  # type: ignore[operator]
+        result = result.assign_coords(time=list(range(T)))  # type: ignore[union-attr]
+    return result
+
+
+def _eval_int_expr(node: ExpressionNode, visitor: Any) -> int:
+    """Evaluate a constant integer expression, falling back to visitor if needed.
+
+    Tries the static evaluator first; if that fails (e.g. the expression
+    references a model parameter), evaluates it via the visitor and extracts
+    the scalar integer.
+    """
+    try:
+        return _eval_int(node)
+    except KeyError:
+        result = visit(node, visitor)
+        if isinstance(result, xr.DataArray):
+            return _da_to_int(result)
+        raise ValueError(
+            f"Expected a constant integer expression for time operation, "
+            f"got {result!r} from {node!r}."
+        )
+
+
+def _time_shift(
+    node: TimeShiftNode, visitor: Any, block_length: int
+) -> LinopyExpression:
+    """Evaluate a TimeShiftNode using *visitor* for sub-expression evaluation."""
+    operand: LinopyExpression = visit(node.operand, visitor)
+
+    # Fast path: compile-time integer constant.
+    try:
+        shift = _eval_int(node.time_shift)
+        return _apply_time_shift(operand, shift, block_length)
+    except (ValueError, KeyError):
+        pass
+
+    shift_result: LinopyExpression = visit(node.time_shift, visitor)
+    if not isinstance(shift_result, xr.DataArray):
+        raise ValueError(
+            f"Time shift expression must evaluate to a parameter (DataArray), "
+            f"got {type(shift_result).__name__!r}."
+        )
+    if not shift_result.dims:
+        return _apply_time_shift(operand, _da_to_int(shift_result), block_length)
+
+    # Slow path: per-component shift — sum masked contributions.
+    shift_int = shift_result.astype(int)
+    unique_shifts = np.unique(shift_int.values)
+    acc: Optional[LinopyExpression] = None
+    for s in unique_shifts:
+        mask: xr.DataArray = (shift_int == s).astype(float)
+        shifted = _apply_time_shift(operand, int(s), block_length)
+        contrib: LinopyExpression = shifted * mask  # type: ignore[operator]
+        acc = contrib if acc is None else _linopy_add(acc, contrib)
+    return acc  # type: ignore[return-value]
+
+
+def _time_eval(node: TimeEvalNode, visitor: Any, block_length: int) -> LinopyExpression:
+    """Evaluate a TimeEvalNode: select operand at a fixed absolute timestep."""
+    timestep = _eval_int_expr(node.eval_time, visitor) % block_length
+    operand: LinopyExpression = visit(node.operand, visitor)
+    if not _has_dim(operand, "time"):
+        return operand
+    return operand.isel(time=timestep)  # type: ignore[union-attr]
+
+
+def _time_sum(node: TimeSumNode, visitor: Any, block_length: int) -> LinopyExpression:
+    """Evaluate a TimeSumNode: sum operand over [from_shift, to_shift] (cyclic)."""
+    try:
+        from_shift_scalar: Optional[int] = _eval_int(node.from_time)
+    except (ValueError, KeyError):
+        from_shift_scalar = None
+    try:
+        to_shift_scalar: Optional[int] = _eval_int(node.to_time)
+    except (ValueError, KeyError):
+        to_shift_scalar = None
+
+    operand: LinopyExpression = visit(node.operand, visitor)
+
+    # Fast path: both bounds are compile-time integer constants.
+    if from_shift_scalar is not None and to_shift_scalar is not None:
+        result: LinopyExpression = _apply_time_shift(
+            operand, from_shift_scalar, block_length
+        )
+        for shift in range(from_shift_scalar + 1, to_shift_scalar + 1):
+            result = _linopy_add(
+                result, _apply_time_shift(operand, shift, block_length)
+            )
+        return result
+
+    # Slow path: at least one bound depends on a parameter (per-component DataArray).
+    from_da: LinopyExpression = (
+        xr.DataArray(float(from_shift_scalar))
+        if from_shift_scalar is not None
+        else visit(node.from_time, visitor)
+    )
+    to_da: LinopyExpression = (
+        xr.DataArray(float(to_shift_scalar))
+        if to_shift_scalar is not None
+        else visit(node.to_time, visitor)
+    )
+    if not isinstance(from_da, xr.DataArray):
+        raise ValueError(
+            f"time_sum from_time must be a parameter expression (DataArray), "
+            f"got {type(from_da).__name__!r}."
+        )
+    if not isinstance(to_da, xr.DataArray):
+        raise ValueError(
+            f"time_sum to_time must be a parameter expression (DataArray), "
+            f"got {type(to_da).__name__!r}."
+        )
+    from_int = from_da.astype(int)
+    to_int = to_da.astype(int)
+    min_from = int(from_int.values.min())
+    max_to = int(to_int.values.max())
+
+    acc: Optional[LinopyExpression] = None
+    for shift in range(min_from, max_to + 1):
+        shifted = _apply_time_shift(operand, shift, block_length)
+        include_from = (
+            (from_int <= shift).astype(float)
+            if isinstance(from_int, xr.DataArray) and from_int.dims
+            else xr.DataArray(1.0)
+        )
+        include_to = (
+            (to_int >= shift).astype(float)
+            if isinstance(to_int, xr.DataArray) and to_int.dims
+            else xr.DataArray(1.0)
+        )
+        mask: xr.DataArray = include_from * include_to
+        contrib: LinopyExpression = shifted * mask  # type: ignore[operator]
+        acc = contrib if acc is None else _linopy_add(acc, contrib)
+    return acc  # type: ignore[return-value]
+
+
+def _all_time_sum(
+    node: AllTimeSumNode, visitor: Any, block_length: int
+) -> LinopyExpression:
+    """Sum over all time steps, or multiply by block_length if time-independent."""
+    operand: LinopyExpression = visit(node.operand, visitor)
+    if _has_dim(operand, "time"):
+        return operand.sum("time")  # type: ignore[union-attr]
+    return operand * block_length  # type: ignore[operator]
 
 
 @dataclass
@@ -198,205 +381,17 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
     # Time operators                                                        #
     # ------------------------------------------------------------------ #
 
-    def _apply_time_shift(
-        self, operand: LinopyExpression, shift: int
-    ) -> LinopyExpression:
-        """
-        Apply a cyclic (modulo block_length) time shift to operand.
-
-        At each time step t the result takes the operand's value at (t + shift) % T.
-        If the operand has no 'time' dimension, it is returned as-is.
-
-        After isel, xarray retains the original time coordinate values at the
-        selected positions (e.g. shift=-1 → coords [T-1, 0, 1, ..., T-2]).
-        This causes subsequent xarray arithmetic to align by coordinate and
-        silently cancel the shift.  We reassign standard coords [0, ..., T-1]
-        so that positional semantics are preserved for both xarray arithmetic
-        and linopy constraint building.
-        """
-        if not _has_dim(operand, "time"):
-            return operand
-        T = self.block_length
-        positions = (np.arange(T) + shift) % T
-        # NO coords on the indexer — crucial to avoid xarray coordinate conflict
-        indexer = xr.DataArray(positions, dims="time")
-        result = operand.isel(time=indexer)  # type: ignore[union-attr]
-        # Reassign standard time coordinates so subsequent xarray arithmetic does
-        # not re-align by the shifted (non-standard) coordinate values.
-        # This applies to both xr.DataArray and linopy Variable/LinearExpression
-        # objects (all of which expose assign_coords).
-        if "time" in result.coords:  # type: ignore[operator]
-            result = result.assign_coords(time=list(range(T)))  # type: ignore[union-attr]
-        return result
-
-    def _eval_int_expr(self, node: ExpressionNode) -> int:
-        """
-        Evaluate a constant integer expression, using param_arrays if needed.
-
-        Falls back to the static evaluator for pure literal expressions; for
-        expressions that reference model parameters (e.g. a time-shift count
-        stored as a parameter), evaluate via visit() and extract the scalar.
-        """
-        try:
-            return _eval_int(node)
-        except KeyError:
-            # The expression references a parameter — evaluate it with the
-            # builder's param_arrays and extract a constant integer.
-            result = visit(node, self)
-            if isinstance(result, xr.DataArray):
-                return _da_to_int(result)
-            raise ValueError(
-                f"Expected a constant integer expression for time operation, "
-                f"got {result!r} from {node!r}."
-            )
-
     def time_shift(self, node: TimeShiftNode) -> LinopyExpression:
-        operand = visit(node.operand, self)
-
-        # Fast path: shift is a compile-time integer constant (no parameter
-        # reference, or the parameter is uniform across all components).
-        try:
-            shift = _eval_int(node.time_shift)
-            return self._apply_time_shift(operand, shift)
-        except (ValueError, KeyError):
-            pass
-
-        # Evaluate the shift expression — must be a parameter (DataArray).
-        shift_result = visit(node.time_shift, self)
-        if not isinstance(shift_result, xr.DataArray):
-            raise ValueError(
-                f"Time shift expression must evaluate to a parameter (DataArray), "
-                f"got {type(shift_result).__name__!r}."
-            )
-        if not shift_result.dims:
-            # Dimensionless scalar — safe to extract as int.
-            return self._apply_time_shift(operand, _da_to_int(shift_result))
-
-        # Slow path: shift varies per component.
-        # Apply each unique integer shift value with a per-component 0/1 mask
-        # so that each component gets its own correct shifted version.
-        shift_int = shift_result.astype(int)
-        unique_shifts = np.unique(shift_int.values)
-        acc: Optional[LinopyExpression] = None
-        for s in unique_shifts:
-            # mask[component] = 1.0 where this shift applies, 0.0 elsewhere.
-            mask: xr.DataArray = (shift_int == s).astype(float)
-            shifted = self._apply_time_shift(operand, int(s))
-            contrib: LinopyExpression = shifted * mask  # type: ignore[operator]
-            if acc is None:
-                acc = contrib
-            elif isinstance(acc, xr.DataArray) and isinstance(
-                contrib, (linopy.Variable, linopy.LinearExpression)
-            ):
-                acc = contrib + acc  # type: ignore[operator]
-            else:
-                acc = acc + contrib  # type: ignore[operator]
-        return acc  # type: ignore[return-value]
+        return _time_shift(node, self, self.block_length)  # type: ignore[return-value]
 
     def time_eval(self, node: TimeEvalNode) -> LinopyExpression:
-        """Select the operand at a fixed absolute timestep (removes the time dimension)."""
-        timestep = self._eval_int_expr(node.eval_time) % self.block_length
-        operand = visit(node.operand, self)
-        if not _has_dim(operand, "time"):
-            return operand
-        return operand.isel(time=timestep)  # type: ignore[union-attr]
+        return _time_eval(node, self, self.block_length)  # type: ignore[return-value]
 
     def time_sum(self, node: TimeSumNode) -> LinopyExpression:
-        """Sum the operand over [from_shift, to_shift] inclusive (cyclic shifts).
-
-        When from_shift or to_shift vary per component (stored as a DataArray with
-        a 'component' dimension), a masked sum is used: the contribution at each
-        shift position is multiplied by a per-component 0/1 mask.
-        """
-        # Evaluate the shift bounds — may be integer scalars or per-component DAs.
-        try:
-            from_shift_scalar: Optional[int] = _eval_int(node.from_time)
-        except (ValueError, KeyError):
-            from_shift_scalar = None
-
-        try:
-            to_shift_scalar: Optional[int] = _eval_int(node.to_time)
-        except (ValueError, KeyError):
-            to_shift_scalar = None
-
-        operand = visit(node.operand, self)
-
-        # Fast path: both bounds are compile-time integer constants.
-        if from_shift_scalar is not None and to_shift_scalar is not None:
-            result: LinopyExpression = self._apply_time_shift(
-                operand, from_shift_scalar
-            )
-            for shift in range(from_shift_scalar + 1, to_shift_scalar + 1):
-                shifted = self._apply_time_shift(operand, shift)
-                result = result + shifted  # type: ignore[operator]
-            return result
-
-        # Slow path: at least one bound depends on model parameters (per-component).
-        from_da = (
-            xr.DataArray(float(from_shift_scalar))
-            if from_shift_scalar is not None
-            else visit(node.from_time, self)
-        )
-        to_da = (
-            xr.DataArray(float(to_shift_scalar))
-            if to_shift_scalar is not None
-            else visit(node.to_time, self)
-        )
-        # Convert to integer arrays (shape [component] or scalar).
-        # Both must evaluate to DataArrays (parameter expressions, not variables).
-        if not isinstance(from_da, xr.DataArray):
-            raise ValueError(
-                f"time_sum from_time must be a parameter expression (DataArray), "
-                f"got {type(from_da).__name__!r}."
-            )
-        if not isinstance(to_da, xr.DataArray):
-            raise ValueError(
-                f"time_sum to_time must be a parameter expression (DataArray), "
-                f"got {type(to_da).__name__!r}."
-            )
-        from_int = from_da.astype(int)
-        to_int = to_da.astype(int)
-        min_from = int(from_int.values.min())
-        max_to = int(to_int.values.max())
-
-        acc: Optional[LinopyExpression] = None
-        for shift in range(min_from, max_to + 1):
-            shifted = self._apply_time_shift(operand, shift)
-            # Build per-component include mask (1.0 = include, 0.0 = exclude).
-            include_from = (
-                (from_int <= shift).astype(float)
-                if isinstance(from_int, xr.DataArray) and from_int.dims
-                else xr.DataArray(1.0)
-            )
-            include_to = (
-                (to_int >= shift).astype(float)
-                if isinstance(to_int, xr.DataArray) and to_int.dims
-                else xr.DataArray(1.0)
-            )
-            mask: xr.DataArray = include_from * include_to
-            # Apply mask: multiply contribution by per-component 0/1 weights.
-            if isinstance(shifted, (linopy.Variable, linopy.LinearExpression)):
-                contrib: LinopyExpression = shifted * mask  # type: ignore[operator]
-            else:
-                contrib = shifted * mask  # type: ignore[operator]
-            # Accumulate (keep linopy type on the left to avoid xarray issues).
-            if acc is None:
-                acc = contrib
-            elif isinstance(acc, xr.DataArray) and isinstance(
-                contrib, (linopy.Variable, linopy.LinearExpression)
-            ):
-                acc = contrib + acc  # type: ignore[operator]
-            else:
-                acc = acc + contrib  # type: ignore[operator]
-        return acc  # type: ignore[return-value]
+        return _time_sum(node, self, self.block_length)  # type: ignore[return-value]
 
     def all_time_sum(self, node: AllTimeSumNode) -> LinopyExpression:
-        """Sum over all time steps. If no time dimension, multiply by block_length."""
-        operand = visit(node.operand, self)
-        if _has_dim(operand, "time"):
-            return operand.sum("time")  # type: ignore[union-attr]
-        # time-independent operand: scalar sum = value * T
-        return operand * self.block_length  # type: ignore[operator]
+        return _all_time_sum(node, self, self.block_length)  # type: ignore[return-value]
 
     # ------------------------------------------------------------------ #
     # Scenario operators                                                    #

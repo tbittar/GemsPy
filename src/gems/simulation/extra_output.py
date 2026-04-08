@@ -58,7 +58,13 @@ from gems.expression.expression import (
 from gems.expression.visitor import ExpressionVisitor, visit
 from gems.model.model import Model
 from gems.model.port import PortFieldId
-from gems.simulation.linopy_linearize import _da_to_int, _eval_int, _has_dim
+from gems.simulation.linopy_linearize import (
+    _all_time_sum,
+    _has_dim,
+    _time_eval,
+    _time_shift,
+    _time_sum,
+)
 from gems.simulation.output_values_base import BaseOutputValue
 from gems.study.data import TimeScenarioIndex
 from gems.study.network import Component, Network
@@ -185,132 +191,17 @@ class VectorizedExtraOutputBuilder(ExpressionVisitor[xr.DataArray]):
     # Time operators                                                        #
     # ------------------------------------------------------------------ #
 
-    def _apply_time_shift(self, operand: xr.DataArray, shift: int) -> xr.DataArray:
-        """Apply a cyclic time shift to operand (same logic as VectorizedLinopyBuilder)."""
-        if not _has_dim(operand, "time"):
-            return operand
-        T = self.block_length
-        positions = (np.arange(T) + shift) % T
-        indexer = xr.DataArray(positions, dims="time")
-        result = operand.isel(time=indexer)
-        if "time" in result.coords:
-            result = result.assign_coords(time=list(range(T)))
-        return result
-
-    def _eval_int_expr(self, node: ExpressionNode) -> int:
-        try:
-            return _eval_int(node)
-        except KeyError:
-            result = visit(node, self)
-            if isinstance(result, xr.DataArray):
-                return _da_to_int(result)
-            raise ValueError(
-                f"Expected a constant integer expression for time operation, "
-                f"got {result!r} from {node!r}."
-            )
-
     def time_shift(self, node: TimeShiftNode) -> xr.DataArray:
-        operand = visit(node.operand, self)
-
-        try:
-            shift = _eval_int(node.time_shift)
-            return self._apply_time_shift(operand, shift)
-        except (ValueError, KeyError):
-            pass
-
-        shift_result = visit(node.time_shift, self)
-        if not isinstance(shift_result, xr.DataArray):
-            raise ValueError(
-                f"Time shift expression must evaluate to a parameter (DataArray), "
-                f"got {type(shift_result).__name__!r}."
-            )
-        if not shift_result.dims:
-            return self._apply_time_shift(operand, _da_to_int(shift_result))
-
-        shift_int = shift_result.astype(int)
-        unique_shifts = np.unique(shift_int.values)
-        acc: Optional[xr.DataArray] = None
-        for s in unique_shifts:
-            mask: xr.DataArray = (shift_int == s).astype(float)
-            shifted = self._apply_time_shift(operand, int(s))
-            contrib: xr.DataArray = shifted * mask  # type: ignore[operator]
-            acc = contrib if acc is None else acc + contrib  # type: ignore[operator]
-        return acc  # type: ignore[return-value]
+        return _time_shift(node, self, self.block_length)  # type: ignore[return-value]
 
     def time_eval(self, node: TimeEvalNode) -> xr.DataArray:
-        timestep = self._eval_int_expr(node.eval_time) % self.block_length
-        operand = visit(node.operand, self)
-        if not _has_dim(operand, "time"):
-            return operand
-        return operand.isel(time=timestep)
+        return _time_eval(node, self, self.block_length)  # type: ignore[return-value]
 
     def time_sum(self, node: TimeSumNode) -> xr.DataArray:
-        try:
-            from_shift_scalar: Optional[int] = _eval_int(node.from_time)
-        except (ValueError, KeyError):
-            from_shift_scalar = None
-
-        try:
-            to_shift_scalar: Optional[int] = _eval_int(node.to_time)
-        except (ValueError, KeyError):
-            to_shift_scalar = None
-
-        operand = visit(node.operand, self)
-
-        if from_shift_scalar is not None and to_shift_scalar is not None:
-            result: xr.DataArray = self._apply_time_shift(operand, from_shift_scalar)
-            for shift in range(from_shift_scalar + 1, to_shift_scalar + 1):
-                result = result + self._apply_time_shift(operand, shift)  # type: ignore[operator]
-            return result
-
-        from_da = (
-            xr.DataArray(float(from_shift_scalar))
-            if from_shift_scalar is not None
-            else visit(node.from_time, self)
-        )
-        to_da = (
-            xr.DataArray(float(to_shift_scalar))
-            if to_shift_scalar is not None
-            else visit(node.to_time, self)
-        )
-        if not isinstance(from_da, xr.DataArray):
-            raise ValueError(
-                f"time_sum from_time must be a parameter expression (DataArray), "
-                f"got {type(from_da).__name__!r}."
-            )
-        if not isinstance(to_da, xr.DataArray):
-            raise ValueError(
-                f"time_sum to_time must be a parameter expression (DataArray), "
-                f"got {type(to_da).__name__!r}."
-            )
-        from_int = from_da.astype(int)
-        to_int = to_da.astype(int)
-        min_from = int(from_int.values.min())
-        max_to = int(to_int.values.max())
-
-        acc2: Optional[xr.DataArray] = None
-        for shift in range(min_from, max_to + 1):
-            shifted = self._apply_time_shift(operand, shift)
-            include_from = (
-                (from_int <= shift).astype(float)
-                if isinstance(from_int, xr.DataArray) and from_int.dims
-                else xr.DataArray(1.0)
-            )
-            include_to = (
-                (to_int >= shift).astype(float)
-                if isinstance(to_int, xr.DataArray) and to_int.dims
-                else xr.DataArray(1.0)
-            )
-            mask2: xr.DataArray = include_from * include_to  # type: ignore[operator]
-            contrib2: xr.DataArray = shifted * mask2  # type: ignore[operator]
-            acc2 = contrib2 if acc2 is None else acc2 + contrib2  # type: ignore[operator]
-        return acc2  # type: ignore[return-value]
+        return _time_sum(node, self, self.block_length)  # type: ignore[return-value]
 
     def all_time_sum(self, node: AllTimeSumNode) -> xr.DataArray:
-        operand = visit(node.operand, self)
-        if _has_dim(operand, "time"):
-            return operand.sum("time")
-        return operand * self.block_length  # type: ignore[operator]
+        return _all_time_sum(node, self, self.block_length)  # type: ignore[return-value]
 
     # ------------------------------------------------------------------ #
     # Scenario operators                                                    #
