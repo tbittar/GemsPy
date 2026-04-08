@@ -18,9 +18,9 @@ Provides :class:`ExtraOutput` for storing post-solve expression values and
 model-level extra output expressions (potentially nonlinear) over the full
 ``[component, time, scenario]`` space in one pass.
 
-Also provides :func:`_build_port_arrays_xarray` which computes port field
-DataArrays from the linopy solution, enabling ``sum_connections`` in extra
-output expressions.
+Port arrays for ``sum_connections`` support are built by calling
+:func:`~gems.simulation.linopy_problem.build_port_arrays` with a
+:class:`VectorizedExtraOutputBuilder` factory (see ``output_values.py``).
 """
 
 from dataclasses import dataclass
@@ -59,10 +59,6 @@ from gems.expression.visitor import ExpressionVisitor, visit
 from gems.model.model import Model
 from gems.model.port import PortFieldId
 from gems.simulation.linopy_linearize import _da_to_int, _eval_int, _has_dim
-from gems.simulation.linopy_problem import (
-    _build_incidence_matrix,
-    _group_port_connections_by_master,
-)
 from gems.simulation.output_values_base import BaseOutputValue
 from gems.study.data import TimeScenarioIndex
 from gems.study.network import Component, Network
@@ -410,119 +406,3 @@ class VectorizedExtraOutputBuilder(ExpressionVisitor[xr.DataArray]):
         raise ValueError(
             f"ProblemVariableNode {node!r} should not appear in a model-level AST."
         )
-
-
-def _build_port_arrays_xarray(
-    model: Model,
-    components: List[Component],
-    model_key: int,
-    all_models: Dict[int, Model],
-    all_model_components: Dict[int, List[Component]],
-    var_solution_arrays: Dict[Tuple[int, str], xr.DataArray],
-    param_arrays: Dict[Tuple[int, str], xr.DataArray],
-    network: Network,
-    block_length: int,
-    scenarios_count: int,
-) -> Dict[PortFieldId, xr.DataArray]:
-    """
-    Build post-solve xarray port arrays for *model*'s extra output evaluation.
-
-    Replicates the logic of ``_LinopyProblemBuilder._build_port_arrays_for_model``
-    and ``_build_slave_port_array``, but uses DataArrays of solution values
-    instead of linopy Variables/LinearExpressions.
-
-    For master port fields (defined by *model* itself), the definition expression
-    is evaluated with :class:`VectorizedExtraOutputBuilder`.
-
-    For slave port fields (connections from other models), an incidence matrix
-    sum is computed over contributing master components.
-    """
-    comp_ids = [c.id for c in components]
-    port_arrays: Dict[PortFieldId, xr.DataArray] = {}
-
-    for port_name, model_port in model.ports.items():
-        for port_field_obj in model_port.port_type.fields:
-            field_name = port_field_obj.name
-            pf_id = PortFieldId(port_name, field_name)
-
-            if pf_id in model.port_fields_definitions:
-                # Master: evaluate the definition using this model's own vars/params
-                builder = VectorizedExtraOutputBuilder(
-                    model_key=model_key,
-                    model_name=model.id,
-                    param_arrays=param_arrays,
-                    var_solution_arrays=var_solution_arrays,
-                    port_arrays={},
-                    block_length=block_length,
-                    scenarios_count=scenarios_count,
-                )
-                defn = model.port_fields_definitions[pf_id].definition
-                port_arrays[pf_id] = visit(defn, builder)
-            else:
-                # Slave: sum contributions from connected masters
-                port_arrays[pf_id] = _build_slave_port_array_xarray(
-                    model,
-                    comp_ids,
-                    port_name,
-                    field_name,
-                    all_models,
-                    all_model_components,
-                    var_solution_arrays,
-                    param_arrays,
-                    network,
-                    block_length,
-                    scenarios_count,
-                )
-
-    return port_arrays
-
-
-def _build_slave_port_array_xarray(
-    model: Model,
-    comp_ids: List[str],
-    port_name: str,
-    field_name: str,
-    all_models: Dict[int, Model],
-    all_model_components: Dict[int, List[Component]],
-    var_solution_arrays: Dict[Tuple[int, str], xr.DataArray],
-    param_arrays: Dict[Tuple[int, str], xr.DataArray],
-    network: Network,
-    block_length: int,
-    scenarios_count: int,
-) -> xr.DataArray:
-    """
-    Build a slave port array as a sum over connected master contributions,
-    using the shared incidence-matrix helpers from linopy_problem.
-    """
-    per_master = _group_port_connections_by_master(
-        comp_ids, port_name, field_name, network
-    )
-    if not per_master:
-        return xr.DataArray(0.0)
-
-    total: Optional[xr.DataArray] = None
-
-    for (master_mk, master_pf_id), conn_list in per_master.items():
-        master_comps = all_model_components[master_mk]
-        master_comp_ids = [c.id for c in master_comps]
-
-        A = _build_incidence_matrix(comp_ids, master_comp_ids, conn_list)
-
-        master_model = all_models[master_mk]
-        defn = master_model.port_fields_definitions[master_pf_id].definition
-        master_builder = VectorizedExtraOutputBuilder(
-            model_key=master_mk,
-            model_name=master_model.id,
-            param_arrays=param_arrays,
-            var_solution_arrays=var_solution_arrays,
-            port_arrays={},
-            block_length=block_length,
-            scenarios_count=scenarios_count,
-        )
-        expr_master: xr.DataArray = visit(defn, master_builder)
-
-        expr_master_r = expr_master.rename({"component": "component_master"})
-        contribution: xr.DataArray = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
-        total = contribution if total is None else total + contribution  # type: ignore[operator]
-
-    return total if total is not None else xr.DataArray(0.0)

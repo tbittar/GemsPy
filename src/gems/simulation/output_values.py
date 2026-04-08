@@ -14,12 +14,8 @@ from typing import Any, Dict, Mapping, Optional, Tuple, TypeVar
 import xarray as xr
 
 from gems.expression.visitor import visit
-from gems.simulation.extra_output import (
-    ExtraOutput,
-    VectorizedExtraOutputBuilder,
-    _build_port_arrays_xarray,
-)
-from gems.simulation.linopy_problem import LinopyOptimizationProblem
+from gems.simulation.extra_output import ExtraOutput, VectorizedExtraOutputBuilder
+from gems.simulation.linopy_problem import LinopyOptimizationProblem, build_port_arrays
 from gems.simulation.output_values_base import BaseOutputValue
 from gems.study.data import TimeScenarioIndex
 
@@ -211,44 +207,49 @@ class OutputValues:
         """Evaluate all model extra outputs vectorized over [component, time, scenario]."""
         if self.problem is None:
             return
+        problem = self.problem  # narrow Optional away for mypy (and lambda capture)
 
         # Build var_solution_arrays from the linopy solution
         var_solution_arrays: Dict[Tuple[int, str], xr.DataArray] = {}
-        solution = self.problem.linopy_model.solution
+        solution = problem.linopy_model.solution
         if solution is not None:
-            for (mk, vname), lv in self.problem._linopy_vars.items():
+            for (mk, vname), lv in problem._linopy_vars.items():
                 if lv.name in solution:
                     var_solution_arrays[(mk, vname)] = solution[lv.name]
 
         # Process each model that has extra outputs
-        for mk, model in self.problem.models.items():
+        for mk, model in problem.models.items():
             if not model.extra_outputs:
                 continue
-            components = self.problem.model_components[mk]
+            components = problem.model_components[mk]
 
             # Build post-solve xarray port arrays for this model
-            port_arrays = _build_port_arrays_xarray(
-                model=model,
-                components=components,
-                model_key=mk,
-                all_models=self.problem.models,
-                all_model_components=self.problem.model_components,
-                var_solution_arrays=var_solution_arrays,
-                param_arrays=self.problem.param_arrays,
-                network=self.problem.network,
-                block_length=self.problem.block_length,
-                scenarios_count=self.problem.scenarios,
+            port_arrays = build_port_arrays(
+                model,
+                components,
+                problem.models,
+                problem.model_components,
+                problem.network,
+                lambda mk_, m: VectorizedExtraOutputBuilder(
+                    model_key=mk_,
+                    model_name=m.id,
+                    param_arrays=problem.param_arrays,
+                    var_solution_arrays=var_solution_arrays,
+                    port_arrays={},
+                    block_length=problem.block_length,
+                    scenarios_count=problem.scenarios,
+                ),
             )
 
             for out_id, expr_node in model.extra_outputs.items():
                 builder = VectorizedExtraOutputBuilder(
                     model_key=mk,
                     model_name=model.id,
-                    param_arrays=self.problem.param_arrays,
+                    param_arrays=problem.param_arrays,
                     var_solution_arrays=var_solution_arrays,
                     port_arrays=port_arrays,
-                    block_length=self.problem.block_length,
-                    scenarios_count=self.problem.scenarios,
+                    block_length=problem.block_length,
+                    scenarios_count=problem.scenarios,
                 )
                 result_da: xr.DataArray = visit(expr_node, builder)
 

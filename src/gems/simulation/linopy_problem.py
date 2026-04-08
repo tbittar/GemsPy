@@ -31,7 +31,7 @@ optimization problem in four phases:
 
 from collections import defaultdict
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import linopy
 import numpy as np
@@ -469,72 +469,14 @@ class _LinopyProblemBuilder:
     def _build_port_arrays_for_model(
         self, model: Model, components: List[Component]
     ) -> None:
-        """
-        Pre-compute port arrays for all ports of *model*.
-
-        For each PortFieldId (port_name, field_name) that M owns a port for:
-          - If M defines the field (M is master): evaluate definition directly.
-          - If a connected model M' defines the field: use incidence matrix A to
-            compute sum_{j} A[i,j] * expr_M'[j] for all i.
-        """
-        comp_ids = [c.id for c in components]
-        n = len(components)
-        port_arrays: Dict[PortFieldId, LinopyExpression] = {}
-
-        for port_name, model_port in model.ports.items():
-            for port_field_obj in model_port.port_type.fields:
-                field_name = port_field_obj.name
-                pf_id = PortFieldId(port_name, field_name)
-
-                if pf_id in model.port_fields_definitions:
-                    # M is the master — evaluate definition using M's own vars/params
-                    builder = self._make_builder(model, port_arrays={})
-                    defn = model.port_fields_definitions[pf_id].definition
-                    port_arrays[pf_id] = visit(defn, builder)
-                else:
-                    # M is the slave — collect contributions from connected masters
-                    port_arrays[pf_id] = self._build_slave_port_array(
-                        model, comp_ids, n, port_name, field_name
-                    )
-
-        self.port_arrays[id(model)] = port_arrays
-
-    def _build_slave_port_array(
-        self,
-        model: Model,
-        comp_ids: List[str],
-        n: int,
-        port_name: str,
-        field_name: str,
-    ) -> LinopyExpression:
-        """
-        Build port array by summing contributions from all connected master components,
-        using an incidence matrix for each contributing master model.
-        """
-        per_master = _group_port_connections_by_master(
-            comp_ids, port_name, field_name, self.network
+        self.port_arrays[id(model)] = build_port_arrays(
+            model,
+            components,
+            self.models,
+            self.model_components,
+            self.network,
+            lambda mk, m: self._make_builder(m, port_arrays={}),
         )
-        if not per_master:
-            return xr.DataArray(0.0)
-
-        total: Optional[LinopyExpression] = None
-
-        for (master_mk, master_pf_id), conn_list in per_master.items():
-            master_comps = self.model_components[master_mk]
-            master_comp_ids = [c.id for c in master_comps]
-
-            A = _build_incidence_matrix(comp_ids, master_comp_ids, conn_list)
-
-            master_model = self.models[master_mk]
-            defn = master_model.port_fields_definitions[master_pf_id].definition
-            master_builder = self._make_builder(master_model, port_arrays={})
-            expr_master = visit(defn, master_builder)
-
-            expr_master_r = expr_master.rename({"component": "component_master"})  # type: ignore[union-attr]
-            contribution = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
-            total = contribution if total is None else _linopy_add(total, contribution)
-
-        return total if total is not None else xr.DataArray(0.0)
 
     # ------------------------------------------------------------------
     # Phase 4 — Constraints and Objectives
@@ -625,6 +567,86 @@ class _LinopyProblemBuilder:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def build_port_arrays(
+    model: Model,
+    components: List[Component],
+    all_models: Dict[int, Model],
+    all_model_components: Dict[int, List[Component]],
+    network: Network,
+    make_builder: Callable[[int, Model], Any],
+) -> Dict[PortFieldId, Any]:
+    """
+    Build port arrays for *model* using the provided expression-builder factory.
+
+    Shared by the linopy problem builder (pre-solve, returns ``LinopyExpression``)
+    and the extra-output evaluator (post-solve, returns ``xr.DataArray``).
+    The caller controls which backend is used via ``make_builder``.
+
+    Parameters
+    ----------
+    model:
+        The model whose port arrays are built.
+    components:
+        All components of *model* in the network.
+    all_models:
+        ``{id(m): m}`` mapping for every model in the network.
+    all_model_components:
+        ``{id(m): [Component, ...]}`` mapping for every model in the network.
+    network:
+        Network (needed for connection lookup).
+    make_builder:
+        Called as ``make_builder(model_key, model)`` and must return an
+        :class:`~gems.expression.visitor.ExpressionVisitor` capable of
+        evaluating expressions for that model.
+    """
+    comp_ids = [c.id for c in components]
+    port_arrays: Dict[PortFieldId, Any] = {}
+
+    for port_name, model_port in model.ports.items():
+        for port_field_obj in model_port.port_type.fields:
+            field_name = port_field_obj.name
+            pf_id = PortFieldId(port_name, field_name)
+
+            if pf_id in model.port_fields_definitions:
+                # Master: evaluate definition using this model's own builder
+                builder = make_builder(id(model), model)
+                defn = model.port_fields_definitions[pf_id].definition
+                port_arrays[pf_id] = visit(defn, builder)
+            else:
+                # Slave: sum contributions from connected masters via incidence matrix
+                per_master = _group_port_connections_by_master(
+                    comp_ids, port_name, field_name, network
+                )
+                if not per_master:
+                    port_arrays[pf_id] = xr.DataArray(0.0)
+                    continue
+
+                total: Any = None
+                for (master_mk, master_pf_id), conn_list in per_master.items():
+                    master_comps = all_model_components[master_mk]
+                    master_comp_ids = [c.id for c in master_comps]
+                    A = _build_incidence_matrix(comp_ids, master_comp_ids, conn_list)
+                    master_model = all_models[master_mk]
+                    defn = master_model.port_fields_definitions[master_pf_id].definition
+                    master_builder = make_builder(master_mk, master_model)
+                    expr_master = visit(defn, master_builder)
+                    expr_master_r = expr_master.rename(  # type: ignore[union-attr]
+                        {"component": "component_master"}
+                    )
+                    contribution = (A * expr_master_r).sum(  # type: ignore[operator]
+                        "component_master"
+                    )
+                    total = (
+                        contribution
+                        if total is None
+                        else _linopy_add(total, contribution)  # type: ignore[arg-type]
+                    )
+
+                port_arrays[pf_id] = total if total is not None else xr.DataArray(0.0)
+
+    return port_arrays
 
 
 def _linopy_add(a: LinopyExpression, b: LinopyExpression) -> LinopyExpression:
