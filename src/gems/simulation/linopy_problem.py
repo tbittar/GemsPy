@@ -37,11 +37,7 @@ import linopy
 import numpy as np
 import xarray as xr
 
-from gems.expression.evaluate import EvaluationContext, EvaluationVisitor
-from gems.expression.expression import ExpressionNode, is_unbounded
-from gems.expression.indexing import IndexingStructureProvider, compute_indexation
-from gems.expression.indexing_structure import IndexingStructure
-from gems.expression.operators_expansion import ProblemDimensions, expand_operators
+from gems.expression.expression import is_unbounded
 from gems.expression.visitor import visit
 from gems.model.common import ValueType
 from gems.model.model import Model
@@ -94,6 +90,9 @@ class LinopyOptimizationProblem:
         linopy_vars: Dict[Tuple[int, str], linopy.Variable],
         build_strategy: ModelSelectionStrategy,
         decision_tree_node: str,
+        param_arrays: Dict[Tuple[int, str], xr.DataArray],
+        model_components: Dict[int, List[Component]],
+        models: Dict[int, Model],
         objective_constant: float = 0.0,
     ) -> None:
         self.name = name
@@ -105,6 +104,9 @@ class LinopyOptimizationProblem:
         self._linopy_vars = linopy_vars
         self._build_strategy = build_strategy
         self._decision_tree_node = decision_tree_node
+        self.param_arrays = param_arrays
+        self.model_components = model_components
+        self.models = models
         # Constant term of the objective (linopy cannot represent pure-constant objectives).
         self._objective_constant: float = objective_constant
 
@@ -134,26 +136,6 @@ class LinopyOptimizationProblem:
     def objective_value(self) -> float:
         """Objective function value after solving."""
         return float(self.linopy_model.objective.value) + self._objective_constant  # type: ignore[arg-type]
-
-    def expand_operators_for_extra_output(
-        self,
-        expression: ExpressionNode,
-        component_id: str,
-    ) -> ExpressionNode:
-        """
-        Expand temporal and scenario operators for extra output evaluation.
-        Replicates the role of OptimizationContext.expand_operators().
-        """
-        from gems.expression.context_adder import add_component_context
-
-        structure_provider = _make_network_structure_provider(self.network)
-        with_context = add_component_context(component_id, expression)
-        return expand_operators(
-            with_context,
-            ProblemDimensions(self.block_length, self.scenarios),
-            _make_constant_evaluator(),
-            structure_provider,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +257,9 @@ class _LinopyProblemBuilder:
             linopy_vars=self.linopy_vars,
             build_strategy=self.build_strategy,
             decision_tree_node=self.decision_tree_node,
+            param_arrays=self.param_arrays,
+            model_components=dict(self.model_components),
+            models=self.models,
             objective_constant=objective_constant,
         )
 
@@ -531,9 +516,9 @@ class _LinopyProblemBuilder:
         # objects with the same .id string are never confused.
         # Grouping by master_pf_id is critical: a component can connect via different
         # ports (e.g. link.in_port and link.out_port) which have different definitions.
-        per_master: Dict[
-            Tuple[int, PortFieldId], List[Tuple[int, Component]]
-        ] = defaultdict(list)
+        per_master: Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]] = (
+            defaultdict(list)
+        )
 
         for i, comp_m in enumerate(comp_ids):
             for cnx in self.network.connections:
@@ -693,47 +678,6 @@ def _involves(cnx: PortsConnection, component_id: str, port_name: str) -> bool:
     return (
         cnx.port1.component.id == component_id and cnx.port1.port_id == port_name
     ) or (cnx.port2.component.id == component_id and cnx.port2.port_id == port_name)
-
-
-def _make_network_structure_provider(network: Network) -> IndexingStructureProvider:
-    """Create an IndexingStructureProvider backed by the network."""
-
-    class _Provider(IndexingStructureProvider):
-        def get_component_variable_structure(
-            self, component_id: str, name: str
-        ) -> IndexingStructure:
-            return network.get_component(component_id).model.variables[name].structure
-
-        def get_component_parameter_structure(
-            self, component_id: str, name: str
-        ) -> IndexingStructure:
-            return network.get_component(component_id).model.parameters[name].structure
-
-        def get_parameter_structure(self, name: str) -> IndexingStructure:
-            raise RuntimeError(
-                "Component context must be set before retrieving parameter structure."
-            )
-
-        def get_variable_structure(self, name: str) -> IndexingStructure:
-            raise RuntimeError(
-                "Component context must be set before retrieving variable structure."
-            )
-
-    return _Provider()
-
-
-def _make_constant_evaluator() -> "Callable[[ExpressionNode], int]":
-    """Return an evaluator that resolves only literal constant expressions."""
-    ctx = EvaluationContext()
-    visitor = EvaluationVisitor(ctx)
-
-    def _evaluate(node: ExpressionNode) -> int:
-        result = visit(node, visitor)
-        if isinstance(result, float) and result.is_integer():
-            return int(result)
-        raise ValueError(f"Expected integer literal, got {result!r}")
-
-    return _evaluate
 
 
 # ---------------------------------------------------------------------------

@@ -9,13 +9,16 @@ Utility classes to obtain solver results from a linopy-based optimization proble
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping, Optional, Set, TypeVar
+from typing import Any, Dict, Mapping, Optional, Tuple, TypeVar
 
 import xarray as xr
 
-from gems.expression import evaluate
-from gems.expression.evaluate import EvaluationError
-from gems.simulation.extra_output import ExtraOutput, ExtraOutputValueProvider
+from gems.expression.visitor import visit
+from gems.simulation.extra_output import (
+    ExtraOutput,
+    VectorizedExtraOutputBuilder,
+    _build_port_arrays_xarray,
+)
 from gems.simulation.linopy_problem import LinopyOptimizationProblem
 from gems.simulation.output_values_base import BaseOutputValue
 from gems.study.data import TimeScenarioIndex
@@ -108,55 +111,6 @@ class OutputComponent:
         if output_name not in self._extra_outputs:
             self._extra_outputs[output_name] = ExtraOutput(output_name)
         return self._extra_outputs[output_name]
-
-    def evaluate_extra_outputs(self, problem: LinopyOptimizationProblem) -> None:
-        """Evaluate all model-defined extra outputs for this component."""
-        if self.model is None or self.model.extra_outputs is None:
-            return
-
-        self._extra_outputs = {}
-
-        for out_id, expr_node in self.model.extra_outputs.items():
-            if out_id not in self._extra_outputs:
-                self._extra_outputs[out_id] = ExtraOutput(out_id)
-            self._evaluate_single_extra_output(
-                self._extra_outputs[out_id], problem, expr_node
-            )
-
-    def _evaluate_single_extra_output(
-        self,
-        extra_output: ExtraOutput,
-        problem: LinopyOptimizationProblem,
-        expr_node: Any,
-    ) -> None:
-        all_indices: Set[TimeScenarioIndex] = set()
-        for var in self._variables.values():
-            all_indices.update(var._value.keys())
-        if not all_indices:
-            all_indices = {TimeScenarioIndex(0, 0)}
-
-        sorted_indices = sorted(all_indices, key=lambda k: (k.time, k.scenario))
-
-        for idx in sorted_indices:
-            try:
-                expanded_expr = problem.expand_operators_for_extra_output(
-                    expr_node, self._id
-                )
-                provider = ExtraOutputValueProvider(self, problem, idx)
-                val = float(evaluate(expanded_expr, provider))
-            except EvaluationError as e:
-                print(
-                    f"[ERROR] Eval failed for '{extra_output._name}' in {self._id} "
-                    f"at t={idx.time}, s={idx.scenario}: {e}"
-                )
-                val = float("nan")
-            except Exception as e:
-                print(
-                    f"[ERROR] Unexpected error for '{extra_output._name}' in {self._id}: {e}"
-                )
-                val = float("nan")
-
-            extra_output._set(idx.time, idx.scenario, val)
 
 
 @dataclass
@@ -254,10 +208,74 @@ class OutputValues:
                     self.component(str(comp_id)).var(var_name)._set(None, None, val)
 
     def _evaluate_extra_outputs(self) -> None:
+        """Evaluate all model extra outputs vectorized over [component, time, scenario]."""
         if self.problem is None:
             return
-        for comp in self._components.values():
-            comp.evaluate_extra_outputs(self.problem)
+
+        # Build var_solution_arrays from the linopy solution
+        var_solution_arrays: Dict[Tuple[int, str], xr.DataArray] = {}
+        solution = self.problem.linopy_model.solution
+        if solution is not None:
+            for (mk, vname), lv in self.problem._linopy_vars.items():
+                if lv.name in solution:
+                    var_solution_arrays[(mk, vname)] = solution[lv.name]
+
+        # Process each model that has extra outputs
+        for mk, model in self.problem.models.items():
+            if not model.extra_outputs:
+                continue
+            components = self.problem.model_components[mk]
+
+            # Build post-solve xarray port arrays for this model
+            port_arrays = _build_port_arrays_xarray(
+                model=model,
+                components=components,
+                model_key=mk,
+                all_models=self.problem.models,
+                all_model_components=self.problem.model_components,
+                var_solution_arrays=var_solution_arrays,
+                param_arrays=self.problem.param_arrays,
+                network=self.problem.network,
+                block_length=self.problem.block_length,
+                scenarios_count=self.problem.scenarios,
+            )
+
+            for out_id, expr_node in model.extra_outputs.items():
+                builder = VectorizedExtraOutputBuilder(
+                    model_key=mk,
+                    model_name=model.id,
+                    param_arrays=self.problem.param_arrays,
+                    var_solution_arrays=var_solution_arrays,
+                    port_arrays=port_arrays,
+                    block_length=self.problem.block_length,
+                    scenarios_count=self.problem.scenarios,
+                )
+                result_da: xr.DataArray = visit(expr_node, builder)
+
+                for comp in components:
+                    comp_da = (
+                        result_da.sel(component=comp.id)
+                        if "component" in result_da.dims
+                        else result_da
+                    )
+                    eo = self.component(comp.id).extra_output(out_id)
+                    _fill_extra_output_from_da(eo, comp_da)
+
+
+def _fill_extra_output_from_da(eo: ExtraOutput, da: xr.DataArray) -> None:
+    """Unpack a (time?, scenario?) DataArray into ExtraOutput scalar storage."""
+    if "time" in da.dims and "scenario" in da.dims:
+        for t in range(da.sizes["time"]):
+            for s in range(da.sizes["scenario"]):
+                eo._set(t, s, float(da.isel(time=t, scenario=s).values))
+    elif "time" in da.dims:
+        for t in range(da.sizes["time"]):
+            eo._set(t, None, float(da.isel(time=t).values))
+    elif "scenario" in da.dims:
+        for s in range(da.sizes["scenario"]):
+            eo._set(None, s, float(da.isel(scenario=s).values))
+    else:
+        eo._set(None, None, float(da.values))
 
 
 Comparable = TypeVar("Comparable", OutputComponent, OutputVariable, ExtraOutput)

@@ -1,14 +1,13 @@
 # Copyright (c) 2024, RTE (https://www.rte-france.com)
 # SPDX-License-Identifier: MPL-2.0
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
-import pandas as pd
 import xarray as xr
 
 from gems.simulation.linopy_problem import LinopyOptimizationProblem
-from gems.simulation.output_values import OutputComponent, OutputValues
+from gems.simulation.output_values import OutputValues
 
 
 def _make_mock_problem(
@@ -44,6 +43,11 @@ def _make_mock_problem(
     mock_problem._linopy_vars = {(0, var_name): mock_lv}
     mock_problem.linopy_model.solution = {mock_lv.name: solution_values}
 
+    # Extra output evaluation skipped when models is empty.
+    mock_problem.models = {}
+    mock_problem.model_components = {}
+    mock_problem.param_arrays = {}
+
     return mock_problem
 
 
@@ -58,19 +62,12 @@ def test_output_values_single_component() -> None:
     )
 
     mock_problem = _make_mock_problem(comp_ids, "x", sol)
-
-    with patch.object(OutputComponent, "evaluate_extra_outputs", return_value=None):
-        actual = OutputValues(mock_problem)
+    actual = OutputValues(mock_problem)
 
     expected = OutputValues()
     assert actual != expected
 
-    expected.component("comp_1").var("x").value = 10.0
-    # OutputVariable._set stores both t=0 and t=1
     from gems.study.data import TimeScenarioIndex
-
-    expected.component("comp_1").var("x")._set(0, 0, 10.0)
-    expected.component("comp_1").var("x")._set(1, 0, 20.0)
 
     assert actual.component("comp_1").var("x")._value == {
         TimeScenarioIndex(0, 0): 10.0,
@@ -88,9 +85,7 @@ def test_output_values_ignore_flag() -> None:
     )
 
     mock_problem = _make_mock_problem(comp_ids, "y", sol)
-
-    with patch.object(OutputComponent, "evaluate_extra_outputs", return_value=None):
-        actual = OutputValues(mock_problem)
+    actual = OutputValues(mock_problem)
 
     empty = OutputValues()
     assert actual != empty
@@ -104,3 +99,116 @@ def test_output_values_empty() -> None:
     a = OutputValues()
     b = OutputValues()
     assert a == b
+
+
+def test_extra_output_with_sum_connections() -> None:
+    """
+    Extra output using sum_connections is evaluated correctly via
+    VectorizedExtraOutputBuilder + _build_port_arrays_xarray.
+
+    Setup: gen_1 (GEN model, variable gen=5) connects to node_1 (NODE model).
+    NODE model has extra output 'total_flow' = sum_connections(balance_port.flow).
+    GEN model defines balance_port.flow = var("gen").
+    Expected: total_flow at node_1 == 5.0.
+    """
+    from gems.expression import var
+    from gems.expression.expression import literal, port_field
+    from gems.model.model import ModelPort, model
+    from gems.model.port import PortField, PortFieldDefinition, PortFieldId, PortType
+    from gems.model.variable import float_variable
+    from gems.simulation import TimeBlock, build_problem
+    from gems.study import (
+        DataBase,
+        Network,
+        Node,
+        PortRef,
+        TimeScenarioIndex,
+        create_component,
+    )
+
+    BALANCE_PORT_TYPE = PortType(id="balance", fields=[PortField("flow")])
+
+    # Generator: variable gen fixed to 5, exposes it as port flow.
+    GEN_MODEL = model(
+        id="GEN_EXTRA",
+        variables=[
+            float_variable("gen", lower_bound=literal(5), upper_bound=literal(5))
+        ],
+        ports=[ModelPort(port_type=BALANCE_PORT_TYPE, port_name="balance_port")],
+        port_fields_definitions=[
+            PortFieldDefinition(
+                port_field=PortFieldId("balance_port", "flow"),
+                definition=var("gen"),
+            )
+        ],
+    )
+
+    # Node: slave port, extra output = sum of incoming flows (no binding constraint).
+    NODE_MODEL = model(
+        id="NODE_EXTRA",
+        ports=[ModelPort(port_type=BALANCE_PORT_TYPE, port_name="balance_port")],
+        extra_outputs={
+            "total_flow": port_field("balance_port", "flow").sum_connections()
+        },
+    )
+
+    database = DataBase()
+
+    gen_comp = create_component(model=GEN_MODEL, id="gen_1")
+    node_comp = Node(model=NODE_MODEL, id="node_1")
+
+    network = Network("test_sum_connections")
+    network.add_component(gen_comp)
+    network.add_node(node_comp)
+    network.connect(
+        PortRef(gen_comp, "balance_port"), PortRef(node_comp, "balance_port")
+    )
+
+    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios=1)
+    problem.solve(solver_name="highs")
+
+    output = OutputValues(problem)
+
+    assert output.component("node_1").extra_output("total_flow")._value == {
+        TimeScenarioIndex(0, 0): 5.0
+    }
+
+
+def test_extra_output_nonlinear() -> None:
+    """
+    Nonlinear extra output (var * var) is correctly evaluated.
+
+    VectorizedExtraOutputBuilder allows products of variables since extra
+    outputs are not solver constraints. Equivalent VectorizedLinopyBuilder
+    would raise NotImplementedError for the same expression.
+
+    Setup: one component with variable a=3 (fixed). Extra output squared = a*a.
+    Expected: squared = 9.0.
+    """
+    from gems.expression import var
+    from gems.expression.expression import literal
+    from gems.model.model import model
+    from gems.model.variable import float_variable
+    from gems.simulation import TimeBlock, build_problem
+    from gems.study import DataBase, Network, TimeScenarioIndex, create_component
+
+    SIMPLE_MODEL = model(
+        id="SIMPLE_NL",
+        variables=[float_variable("a", lower_bound=literal(3), upper_bound=literal(3))],
+        extra_outputs={"squared": var("a") * var("a")},
+    )
+
+    database = DataBase()
+    comp = create_component(model=SIMPLE_MODEL, id="comp_1")
+
+    network = Network("test_nonlinear")
+    network.add_component(comp)
+
+    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios=1)
+    problem.solve(solver_name="highs")
+
+    output = OutputValues(problem)
+
+    assert output.component("comp_1").extra_output("squared")._value == {
+        TimeScenarioIndex(0, 0): 9.0
+    }

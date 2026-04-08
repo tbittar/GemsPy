@@ -1,9 +1,103 @@
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
+# Copyright (c) 2024, RTE (https://www.rte-france.com)
+#
+# See AUTHORS.txt
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# SPDX-License-Identifier: MPL-2.0
+#
+# This file is part of the Antares project.
 
-from gems.expression.evaluate import ValueProvider
+"""
+Extra output storage and vectorized evaluation.
+
+Provides :class:`ExtraOutput` for storing post-solve expression values and
+:class:`VectorizedExtraOutputBuilder`, an xarray-based visitor that evaluates
+model-level extra output expressions (potentially nonlinear) over the full
+``[component, time, scenario]`` space in one pass.
+
+Also provides :func:`_build_port_arrays_xarray` which computes port field
+DataArrays from the linopy solution, enabling ``sum_connections`` in extra
+output expressions.
+"""
+
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import xarray as xr
+
+from gems.expression.evaluate import EvaluationContext, EvaluationVisitor
+from gems.expression.expression import (
+    AdditionNode,
+    AllTimeSumNode,
+    CeilNode,
+    ComparisonNode,
+    ComponentParameterNode,
+    ComponentVariableNode,
+    DivisionNode,
+    ExpressionNode,
+    FloorNode,
+    LiteralNode,
+    MaxNode,
+    MinNode,
+    MultiplicationNode,
+    NegationNode,
+    ParameterNode,
+    PortFieldAggregatorNode,
+    PortFieldNode,
+    ProblemParameterNode,
+    ProblemVariableNode,
+    ScenarioOperatorNode,
+    TimeEvalNode,
+    TimeShiftNode,
+    TimeSumNode,
+    VariableNode,
+)
+from gems.expression.visitor import ExpressionVisitor, visit
+from gems.model.model import Model
+from gems.model.port import PortField, PortFieldId
 from gems.simulation.output_values_base import BaseOutputValue
-from gems.study.data import ComponentParameterIndex, TimeScenarioIndex
+from gems.study.data import TimeScenarioIndex
+from gems.study.network import Component, Network, PortsConnection
+
+
+def _eval_int(node: ExpressionNode) -> int:
+    """Evaluate a constant expression node to an integer (e.g. a time shift)."""
+    visitor = EvaluationVisitor(EvaluationContext())
+    value = visit(node, visitor)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    raise ValueError(
+        f"Expected an integer constant expression, got {value!r} from {node!r}."
+    )
+
+
+def _da_to_int(da: xr.DataArray) -> int:
+    """Extract the first element of a DataArray as an integer."""
+    val = float(da.values.flat[0])
+    if not float(val).is_integer():
+        raise ValueError(
+            f"Expected integer DataArray value for time shift, got {val!r}."
+        )
+    return int(val)
+
+
+def _has_dim(da: xr.DataArray, dim: str) -> bool:
+    """Return True if the DataArray has the named dimension."""
+    return dim in da.dims
+
+
+def _involves(cnx: PortsConnection, component_id: str, port_name: str) -> bool:
+    """Return True if *cnx* connects *component_id* at *port_name*."""
+    return (
+        cnx.port1.component.id == component_id and cnx.port1.port_id == port_name
+    ) or (cnx.port2.component.id == component_id and cnx.port2.port_id == port_name)
 
 
 @dataclass
@@ -32,64 +126,459 @@ class ExtraOutput(BaseOutputValue):
         self._value[key] = value
 
 
-class ExtraOutputValueProvider(ValueProvider):
-    # ... (content remains the same, as it only interacts with public methods/inherited fields like _value) ...
-    """Provides variable and parameter values for extra output expressions."""
+@dataclass
+class VectorizedExtraOutputBuilder(ExpressionVisitor[xr.DataArray]):
+    """
+    Evaluates a model-level extra output expression as a vectorized xr.DataArray.
 
-    def __init__(
-        self,
-        component: Any,
-        problem: Any,
-        idx: TimeScenarioIndex,
-    ) -> None:
-        self.component = component
-        self.problem = problem
-        self.idx = idx
-        self.context = self._build_context()
+    Similar to VectorizedLinopyBuilder but returns only xr.DataArray objects
+    (no linopy types), enabling nonlinear operations such as products of
+    variables, floor, ceil, min, and max.
 
-    def _build_context(self) -> Dict[str, float]:
-        ctx: Dict[str, float] = {}
+    Parameters
+    ----------
+    model_key:
+        Python id() of the Model object whose AST is being visited.
+    model_name:
+        Human-readable model identifier (used in error messages).
+    param_arrays:
+        Mapping from (model_key, param_name) to a DataArray of parameter values,
+        with dims in {component, time, scenario} (or a subset).
+    var_solution_arrays:
+        Mapping from (model_key, var_name) to a DataArray of solution values,
+        with dims in {component, time, scenario} (or a subset).
+    port_arrays:
+        Pre-computed xr.DataArray for each PortFieldId of this model.
+        Keyed by PortFieldId(port_name, field_name).
+    block_length:
+        Number of time steps in the current time block.
+    scenarios_count:
+        Number of scenarios.
+    """
 
-        # --- Variables ---
-        if hasattr(self.component, "_variables"):
-            for vname, vobj in self.component._variables.items():
-                if hasattr(vobj, "_value"):
-                    val = vobj._value.get(self.idx)
-                    if val is not None:
-                        ctx[vname] = val
-                        if hasattr(self.component, "_id"):
-                            ctx[f"{self.component._id}.{vname}"] = val
+    model_key: int
+    model_name: str
+    param_arrays: Dict[Tuple[int, str], xr.DataArray]
+    var_solution_arrays: Dict[Tuple[int, str], xr.DataArray]
+    port_arrays: Dict[PortFieldId, xr.DataArray]
+    block_length: int
+    scenarios_count: int
 
-        # --- Parameters ---
-        model = getattr(self.component, "model", None)
-        if model is not None and hasattr(model, "parameters"):
-            for pname in model.parameters:
-                try:
-                    db = getattr(self.problem, "database", None) or getattr(
-                        getattr(self.problem, "context", None), "database", None
-                    )
-                    val = db.get_value(  # type: ignore[union-attr]
-                        ComponentParameterIndex(self.component._id, pname),
-                        self.idx.time,
-                        self.idx.scenario,
-                    )
-                    ctx[pname] = val
-                    if hasattr(self.component, "_id"):
-                        ctx[f"{self.component._id}.{pname}"] = val
-                except KeyError:
-                    continue
+    # ------------------------------------------------------------------ #
+    # Leaf nodes                                                            #
+    # ------------------------------------------------------------------ #
 
-        return ctx
+    def literal(self, node: LiteralNode) -> xr.DataArray:
+        return xr.DataArray(node.value)
 
-    # ValueProvider interface
-    def get_variable_value(self, name: str) -> float:
-        return self.context[name]
+    def variable(self, node: VariableNode) -> xr.DataArray:
+        key = (self.model_key, node.name)
+        if key not in self.var_solution_arrays:
+            raise KeyError(
+                f"Variable {node.name!r} not found in solution for model "
+                f"{self.model_name!r}."
+            )
+        return self.var_solution_arrays[key]
 
-    def get_parameter_value(self, name: str) -> float:
-        return self.context[name]
+    def parameter(self, node: ParameterNode) -> xr.DataArray:
+        key = (self.model_key, node.name)
+        if key not in self.param_arrays:
+            raise KeyError(
+                f"Parameter {node.name!r} not found for model {self.model_name!r}."
+            )
+        return self.param_arrays[key]
 
-    def get_component_variable_value(self, component_id: str, name: str) -> float:
-        return self.context[name]
+    # ------------------------------------------------------------------ #
+    # Arithmetic operators                                                  #
+    # ------------------------------------------------------------------ #
 
-    def get_component_parameter_value(self, component_id: str, name: str) -> float:
-        return self.context[name]
+    def comparison(self, node: ComparisonNode) -> xr.DataArray:
+        raise NotImplementedError(
+            "ComparisonNode should not appear in extra output expressions."
+        )
+
+    def negation(self, node: NegationNode) -> xr.DataArray:
+        return -visit(node.operand, self)  # type: ignore[operator]
+
+    def addition(self, node: AdditionNode) -> xr.DataArray:
+        operands = [visit(op, self) for op in node.operands]
+        result: xr.DataArray = operands[0]
+        for op in operands[1:]:
+            result = result + op  # type: ignore[operator]
+        return result
+
+    def multiplication(self, node: MultiplicationNode) -> xr.DataArray:
+        left = visit(node.left, self)
+        right = visit(node.right, self)
+        return left * right  # type: ignore[operator]
+
+    def division(self, node: DivisionNode) -> xr.DataArray:
+        left = visit(node.left, self)
+        right = visit(node.right, self)
+        return left / right  # type: ignore[operator]
+
+    # ------------------------------------------------------------------ #
+    # Time operators                                                        #
+    # ------------------------------------------------------------------ #
+
+    def _apply_time_shift(self, operand: xr.DataArray, shift: int) -> xr.DataArray:
+        """Apply a cyclic time shift to operand (same logic as VectorizedLinopyBuilder)."""
+        if not _has_dim(operand, "time"):
+            return operand
+        T = self.block_length
+        positions = (np.arange(T) + shift) % T
+        indexer = xr.DataArray(positions, dims="time")
+        result = operand.isel(time=indexer)
+        if "time" in result.coords:
+            result = result.assign_coords(time=list(range(T)))
+        return result
+
+    def _eval_int_expr(self, node: ExpressionNode) -> int:
+        try:
+            return _eval_int(node)
+        except KeyError:
+            result = visit(node, self)
+            if isinstance(result, xr.DataArray):
+                return _da_to_int(result)
+            raise ValueError(
+                f"Expected a constant integer expression for time operation, "
+                f"got {result!r} from {node!r}."
+            )
+
+    def time_shift(self, node: TimeShiftNode) -> xr.DataArray:
+        operand = visit(node.operand, self)
+
+        try:
+            shift = _eval_int(node.time_shift)
+            return self._apply_time_shift(operand, shift)
+        except (ValueError, KeyError):
+            pass
+
+        shift_result = visit(node.time_shift, self)
+        if not isinstance(shift_result, xr.DataArray):
+            raise ValueError(
+                f"Time shift expression must evaluate to a parameter (DataArray), "
+                f"got {type(shift_result).__name__!r}."
+            )
+        if not shift_result.dims:
+            return self._apply_time_shift(operand, _da_to_int(shift_result))
+
+        shift_int = shift_result.astype(int)
+        unique_shifts = np.unique(shift_int.values)
+        acc: Optional[xr.DataArray] = None
+        for s in unique_shifts:
+            mask: xr.DataArray = (shift_int == s).astype(float)
+            shifted = self._apply_time_shift(operand, int(s))
+            contrib: xr.DataArray = shifted * mask  # type: ignore[operator]
+            acc = contrib if acc is None else acc + contrib  # type: ignore[operator]
+        return acc  # type: ignore[return-value]
+
+    def time_eval(self, node: TimeEvalNode) -> xr.DataArray:
+        timestep = self._eval_int_expr(node.eval_time) % self.block_length
+        operand = visit(node.operand, self)
+        if not _has_dim(operand, "time"):
+            return operand
+        return operand.isel(time=timestep)
+
+    def time_sum(self, node: TimeSumNode) -> xr.DataArray:
+        try:
+            from_shift_scalar: Optional[int] = _eval_int(node.from_time)
+        except (ValueError, KeyError):
+            from_shift_scalar = None
+
+        try:
+            to_shift_scalar: Optional[int] = _eval_int(node.to_time)
+        except (ValueError, KeyError):
+            to_shift_scalar = None
+
+        operand = visit(node.operand, self)
+
+        if from_shift_scalar is not None and to_shift_scalar is not None:
+            result: xr.DataArray = self._apply_time_shift(operand, from_shift_scalar)
+            for shift in range(from_shift_scalar + 1, to_shift_scalar + 1):
+                result = result + self._apply_time_shift(operand, shift)  # type: ignore[operator]
+            return result
+
+        from_da = (
+            xr.DataArray(float(from_shift_scalar))
+            if from_shift_scalar is not None
+            else visit(node.from_time, self)
+        )
+        to_da = (
+            xr.DataArray(float(to_shift_scalar))
+            if to_shift_scalar is not None
+            else visit(node.to_time, self)
+        )
+        if not isinstance(from_da, xr.DataArray):
+            raise ValueError(
+                f"time_sum from_time must be a parameter expression (DataArray), "
+                f"got {type(from_da).__name__!r}."
+            )
+        if not isinstance(to_da, xr.DataArray):
+            raise ValueError(
+                f"time_sum to_time must be a parameter expression (DataArray), "
+                f"got {type(to_da).__name__!r}."
+            )
+        from_int = from_da.astype(int)
+        to_int = to_da.astype(int)
+        min_from = int(from_int.values.min())
+        max_to = int(to_int.values.max())
+
+        acc2: Optional[xr.DataArray] = None
+        for shift in range(min_from, max_to + 1):
+            shifted = self._apply_time_shift(operand, shift)
+            include_from = (
+                (from_int <= shift).astype(float)
+                if isinstance(from_int, xr.DataArray) and from_int.dims
+                else xr.DataArray(1.0)
+            )
+            include_to = (
+                (to_int >= shift).astype(float)
+                if isinstance(to_int, xr.DataArray) and to_int.dims
+                else xr.DataArray(1.0)
+            )
+            mask2: xr.DataArray = include_from * include_to  # type: ignore[operator]
+            contrib2: xr.DataArray = shifted * mask2  # type: ignore[operator]
+            acc2 = contrib2 if acc2 is None else acc2 + contrib2  # type: ignore[operator]
+        return acc2  # type: ignore[return-value]
+
+    def all_time_sum(self, node: AllTimeSumNode) -> xr.DataArray:
+        operand = visit(node.operand, self)
+        if _has_dim(operand, "time"):
+            return operand.sum("time")
+        return operand * self.block_length  # type: ignore[operator]
+
+    # ------------------------------------------------------------------ #
+    # Scenario operators                                                    #
+    # ------------------------------------------------------------------ #
+
+    def scenario_operator(self, node: ScenarioOperatorNode) -> xr.DataArray:
+        if node.name != "Expectation":
+            raise NotImplementedError(
+                f"Scenario operator {node.name!r} is not supported. "
+                "Only 'Expectation' is currently implemented."
+            )
+        operand = visit(node.operand, self)
+        if _has_dim(operand, "scenario"):
+            return operand.sum("scenario") / self.scenarios_count  # type: ignore[operator]
+        return operand
+
+    # ------------------------------------------------------------------ #
+    # Port fields                                                           #
+    # ------------------------------------------------------------------ #
+
+    def port_field(self, node: PortFieldNode) -> xr.DataArray:
+        key = PortFieldId(node.port_name, node.field_name)
+        if key not in self.port_arrays:
+            raise KeyError(
+                f"No port array found for {node.port_name}.{node.field_name} "
+                f"in model {self.model_name!r}."
+            )
+        return self.port_arrays[key]
+
+    def port_field_aggregator(self, node: PortFieldAggregatorNode) -> xr.DataArray:
+        if node.aggregator != "PortSum":
+            raise NotImplementedError(
+                f"Port aggregator {node.aggregator!r} is not supported. "
+                "Only 'PortSum' is currently implemented."
+            )
+        if not isinstance(node.operand, PortFieldNode):
+            raise ValueError(
+                f"PortFieldAggregatorNode operand must be a PortFieldNode, "
+                f"got {type(node.operand).__name__!r}."
+            )
+        port_field_node: PortFieldNode = node.operand
+        key = PortFieldId(port_field_node.port_name, port_field_node.field_name)
+        if key not in self.port_arrays:
+            return xr.DataArray(0.0)
+        return self.port_arrays[key]
+
+    # ------------------------------------------------------------------ #
+    # Nonlinear math functions (all allowed — no solver constraint)         #
+    # ------------------------------------------------------------------ #
+
+    def floor(self, node: FloorNode) -> xr.DataArray:
+        operand = visit(node.operand, self)
+        return np.floor(operand)  # type: ignore[return-value]
+
+    def ceil(self, node: CeilNode) -> xr.DataArray:
+        operand = visit(node.operand, self)
+        return np.ceil(operand)  # type: ignore[return-value]
+
+    def maximum(self, node: MaxNode) -> xr.DataArray:
+        operands = [visit(op, self) for op in node.operands]
+        result: xr.DataArray = operands[0]
+        for op in operands[1:]:
+            result = xr.where(result >= op, result, op)  # type: ignore[no-untyped-call,assignment]
+        return result
+
+    def minimum(self, node: MinNode) -> xr.DataArray:
+        operands = [visit(op, self) for op in node.operands]
+        result = operands[0]
+        for op in operands[1:]:
+            result = xr.where(result <= op, result, op)  # type: ignore[no-untyped-call,assignment]
+        return result
+
+    # ------------------------------------------------------------------ #
+    # Nodes that should not appear in model-level extra output ASTs         #
+    # ------------------------------------------------------------------ #
+
+    def comp_parameter(self, node: ComponentParameterNode) -> xr.DataArray:
+        raise ValueError(
+            f"ComponentParameterNode {node!r} should not appear in a model-level AST."
+        )
+
+    def comp_variable(self, node: ComponentVariableNode) -> xr.DataArray:
+        raise ValueError(
+            f"ComponentVariableNode {node!r} should not appear in a model-level AST."
+        )
+
+    def pb_parameter(self, node: ProblemParameterNode) -> xr.DataArray:
+        raise ValueError(
+            f"ProblemParameterNode {node!r} should not appear in a model-level AST."
+        )
+
+    def pb_variable(self, node: ProblemVariableNode) -> xr.DataArray:
+        raise ValueError(
+            f"ProblemVariableNode {node!r} should not appear in a model-level AST."
+        )
+
+
+def _build_port_arrays_xarray(
+    model: Model,
+    components: List[Component],
+    model_key: int,
+    all_models: Dict[int, Model],
+    all_model_components: Dict[int, List[Component]],
+    var_solution_arrays: Dict[Tuple[int, str], xr.DataArray],
+    param_arrays: Dict[Tuple[int, str], xr.DataArray],
+    network: Network,
+    block_length: int,
+    scenarios_count: int,
+) -> Dict[PortFieldId, xr.DataArray]:
+    """
+    Build post-solve xarray port arrays for *model*'s extra output evaluation.
+
+    Replicates the logic of ``_LinopyProblemBuilder._build_port_arrays_for_model``
+    and ``_build_slave_port_array``, but uses DataArrays of solution values
+    instead of linopy Variables/LinearExpressions.
+
+    For master port fields (defined by *model* itself), the definition expression
+    is evaluated with :class:`VectorizedExtraOutputBuilder`.
+
+    For slave port fields (connections from other models), an incidence matrix
+    sum is computed over contributing master components.
+    """
+    comp_ids = [c.id for c in components]
+    port_arrays: Dict[PortFieldId, xr.DataArray] = {}
+
+    for port_name, model_port in model.ports.items():
+        for port_field_obj in model_port.port_type.fields:
+            field_name = port_field_obj.name
+            pf_id = PortFieldId(port_name, field_name)
+
+            if pf_id in model.port_fields_definitions:
+                # Master: evaluate the definition using this model's own vars/params
+                builder = VectorizedExtraOutputBuilder(
+                    model_key=model_key,
+                    model_name=model.id,
+                    param_arrays=param_arrays,
+                    var_solution_arrays=var_solution_arrays,
+                    port_arrays={},
+                    block_length=block_length,
+                    scenarios_count=scenarios_count,
+                )
+                defn = model.port_fields_definitions[pf_id].definition
+                port_arrays[pf_id] = visit(defn, builder)
+            else:
+                # Slave: sum contributions from connected masters
+                port_arrays[pf_id] = _build_slave_port_array_xarray(
+                    model,
+                    comp_ids,
+                    port_name,
+                    field_name,
+                    all_models,
+                    all_model_components,
+                    var_solution_arrays,
+                    param_arrays,
+                    network,
+                    block_length,
+                    scenarios_count,
+                )
+
+    return port_arrays
+
+
+def _build_slave_port_array_xarray(
+    model: Model,
+    comp_ids: List[str],
+    port_name: str,
+    field_name: str,
+    all_models: Dict[int, Model],
+    all_model_components: Dict[int, List[Component]],
+    var_solution_arrays: Dict[Tuple[int, str], xr.DataArray],
+    param_arrays: Dict[Tuple[int, str], xr.DataArray],
+    network: Network,
+    block_length: int,
+    scenarios_count: int,
+) -> xr.DataArray:
+    """
+    Build a slave port array as a sum over connected master contributions,
+    using an incidence matrix (same logic as _LinopyProblemBuilder._build_slave_port_array).
+    """
+    n = len(comp_ids)
+    per_master: Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]] = (
+        defaultdict(list)
+    )
+
+    for i, comp_m in enumerate(comp_ids):
+        for cnx in network.connections:
+            if not _involves(cnx, comp_m, port_name):
+                continue
+            master_ref = cnx.master_port.get(PortField(name=field_name))
+            if master_ref is None:
+                continue
+            master_comp = master_ref.component
+            master_pf_id = PortFieldId(master_ref.port_id, field_name)
+            per_master[(id(master_comp.model), master_pf_id)].append((i, master_comp))
+
+    if not per_master:
+        return xr.DataArray(0.0)
+
+    total: Optional[xr.DataArray] = None
+
+    for (master_mk, master_pf_id), conn_list in per_master.items():
+        master_comps = all_model_components[master_mk]
+        master_comp_ids = [c.id for c in master_comps]
+        n_prime = len(master_comps)
+
+        A_data = np.zeros((n, n_prime))
+        for i, master_comp in conn_list:
+            j = master_comp_ids.index(master_comp.id)
+            A_data[i, j] += 1.0
+
+        A = xr.DataArray(
+            A_data,
+            dims=["component", "component_master"],
+            coords={"component": comp_ids, "component_master": master_comp_ids},
+        )
+
+        master_model = all_models[master_mk]
+        defn = master_model.port_fields_definitions[master_pf_id].definition
+        master_builder = VectorizedExtraOutputBuilder(
+            model_key=master_mk,
+            model_name=master_model.id,
+            param_arrays=param_arrays,
+            var_solution_arrays=var_solution_arrays,
+            port_arrays={},
+            block_length=block_length,
+            scenarios_count=scenarios_count,
+        )
+        expr_master: xr.DataArray = visit(defn, master_builder)
+
+        expr_master_r = expr_master.rename({"component": "component_master"})
+        contribution: xr.DataArray = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
+
+        total = contribution if total is None else total + contribution  # type: ignore[operator]
+
+    return total if total is not None else xr.DataArray(0.0)
