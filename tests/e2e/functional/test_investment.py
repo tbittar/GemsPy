@@ -32,10 +32,10 @@ from gems.model import (
 from gems.model.port import PortFieldDefinition, PortFieldId
 from gems.simulation import (
     MergedProblemStrategy,
-    OutputValues,
     TimeBlock,
     build_problem,
 )
+from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.study import (
     Component,
     ConstantData,
@@ -231,15 +231,16 @@ def test_generation_xpansion_single_time_step_single_scenario(
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(490 * 100 + 100 * 10 + 200 * 40)
 
-    output = OutputValues(problem)
-    expected_output = OutputValues()
-    expected_output.component("G1").var("generation").value = 200.0
-    expected_output.component("CAND").var("generation").value = 100.0
-    expected_output.component("CAND").var("p_max").value = 100.0
-    expected_output.component("N")
-    expected_output.component("D")
-
-    assert output == expected_output, f"Output differs from expected: {output}"
+    df = SimulationTableBuilder().build(problem)
+    assert df[(df["component"] == "G1") & (df["output"] == "generation")]["value"].iloc[
+        0
+    ] == pytest.approx(200.0)
+    assert df[(df["component"] == "CAND") & (df["output"] == "generation")][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
+    assert df[(df["component"] == "CAND") & (df["output"] == "p_max")]["value"].iloc[
+        0
+    ] == pytest.approx(100.0)
 
 
 def test_two_candidates_xpansion_single_time_step_single_scenario(
@@ -306,17 +307,25 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
         (45 * 200) + (490 * 100 + 10 * 100) + (200 * 100 + 10 * 100)
     )
 
-    output = OutputValues(problem)
-    expected_output = OutputValues()
-    expected_output.component("G1").var("generation").value = 200.0
-    expected_output.component("CAND").var("generation").value = 100.0
-    expected_output.component("CAND").var("p_max").value = 100.0
-    expected_output.component("DISCRETE").var("generation").value = 100.0
-    expected_output.component("DISCRETE").var("p_max").value = 100.0
-    expected_output.component("DISCRETE").var("nb_units").value = 10.0
-    expected_output.component("D")
-    expected_output.component("N")
-    assert output == expected_output, f"Output differs from expected: {output}"
+    df = SimulationTableBuilder().build(problem)
+    assert df[(df["component"] == "G1") & (df["output"] == "generation")]["value"].iloc[
+        0
+    ] == pytest.approx(200.0)
+    assert df[(df["component"] == "CAND") & (df["output"] == "generation")][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
+    assert df[(df["component"] == "CAND") & (df["output"] == "p_max")]["value"].iloc[
+        0
+    ] == pytest.approx(100.0)
+    assert df[(df["component"] == "DISCRETE") & (df["output"] == "generation")][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
+    assert df[(df["component"] == "DISCRETE") & (df["output"] == "p_max")][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
+    assert df[(df["component"] == "DISCRETE") & (df["output"] == "nb_units")][
+        "value"
+    ].iloc[0] == pytest.approx(10.0)
 
 
 def test_generation_xpansion_two_time_steps_two_scenarios(
@@ -388,19 +397,36 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
         + 0.5 * (10 * 200 + 10 * 300 + 40 * 100)
     )
 
-    output = OutputValues(problem)
-    expected_output = OutputValues()
-    expected_output.component("G1").var("generation").value = [
-        [0.0, 200.0],
-        [0.0, 100.0],
-    ]
-    expected_output.component("CAND").var("generation").value = [
-        [300.0, 300.0],
-        [200.0, 300.0],
-    ]
-    expected_output.component("CAND").var("p_max").value = 300.0
+    df = SimulationTableBuilder().build(problem)
 
-    expected_output.component("N")
-    expected_output.component("D")
+    g1 = df[(df["component"] == "G1") & (df["output"] == "generation")]
+    assert g1[(g1["scenario-index"] == 0) & (g1["block-time-index"] == 0)][
+        "value"
+    ].iloc[0] == pytest.approx(0.0)
+    assert g1[(g1["scenario-index"] == 0) & (g1["block-time-index"] == 1)][
+        "value"
+    ].iloc[0] == pytest.approx(200.0)
+    assert g1[(g1["scenario-index"] == 1) & (g1["block-time-index"] == 0)][
+        "value"
+    ].iloc[0] == pytest.approx(0.0)
+    assert g1[(g1["scenario-index"] == 1) & (g1["block-time-index"] == 1)][
+        "value"
+    ].iloc[0] == pytest.approx(100.0)
 
-    assert output == expected_output, f"Output differs from expected: {output}"
+    cand = df[(df["component"] == "CAND") & (df["output"] == "generation")]
+    assert cand[(cand["scenario-index"] == 0) & (cand["block-time-index"] == 0)][
+        "value"
+    ].iloc[0] == pytest.approx(300.0)
+    assert cand[(cand["scenario-index"] == 0) & (cand["block-time-index"] == 1)][
+        "value"
+    ].iloc[0] == pytest.approx(300.0)
+    assert cand[(cand["scenario-index"] == 1) & (cand["block-time-index"] == 0)][
+        "value"
+    ].iloc[0] == pytest.approx(200.0)
+    assert cand[(cand["scenario-index"] == 1) & (cand["block-time-index"] == 1)][
+        "value"
+    ].iloc[0] == pytest.approx(300.0)
+
+    assert df[(df["component"] == "CAND") & (df["output"] == "p_max")]["value"].iloc[
+        0
+    ] == pytest.approx(300.0)
