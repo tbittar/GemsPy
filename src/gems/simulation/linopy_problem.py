@@ -660,9 +660,9 @@ def _group_port_connections_by_master(
     Using ``id(master_model)`` ensures two distinct Model objects with the same
     ``.id`` string are never confused.
     """
-    per_master: Dict[Tuple[int, PortFieldId], List[Tuple[int, Component]]] = (
-        defaultdict(list)
-    )
+    per_master: Dict[
+        Tuple[int, PortFieldId], List[Tuple[int, Component]]
+    ] = defaultdict(list)
     for i, comp_m in enumerate(comp_ids):
         for cnx in network.connections:
             if not _involves(cnx, comp_m, port_name):
