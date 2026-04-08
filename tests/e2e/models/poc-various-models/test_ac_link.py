@@ -74,10 +74,9 @@ def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == pytest.approx(3000, abs=0.01)
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == pytest.approx(3000, abs=0.01)
 
 
 def test_ac_network(ac_lib: dict[str, Library]) -> None:
@@ -131,10 +130,9 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == pytest.approx(3500, abs=0.01)
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == pytest.approx(3500, abs=0.01)
 
     assert OutputValues(problem).component("L").var("flow").value == pytest.approx(
         -100, abs=0.01
@@ -200,10 +198,9 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == pytest.approx(3500, abs=0.01)
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == pytest.approx(3500, abs=0.01)
 
     assert OutputValues(problem).component("L1").var("flow").value == pytest.approx(
         -66.67, abs=0.01
@@ -277,10 +274,9 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == pytest.approx(3550, abs=0.01)
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == pytest.approx(3550, abs=0.01)
 
     assert OutputValues(problem).component("L").var("flow").value == pytest.approx(
         -50, abs=0.01

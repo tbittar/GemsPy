@@ -4,8 +4,6 @@
 #
 #    pip-compile --output-file=requirements.txt requirements.in
 #
-absl-py==2.3.1
-    # via ortools
 annotated-types==0.7.0
     # via pydantic
 antares-craft==0.3.0
@@ -56,8 +54,6 @@ highspy==1.10.0
     # via pypsa
 idna==3.10
     # via requests
-immutabledict==4.2.1
-    # via ortools
 importlib-metadata==8.6.1
     # via dask
 kiwisolver==1.4.8
@@ -90,7 +86,6 @@ numpy==1.26.4
     #   matplotlib
     #   netcdf4
     #   numexpr
-    #   ortools
     #   pandas
     #   pyogrio
     #   pypsa
@@ -98,8 +93,6 @@ numpy==1.26.4
     #   seaborn
     #   shapely
     #   xarray
-ortools==9.9.3963
-    # via -r requirements.in
 packaging==25.0
     # via
     #   dask
@@ -114,7 +107,6 @@ pandas==2.2.3
     #   antares-study-version
     #   antares-timeseries-generation
     #   geopandas
-    #   ortools
     #   pypsa
     #   seaborn
     #   xarray
@@ -124,8 +116,6 @@ pillow==11.2.1
     # via matplotlib
 polars==1.27.1
     # via linopy
-protobuf==6.32.0
-    # via ortools
 psutil==7.0.0
     # via antares-craft
 pydantic==2.11.7

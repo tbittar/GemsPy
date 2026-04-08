@@ -17,7 +17,7 @@ import pytest
 
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.simulation.optimization import build_problem
+from gems.simulation import build_problem
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import DataBase
 from gems.study.parsing import parse_scenario_builder, parse_yaml_components
@@ -65,8 +65,6 @@ def test_system_with_scenarization(
     timeblock = TimeBlock(1, list(range(2)))
     problem = build_problem(network, database, timeblock, 3)
 
-    status = problem.solver.Solve()
-    cost = problem.solver.Objective().Value()
-
-    assert status == 0
-    assert cost == pytest.approx(40000 / 3, abs=0.001)
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == pytest.approx(40000 / 3, abs=0.001)

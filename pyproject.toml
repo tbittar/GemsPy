@@ -31,13 +31,15 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
-    "ortools",
     "scipy>=1.10",
     "antlr4-python3-runtime>=4.13",
     "PyYAML>=6.0",
     "pydantic>=2.0",
     "antares_craft>=0.3",
     "anytree>=2.12",
+    "linopy>=0.6",
+    "xarray",
+    "highspy",
 ]
 classifiers = [
    #    Classifiers here: https://pypi.org/classifiers/

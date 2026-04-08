@@ -51,25 +51,19 @@ class FakeSolver:
 
 
 @dataclass(frozen=True)
-class FakeContext:
-    """Fake optimization context with a single block and block length."""
+class FakeBlock:
+    """Fake time block with an id."""
 
-    @dataclass(frozen=True)
-    class Block:
-        id: int = 1
-
-    _block: Block = Block()
-
-    def block_length(self) -> int:
-        return 3
+    id: int = 1
 
 
 @dataclass(frozen=True)
 class FakeProblem:
-    """Fake problem that binds context and solver."""
+    """Fake problem that binds block and objective value."""
 
-    context: FakeContext = FakeContext()
-    solver: FakeSolver = FakeSolver()
+    block: FakeBlock = FakeBlock()
+    block_length: int = 3
+    objective_value: float = 42.0
 
 
 class FakeOutputValues(OutputValues):

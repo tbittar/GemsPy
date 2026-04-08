@@ -95,10 +95,10 @@ def main_cli() -> None:
             f"{e}. Did parameters '--duration' and '--scenario' were correctly set?"
         )
 
-    status = problem.solver.Solve()
-    print("status : ", status)
+    problem.solve(solver_name="highs")
+    print("status : ", problem.termination_condition)
 
-    print("final average cost : ", problem.solver.Objective().Value())
+    print("final average cost : ", problem.objective_value)
 
 
 if __name__ == "__main__":

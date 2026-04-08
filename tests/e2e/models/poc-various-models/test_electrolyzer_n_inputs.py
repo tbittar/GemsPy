@@ -119,7 +119,7 @@ def test_electrolyzer_n_inputs_1() -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
+    problem.solve(solver_name="highs")
 
     output = OutputValues(problem)
     ep1_gen = output.component("ep1").var("generation").value
@@ -133,8 +133,8 @@ def test_electrolyzer_n_inputs_1() -> None:
     assert math.isclose(ep2_gen, 42)  # type: ignore
     assert math.isclose(gp_gen, 30)  # type: ignore
 
-    assert status == problem.solver.OPTIMAL
-    assert math.isclose(problem.solver.Objective().Value(), 1990)
+    assert problem.termination_condition == "optimal"
+    assert math.isclose(problem.objective_value, 1990)
 
 
 def test_electrolyzer_n_inputs_2() -> None:
@@ -208,7 +208,7 @@ def test_electrolyzer_n_inputs_2() -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
+    problem.solve(solver_name="highs")
 
     output = OutputValues(problem)
     ep1_gen = output.component("ep1").var("generation").value
@@ -222,8 +222,8 @@ def test_electrolyzer_n_inputs_2() -> None:
     assert math.isclose(ep2_gen, 42)  # type: ignore
     assert math.isclose(gp_gen, 30)  # type: ignore
 
-    assert status == problem.solver.OPTIMAL
-    assert math.isclose(problem.solver.Objective().Value(), 1990)
+    assert problem.termination_condition == "optimal"
+    assert math.isclose(problem.objective_value, 1990)
 
 
 def test_electrolyzer_n_inputs_3() -> None:
@@ -306,7 +306,7 @@ def test_electrolyzer_n_inputs_3() -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
+    problem.solve(solver_name="highs")
 
     output = OutputValues(problem)
     ep1_gen = output.component("ep1").var("generation").value
@@ -317,8 +317,8 @@ def test_electrolyzer_n_inputs_3() -> None:
     assert math.isclose(ep2_gen, 30)  # type: ignore
     assert math.isclose(gp_gen, 30)  # type: ignore
 
-    assert status == problem.solver.OPTIMAL
-    assert math.isclose(problem.solver.Objective().Value(), 1750)
+    assert problem.termination_condition == "optimal"
+    assert math.isclose(problem.objective_value, 1750)
 
 
 def test_electrolyzer_n_inputs_4() -> None:
@@ -392,9 +392,8 @@ def test_electrolyzer_n_inputs_4() -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
-
-    assert status == problem.solver.OPTIMAL
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
 
     output = OutputValues(problem)
     ep1_gen = output.component("ep1").var("generation").value
@@ -405,5 +404,5 @@ def test_electrolyzer_n_inputs_4() -> None:
     assert math.isclose(ep2_gen, 30)  # type: ignore
     assert math.isclose(gp_gen, 30)  # type: ignore
 
-    assert status == problem.solver.OPTIMAL
-    assert math.isclose(problem.solver.Objective().Value(), 1750)
+    assert problem.termination_condition == "optimal"
+    assert math.isclose(problem.objective_value, 1750)

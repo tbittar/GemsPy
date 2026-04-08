@@ -166,6 +166,6 @@ def test_electrolyzer() -> None:
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
-    status = problem.solver.Solve()
-    assert status == problem.solver.OPTIMAL
-    assert problem.solver.Objective().Value() == 3000
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == 3000
