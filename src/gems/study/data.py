@@ -12,8 +12,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Mapping, Optional
+from typing import Dict, Mapping, Optional, List, Union
 
+import numpy as np
 import pandas as pd
 
 from gems.study.network import Network
@@ -52,8 +53,8 @@ class Scenarization:
 class AbstractDataStructure(ABC):
     @abstractmethod
     def get_value(
-        self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
-    ) -> float:
+        self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
+    ) -> Union[float, np.ndarray]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -70,7 +71,7 @@ class ConstantData(AbstractDataStructure):
     value: float
 
     def get_value(
-        self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
+        self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
     ) -> float:
         return self.value
 
@@ -89,14 +90,14 @@ class TimeSeriesData(AbstractDataStructure):
     can be defined by referencing one of those timeseries by its ID.
     """
 
-    time_series: Mapping[TimeIndex, float]
+    time_series: pd.Series
 
     def get_value(
-        self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
-    ) -> float:
+        self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
+    ) -> np.ndarray:
         if timestep is None:
             raise KeyError("Time series data requires a time index.")
-        return self.time_series[TimeIndex(timestep)]
+        return self.time_series.iloc[np.array(timestep)].to_numpy()
 
     def check_requirement(self, time: bool, scenario: bool) -> bool:
         if not isinstance(self, TimeSeriesData):
@@ -203,15 +204,14 @@ class TimeScenarioSeriesData(AbstractDataStructure):
 
     def get_value(
         self, timestep: Optional[int], scenario: Optional[int], node_id: str = ""
-    ) -> float:
+    ) -> np.ndarray:
         if timestep is None:
             raise KeyError("Time scenario data requires a time index.")
         if scenario is None:
             raise KeyError("Time scenario data requires a scenario index.")
         if self.scenarization:
             scenario = self.scenarization.get_scenario_for_year(scenario)
-        value = str(self.time_scenario_series.iloc[timestep, scenario])
-        return float(value)
+        return self.time_scenario_series.iloc[np.array(timestep), scenario].to_numpy()
 
     def check_requirement(self, time: bool, scenario: bool) -> bool:
         if not isinstance(self, TimeScenarioSeriesData):
