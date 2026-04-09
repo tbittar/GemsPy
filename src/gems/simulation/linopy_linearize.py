@@ -18,7 +18,7 @@ Provides :class:`VectorizedLinopyBuilder`, a concrete subclass of
 resolves ``VariableNode`` to a pre-solve ``linopy.Variable`` and overrides
 arithmetic / nonlinear methods with linopy-specific behaviour.
 
-Also re-exports :data:`~gems.simulation.vectorized_builder.LinopyExpression`
+Also re-exports :data:`~gems.simulation.vectorized_builder.VectorizedExpr`
 and :func:`~gems.simulation.vectorized_builder._linopy_add` for backward
 compatibility with callers that import them from this module.
 """
@@ -41,16 +41,19 @@ from gems.expression.expression import (
 from gems.expression.visitor import visit
 from gems.model.port import PortFieldId
 from gems.simulation.vectorized_builder import (
-    LinopyExpression,
     VectorizedBuilderBase,
+    VectorizedExpr,
     _linopy_add,
 )
 
-__all__ = ["LinopyExpression", "VectorizedLinopyBuilder", "_linopy_add"]
+# Backward-compatible re-export.
+LinopyExpression = VectorizedExpr
+
+__all__ = ["LinopyExpression", "VectorizedExpr", "VectorizedLinopyBuilder", "_linopy_add"]
 
 
 @dataclass(kw_only=True)
-class VectorizedLinopyBuilder(VectorizedBuilderBase[LinopyExpression]):
+class VectorizedLinopyBuilder(VectorizedBuilderBase):
     """
     Builds a linopy LinearExpression from a model-level AST.
 
@@ -97,7 +100,7 @@ class VectorizedLinopyBuilder(VectorizedBuilderBase[LinopyExpression]):
     # Overrides: arithmetic                                                 #
     # ------------------------------------------------------------------ #
 
-    def addition(self, node: AdditionNode) -> LinopyExpression:
+    def addition(self, node: AdditionNode) -> VectorizedExpr:
         """Left-to-right addition with linopy-aware operand swapping.
 
         ``xr.DataArray.__add__(linopy_type)`` fails because xarray does not
@@ -105,7 +108,7 @@ class VectorizedLinopyBuilder(VectorizedBuilderBase[LinopyExpression]):
         the left so linopy's ``__add__`` / ``__radd__`` handles DataArrays.
         """
         operands = [visit(op, self) for op in node.operands]
-        result: LinopyExpression = operands[0]
+        result: VectorizedExpr = operands[0]
         for op in operands[1:]:
             result = _linopy_add(result, op)
         return result
@@ -114,7 +117,7 @@ class VectorizedLinopyBuilder(VectorizedBuilderBase[LinopyExpression]):
     # Overrides: nonlinear math functions (guard — variables not allowed)   #
     # ------------------------------------------------------------------ #
 
-    def floor(self, node: FloorNode) -> LinopyExpression:
+    def floor(self, node: FloorNode) -> VectorizedExpr:
         operand = visit(node.operand, self)
         if isinstance(operand, xr.DataArray):
             return np.floor(operand)  # type: ignore[return-value]
@@ -123,7 +126,7 @@ class VectorizedLinopyBuilder(VectorizedBuilderBase[LinopyExpression]):
             "it cannot be used with decision variables in a linear programme."
         )
 
-    def ceil(self, node: CeilNode) -> LinopyExpression:
+    def ceil(self, node: CeilNode) -> VectorizedExpr:
         operand = visit(node.operand, self)
         if isinstance(operand, xr.DataArray):
             return np.ceil(operand)  # type: ignore[return-value]
@@ -132,7 +135,7 @@ class VectorizedLinopyBuilder(VectorizedBuilderBase[LinopyExpression]):
             "it cannot be used with decision variables in a linear programme."
         )
 
-    def maximum(self, node: MaxNode) -> LinopyExpression:
+    def maximum(self, node: MaxNode) -> VectorizedExpr:
         operands = [visit(op, self) for op in node.operands]
         if all(isinstance(op, xr.DataArray) for op in operands):
             result: xr.DataArray = operands[0]  # type: ignore[assignment]
@@ -144,7 +147,7 @@ class VectorizedLinopyBuilder(VectorizedBuilderBase[LinopyExpression]):
             "it cannot be used with decision variables in a linear programme."
         )
 
-    def minimum(self, node: MinNode) -> LinopyExpression:
+    def minimum(self, node: MinNode) -> VectorizedExpr:
         operands = [visit(op, self) for op in node.operands]
         if all(isinstance(op, xr.DataArray) for op in operands):
             result = operands[0]
