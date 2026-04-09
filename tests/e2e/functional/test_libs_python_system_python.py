@@ -186,7 +186,7 @@ def test_variable_bound() -> None:
     """
 
     generator_model = model(
-        id="GEN",
+        id="GEN_WITH_VARIABLE_BOUND",
         parameters=[
             float_parameter("p_max", IndexingStructure(False, False)),
             float_parameter("cost", IndexingStructure(False, False)),

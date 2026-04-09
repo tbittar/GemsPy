@@ -70,7 +70,7 @@ def mock_network() -> Network:
 @pytest.fixture
 def mock_generator_with_fixed_scenario_time_varying_param() -> Model:
     fixed_scenario_time_varying_param_generator = model(
-        id="GEN",
+        id="GEN_TIME_VARYING_COST",
         parameters=[
             float_parameter("p_max", CONSTANT),
             float_parameter("cost", NON_ANTICIPATIVE_TIME_VARYING),
@@ -98,7 +98,7 @@ def mock_generator_with_fixed_scenario_time_varying_param() -> Model:
 @pytest.fixture
 def mock_generator_with_scenario_varying_fixed_time_param() -> Model:
     scenario_varying_fixed_time_generator = model(
-        id="GEN",
+        id="GEN_SCENARIO_VARYING_COST",
         parameters=[
             float_parameter("p_max", CONSTANT),
             float_parameter("cost", IndexingStructure(False, True)),

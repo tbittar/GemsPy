@@ -42,7 +42,7 @@ ELECTRICAL_NODE_MODEL = model(
 )
 
 ELECTRICAL_GENERATOR_MODEL = model(
-    id="GEN",
+    id="ELECTRICAL_GEN",
     parameters=[
         float_parameter("p_max", CONSTANT),
         float_parameter("cost", CONSTANT),

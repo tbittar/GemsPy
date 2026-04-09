@@ -298,20 +298,12 @@ class _LinopyProblemBuilder:
         self.port_arrays: Dict[int, Dict[PortFieldId, LinopyExpression]] = {}
 
         # Group components by model object identity.
-        # model_var_prefix gives each unique Model object a distinct linopy name prefix
-        # so two models with the same .id string (e.g. "GEN") don't collide.
         self.model_components: Dict[int, List[Component]] = defaultdict(list)
         self.models: Dict[int, Model] = {}
-        self.model_var_prefix: Dict[int, str] = {}
-        _id_usage: Dict[str, int] = defaultdict(int)
         for component in network.all_components:
             m = component.model
             mk = id(m)
             if mk not in self.models:
-                count = _id_usage[m.id]
-                _id_usage[m.id] += 1
-                suffix = f"_{count}" if count > 0 else ""
-                self.model_var_prefix[mk] = (m.id + suffix).replace("-", "_")
                 self.models[mk] = m
             self.model_components[mk].append(component)
 
@@ -529,7 +521,7 @@ class _LinopyProblemBuilder:
                         f"for variable {comp_id}.{var.name}"
                     )
 
-            prefix = self.model_var_prefix[id(model)]
+            prefix = model.id.replace("-", "_")
             name = f"{prefix}__{var.name}"
             binary = var.data_type == ValueType.BOOLEAN
             integer = var.data_type == ValueType.INTEGER
@@ -572,7 +564,7 @@ class _LinopyProblemBuilder:
         """Add all constraints for *model* to the linopy model."""
         builder = self._make_builder(model, port_arrays=port_arrays_for_model)
 
-        prefix = self.model_var_prefix[id(model)]
+        prefix = model.id.replace("-", "_")
         for constraint in model.get_all_constraints():
             lhs = visit(constraint.expression, builder)
 
