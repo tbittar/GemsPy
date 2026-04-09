@@ -136,7 +136,10 @@ def _resolve_lib(
         if cur_yaml_lib_model_ids.count(id) > 1:
             raise Exception(f"Model {id} is defined twice")
 
-    models = [_resolve_model(m, current_lib.port_types) for m in cur_yaml_lib.models]
+    models = [
+        _resolve_model(m, current_lib.port_types, current_lib.id)
+        for m in cur_yaml_lib.models
+    ]
 
     models_dict = dict((m.id, m) for m in models)
 
@@ -164,7 +167,9 @@ def _convert_port_type(port_type: InputPortType) -> PortType:
     )
 
 
-def _resolve_model(input_model: InputModel, port_types: Dict[str, PortType]) -> Model:
+def _resolve_model(
+    input_model: InputModel, port_types: Dict[str, PortType], library_id: str
+) -> Model:
     identifiers = ModelIdentifiers(
         variables={v.id for v in input_model.variables},
         parameters={p.id for p in input_model.parameters},
@@ -186,7 +191,7 @@ def _resolve_model(input_model: InputModel, port_types: Dict[str, PortType]) -> 
         else None
     )
     return model(
-        id=input_model.id,
+        id=f"{library_id}.{input_model.id}",
         parameters=[_to_parameter(p) for p in input_model.parameters],
         variables=[_to_variable(v, identifiers) for v in input_model.variables],
         ports=[_resolve_model_port(p, port_types) for p in input_model.ports],

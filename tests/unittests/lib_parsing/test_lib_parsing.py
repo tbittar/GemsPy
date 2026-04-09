@@ -48,9 +48,9 @@ def test_library_parsing(libs_dir: Path) -> None:
     assert len(lib[input_lib.id].port_types) == 1
     port_type = lib[input_lib.id].port_types["flow"]
     assert port_type == PortType(id="flow", fields=[PortField(name="flow")])
-    gen_model = lib[input_lib.id].models["generator"]
+    gen_model = lib[input_lib.id].models["basic.generator"]
     assert gen_model == model(
-        id="generator",
+        id="basic.generator",
         parameters=[
             float_parameter("cost", structure=CONSTANT),
             float_parameter("p_max", structure=CONSTANT),
@@ -71,9 +71,9 @@ def test_library_parsing(libs_dir: Path) -> None:
             "operational": (param("cost") * var("generation")).time_sum().expec()
         },
     )
-    short_term_storage = lib[input_lib.id].models["short-term-storage"]
+    short_term_storage = lib[input_lib.id].models["basic.short-term-storage"]
     assert short_term_storage == model(
-        id="short-term-storage",
+        id="basic.short-term-storage",
         parameters=[
             float_parameter("efficiency", structure=CONSTANT),
             float_parameter("level_min", structure=CONSTANT),
@@ -142,9 +142,9 @@ def test_library_port_model_ok_parsing(libs_dir: Path) -> None:
     lib = resolve_library([input_lib])
     port_type = lib[input_lib.id].port_types["flow"]
     assert port_type == PortType(id="flow", fields=[PortField(name="flow")])
-    short_term_storage = lib[input_lib.id].models["short-term-storage-2"]
+    short_term_storage = lib[input_lib.id].models["basic.short-term-storage-2"]
     assert short_term_storage == model(
-        id="short-term-storage-2",
+        id="basic.short-term-storage-2",
         parameters=[
             float_parameter("p_max_withdrawal", structure=CONSTANT),
             float_parameter("p_max_injection", structure=CONSTANT),
