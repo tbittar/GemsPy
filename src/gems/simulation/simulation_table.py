@@ -111,6 +111,7 @@ class SimulationTable:
         mask = self._df[SimulationColumns.COMPONENT.value] == component_id
         return ComponentView(self._df[mask])
 
+
 from gems.expression.visitor import visit
 from gems.simulation.extra_output import VectorizedExtraOutputBuilder
 from gems.simulation.linopy_problem import LinopyOptimizationProblem, build_port_arrays

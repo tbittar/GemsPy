@@ -66,7 +66,11 @@ def test_extra_output_with_sum_connections() -> None:
     problem.solve(solver_name="highs")
 
     df = SimulationTableBuilder().build(problem)
-    total_flow = df.component("node_1").output("total_flow").value(time_index=0, scenario_index=0)
+    total_flow = (
+        df.component("node_1")
+        .output("total_flow")
+        .value(time_index=0, scenario_index=0)
+    )
     assert total_flow == pytest.approx(5.0)
 
 
@@ -104,5 +108,7 @@ def test_extra_output_nonlinear() -> None:
     problem.solve(solver_name="highs")
 
     df = SimulationTableBuilder().build(problem)
-    squared = df.component("comp_1").output("squared").value(time_index=0, scenario_index=0)
+    squared = (
+        df.component("comp_1").output("squared").value(time_index=0, scenario_index=0)
+    )
     assert squared == pytest.approx(9.0)

@@ -227,9 +227,15 @@ def test_generation_xpansion_single_time_step_single_scenario(
     assert problem.objective_value == pytest.approx(490 * 100 + 100 * 10 + 200 * 40)
 
     df = SimulationTableBuilder().build(problem)
-    assert df.component("G1").output("generation").value(time_index=0, scenario_index=0) == pytest.approx(200.0)
-    assert df.component("CAND").output("generation").value(time_index=0, scenario_index=0) == pytest.approx(100.0)
-    assert df.component("CAND").output("p_max").value(time_index=0, scenario_index=0) == pytest.approx(100.0)
+    assert df.component("G1").output("generation").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(200.0)
+    assert df.component("CAND").output("generation").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(100.0)
+    assert df.component("CAND").output("p_max").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(100.0)
 
 
 def test_two_candidates_xpansion_single_time_step_single_scenario(
@@ -297,12 +303,24 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
     )
 
     df = SimulationTableBuilder().build(problem)
-    assert df.component("G1").output("generation").value(time_index=0, scenario_index=0) == pytest.approx(200.0)
-    assert df.component("CAND").output("generation").value(time_index=0, scenario_index=0) == pytest.approx(100.0)
-    assert df.component("CAND").output("p_max").value(time_index=0, scenario_index=0) == pytest.approx(100.0)
-    assert df.component("DISCRETE").output("generation").value(time_index=0, scenario_index=0) == pytest.approx(100.0)
-    assert df.component("DISCRETE").output("p_max").value(time_index=0, scenario_index=0) == pytest.approx(100.0)
-    assert df.component("DISCRETE").output("nb_units").value(time_index=0, scenario_index=0) == pytest.approx(10.0)
+    assert df.component("G1").output("generation").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(200.0)
+    assert df.component("CAND").output("generation").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(100.0)
+    assert df.component("CAND").output("p_max").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(100.0)
+    assert df.component("DISCRETE").output("generation").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(100.0)
+    assert df.component("DISCRETE").output("p_max").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(100.0)
+    assert df.component("DISCRETE").output("nb_units").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(10.0)
 
 
 def test_generation_xpansion_two_time_steps_two_scenarios(
@@ -388,4 +406,6 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
     assert cand_view.value(time_index=0, scenario_index=1) == pytest.approx(200.0)
     assert cand_view.value(time_index=1, scenario_index=1) == pytest.approx(300.0)
 
-    assert df.component("CAND").output("p_max").value(time_index=0, scenario_index=0) == pytest.approx(300.0)
+    assert df.component("CAND").output("p_max").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(300.0)
