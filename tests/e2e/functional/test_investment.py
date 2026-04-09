@@ -36,9 +36,9 @@ from gems.study import (
     Component,
     ConstantData,
     DataBase,
-    System,
     Node,
     PortRef,
+    System,
     TimeScenarioSeriesData,
     create_component,
 )

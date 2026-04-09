@@ -7,9 +7,9 @@ from gems.simulation import TimeBlock, build_problem
 from gems.study import (
     ConstantData,
     DataBase,
-    System,
     Node,
     PortRef,
+    System,
     TimeScenarioSeriesData,
     create_component,
 )
