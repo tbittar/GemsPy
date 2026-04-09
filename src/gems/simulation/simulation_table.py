@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import pandas as pd
 import xarray as xr
@@ -127,7 +127,7 @@ class SimulationTableBuilder:
                     block_length=problem.block_length,
                     scenarios_count=problem.scenarios,
                 )
-                result_da: xr.DataArray = visit(expr_node, builder)
+                result_da: xr.DataArray = cast(xr.DataArray, visit(expr_node, builder))
 
                 if "component" in result_da.dims:
                     own_ids = [c.id for c in components]
