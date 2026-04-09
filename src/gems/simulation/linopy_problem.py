@@ -55,10 +55,10 @@ from gems.study.network import Component, System
 def build_port_arrays(
     model: Model,
     components: List[Component],
-    models: Dict[int, Model],
-    model_components: Dict[int, List[Component]],
+    models: Dict[str, Model],
+    model_components: Dict[str, List[Component]],
     network: "System",
-    make_builder: Callable[[int, Model], Any],
+    make_builder: Callable[[str, Model], Any],
 ) -> Dict[PortFieldId, Any]:
     """Build port arrays for all ports of *model*.
 
@@ -117,10 +117,10 @@ def _build_slave_port_array(
     n_components: int,
     port_name: str,
     field_name: str,
-    models: Dict[int, Model],
-    model_components: Dict[int, List[Component]],
+    models: Dict[str, Model],
+    model_components: Dict[str, List[Component]],
     network: "System",
-    make_builder: Callable[[int, Model], Any],
+    make_builder: Callable[[str, Model], Any],
 ) -> Any:
     """Build a slave port array by summing contributions from connected masters.
 
@@ -128,9 +128,9 @@ def _build_slave_port_array(
     incidence matrix A[i, j] for each group, and accumulates
     ``sum_j A[i,j] * expr_master[j]`` into the result.
     """
-    per_master: Dict[
-        Tuple[str, PortFieldId], List[Tuple[int, Component]]
-    ] = defaultdict(list)
+    per_master: Dict[Tuple[str, PortFieldId], List[Tuple[int, Component]]] = (
+        defaultdict(list)
+    )
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
     comp_id_set = set(comp_ids)
