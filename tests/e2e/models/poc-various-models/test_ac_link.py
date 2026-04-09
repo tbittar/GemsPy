@@ -19,7 +19,14 @@ from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import Component, ConstantData, DataBase, PortRef, System, create_component
+from gems.study import (
+    Component,
+    ConstantData,
+    DataBase,
+    PortRef,
+    System,
+    create_component,
+)
 
 
 @pytest.fixture

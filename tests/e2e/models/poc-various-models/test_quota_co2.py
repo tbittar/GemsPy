@@ -21,7 +21,14 @@ from libs.standard_sc import C02_POWER_MODEL, QUOTA_CO2_MODEL
 
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import Component, ConstantData, DataBase, PortRef, System, create_component
+from gems.study import (
+    Component,
+    ConstantData,
+    DataBase,
+    PortRef,
+    System,
+    create_component,
+)
 
 
 def test_quota_co2() -> None:

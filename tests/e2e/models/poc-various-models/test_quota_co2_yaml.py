@@ -19,7 +19,14 @@ import math
 from gems.model.library import Library
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import Component, ConstantData, DataBase, PortRef, System, create_component
+from gems.study import (
+    Component,
+    ConstantData,
+    DataBase,
+    PortRef,
+    System,
+    create_component,
+)
 
 
 def test_quota_co2(
