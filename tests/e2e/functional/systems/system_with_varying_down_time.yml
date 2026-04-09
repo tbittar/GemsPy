@@ -37,11 +37,9 @@
 #   Total                         = 12250
 system:
   model-libraries: basic
-  nodes:
+  components:
     - id: N
       model: basic.node
-
-  components:
     - id: G_0
       model: basic.thermal-cluster-dhd
       parameters:

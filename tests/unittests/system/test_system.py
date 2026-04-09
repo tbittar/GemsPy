@@ -17,7 +17,7 @@ import pytest
 from gems.model.library import Library
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.study.network import Node, System
+from gems.study.network import Component, System
 
 
 @pytest.fixture(scope="session")
@@ -40,22 +40,18 @@ def test_system(lib_dict: dict[str, Library]) -> None:
     # This test could be done without parsing the yaml lib, ie. by giving models directly as Python object
     system = System("test")
     assert system.id == "test"
-    assert list(system.nodes) == []
     assert list(system.components) == []
     assert list(system.all_components) == []
     assert list(system.connections) == []
 
-    with pytest.raises(KeyError):
-        system.get_node("N")
-
     node_model = lib_dict["basic"].models["basic.node"]
 
-    N1 = Node(model=node_model, id="N1")
-    N2 = Node(model=node_model, id="N2")
-    system.add_node(N1)
-    system.add_node(N2)
-    assert list(system.nodes) == [N1, N2]
-    assert system.get_node(N1.id) == N1
-    assert system.get_component("N1") == Node(model=node_model, id="N1")
+    N1 = Component(model=node_model, id="N1")
+    N2 = Component(model=node_model, id="N2")
+    system.add_component(N1)
+    system.add_component(N2)
+    assert list(system.components) == [N1, N2]
+    assert system.get_component(N1.id) == N1
+    assert system.get_component("N1") == Component(model=node_model, id="N1")
     with pytest.raises(KeyError):
         system.get_component("unknown")

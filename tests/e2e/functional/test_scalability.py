@@ -5,9 +5,9 @@ import pandas as pd
 
 from gems.simulation import TimeBlock, build_problem
 from gems.study import (
+    Component,
     ConstantData,
     DataBase,
-    Node,
     PortRef,
     System,
     TimeScenarioSeriesData,
@@ -55,14 +55,14 @@ def build_for_horizon(horizon_size: int, scenario_count: int) -> float:
     database.add_data("G", "cost", ConstantData(30))
     database.add_data("G", "full_storage", ConstantData(100 * horizon_size))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="N")
+    node = Component(model=NODE_BALANCE_MODEL, id="N")
     demand = create_component(model=DEMAND_MODEL, id="D")
     gen = create_component(
         model=GENERATOR_MODEL_WITH_STORAGE, id="G"
     )  # Limits the total generation inside a TimeBlock
 
     system = System("test")
-    system.add_node(node)
+    system.add_component(node)
     system.add_component(demand)
     system.add_component(gen)
     system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
