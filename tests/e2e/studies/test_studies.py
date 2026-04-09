@@ -55,7 +55,8 @@ def test_study_mps_matches_expected(study_id: str, tmp_path: Path) -> None:
     database = input_database(system_path, timeseries_path=None)
 
     # --- Load and validate optim-config ---
-    optim_config = load_optim_config(system_path)
+    config_path = input_dir / "optim-config.yml"
+    optim_config = load_optim_config(config_path)
     assert optim_config is not None, f"optim-config.yml not found in {input_dir}"
     validate_optim_config(optim_config, system)
 

@@ -32,8 +32,6 @@ if TYPE_CHECKING:
     from gems.model.model import Model
     from gems.study.network import System
 
-OPTIM_CONFIG_FILENAME = "optim-config.yml"
-
 
 class ElementLocation(str, Enum):
     MASTER = "master"
@@ -67,20 +65,19 @@ class OptimConfig(ModifiedBaseModel):
     models: List[ModelOptimConfig] = Field(default_factory=list)
 
 
-def load_optim_config(components_path: Path) -> Optional[OptimConfig]:
+def load_optim_config(config_path: Path) -> Optional[OptimConfig]:
     """Load optim-config.yml from the same directory as components_path.
 
     Returns None if the file does not exist.
     Raises ValueError on parsing or validation failure.
     """
-    config_path = components_path.parent / OPTIM_CONFIG_FILENAME
     if not config_path.exists():
         return None
     try:
         with config_path.open() as config_file:
             return OptimConfig.model_validate(safe_load(config_file))
     except ValidationError as e:
-        raise ValueError(f"Invalid {OPTIM_CONFIG_FILENAME}: {e}")
+        raise ValueError(f"Invalid {config_path.stem}: {e}")
 
 
 _MASTER_LOCS: Set[ElementLocation] = {
@@ -235,6 +232,5 @@ def validate_optim_config(config: OptimConfig, system: "System") -> None:
 
     if errors:
         raise ValueError(
-            f"Errors in {OPTIM_CONFIG_FILENAME}:\n"
-            + "\n".join(f"  - {e}" for e in errors)
+            f"Errors in optim config file:\n" + "\n".join(f"  - {e}" for e in errors)
         )
