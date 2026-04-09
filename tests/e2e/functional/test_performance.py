@@ -20,7 +20,7 @@ from gems.expression.expression import ExpressionNode, literal, param, var
 from gems.expression.indexing_structure import IndexingStructure
 from gems.model import float_parameter, float_variable, model
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
 from gems.study.data import TimeScenarioSeriesData
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,
@@ -63,7 +63,7 @@ def test_large_sum_inside_model_with_loop() -> None:
         ),
     )
 
-    network = Network("test")
+    network = System("test")
     cost_model = create_component(model=SIMPLE_COST_MODEL, id="simple_cost")
     network.add_component(cost_model)
 
@@ -94,7 +94,7 @@ def test_large_sum_outside_model_with_loop() -> None:
         objective_operational_contribution=literal(obj_coeff),
     )
 
-    network = Network("test")
+    network = System("test")
 
     simple_model = create_component(
         model=SIMPLE_COST_MODEL,
@@ -142,7 +142,7 @@ def test_large_sum_inside_model_with_sum_operator() -> None:
         objective_operational_contribution=(param("cost") * var("var")).time_sum(),
     )
 
-    network = Network("test")
+    network = System("test")
 
     cost_model = create_component(model=SIMPLE_COST_MODEL, id="simple_cost")
     network.add_component(cost_model)
@@ -177,7 +177,7 @@ def test_large_sum_of_port_connections() -> None:
         for gen_id in range(nb_generators)
     ]
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
 
     network.add_component(demand)
@@ -217,7 +217,7 @@ def test_basic_balance_on_whole_year() -> None:
 
     gen = create_component(model=GENERATOR_MODEL, id="G")
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)
@@ -256,7 +256,7 @@ def test_basic_balance_on_whole_year_with_large_sum() -> None:
         model=GENERATOR_MODEL_WITH_STORAGE, id="G"
     )  # Limits the total generation inside a TimeBlock
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)

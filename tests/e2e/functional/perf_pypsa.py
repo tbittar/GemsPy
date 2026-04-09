@@ -10,7 +10,6 @@ from gems.simulation import TimeBlock, build_problem
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
-    build_network,
     consistency_check,
     resolve_system,
 )
@@ -27,11 +26,10 @@ def setup_data(pypsa_dir: Path):
         input_study = parse_yaml_components(c)
     lib_dict = resolve_library([input_library])
     network_components = resolve_system(input_study, lib_dict)
-    consistency_check(network_components.components, lib_dict["pypsa_models"].models)
+    consistency_check(network_components, lib_dict["pypsa_models"].models)
 
     database = build_data_base(input_study, series_dir)
-    network = build_network(network_components)
-    return network, database
+    return network_components, database
 
 
 def build_pypsa_problem(network, database, time_horizon):

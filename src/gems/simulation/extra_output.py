@@ -64,7 +64,7 @@ from gems.simulation.linopy_linearize import (
     _time_sum,
 )
 from gems.simulation.output_values_base import ExtraOutput
-from gems.study.network import Component, Network
+from gems.study.network import Component, System
 from gems.expression.evaluate import ValueProvider
 from gems.study.data import ComponentParameterIndex, TimeScenarioIndex
 

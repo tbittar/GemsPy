@@ -23,7 +23,7 @@ from .data import (
 )
 from .network import (
     Component,
-    Network,
+    System,
     Node,
     PortRef,
     PortsConnection,

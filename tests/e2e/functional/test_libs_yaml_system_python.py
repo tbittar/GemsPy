@@ -42,7 +42,7 @@ from gems.simulation import (
 from gems.study import (
     ConstantData,
     DataBase,
-    Network,
+    System,
     Node,
     PortRef,
     TimeScenarioSeriesData,
@@ -78,7 +78,7 @@ def test_basic_balance(lib_dict: dict[str, Library]) -> None:
         id="G",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)
@@ -125,7 +125,7 @@ def test_link(lib_dict: dict[str, Library]) -> None:
         id="L",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node1)
     network.add_node(node2)
     network.add_component(demand)
@@ -180,7 +180,7 @@ def test_stacking_generation(lib_dict: dict[str, Library]) -> None:
         id="G2",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node1)
     network.add_component(demand)
     network.add_component(gen1)
@@ -220,7 +220,7 @@ def test_spillage(lib_dict: dict[str, Library]) -> None:
 
     gen1 = create_component(model=production_with_min_model, id="G1")
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen1)
@@ -301,7 +301,7 @@ def test_min_up_down_times(lib_dict: dict[str, Library]) -> None:
 
     unsupplied_energy = create_component(model=unsuplied_model, id="U")
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)
@@ -363,7 +363,7 @@ def test_changing_demand(lib_dict: dict[str, Library]) -> None:
 
     prod = create_component(model=production_model, id="G")
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(prod)
@@ -448,7 +448,7 @@ def test_min_up_down_times_2(lib_dict: dict[str, Library]) -> None:
 
     unsupplied_energy = create_component(model=unsuplied_model, id="U")
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)

@@ -25,7 +25,7 @@ from gems.model import (
 )
 from gems.model.port import PortFieldDefinition, PortFieldId
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
 
 ELECTRICAL_PORT = PortType(id="electrical_port", fields=[PortField("flow")])
 
@@ -148,7 +148,7 @@ def test_electrolyzer() -> None:
     database.add_data("G", "cost", ConstantData(30))
     database.add_data("E", "efficiency", ConstantData(0.7))
 
-    network = Network("test")
+    network = System("test")
     network.add_node(elec_node)
     network.add_node(h2_node)
     network.add_component(demand_h2)

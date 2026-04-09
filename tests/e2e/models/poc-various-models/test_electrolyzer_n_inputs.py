@@ -23,7 +23,7 @@ from libs.standard_sc import (
 
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
 
 """
 This file tests various modellings for an electrolyser with multiple inputs. The models are created in Python directly.
@@ -86,7 +86,7 @@ def test_electrolyzer_n_inputs_1() -> None:
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = Network("test")
+    network = System("test")
     network.add_node(elec_node_1)
     network.add_component(electric_prod_1)
     network.add_component(electrolyzer1)
@@ -183,7 +183,7 @@ def test_electrolyzer_n_inputs_2() -> None:
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = Network("test")
+    network = System("test")
     network.add_node(elec_node_1)
     network.add_node(elec_node_2)
     network.add_node(gaz_node)
@@ -281,7 +281,7 @@ def test_electrolyzer_n_inputs_3() -> None:
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = Network("test")
+    network = System("test")
     network.add_node(elec_node_1)
     network.add_node(elec_node_2)
     network.add_node(gaz_node)
@@ -382,7 +382,7 @@ def test_electrolyzer_n_inputs_4() -> None:
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = Network("test")
+    network = System("test")
     network.add_node(elec_node_1)
     network.add_node(elec_node_2)
     network.add_node(gaz_node)

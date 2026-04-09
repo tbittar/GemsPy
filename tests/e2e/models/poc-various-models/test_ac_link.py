@@ -19,7 +19,7 @@ from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
         id="G",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)
@@ -118,7 +118,7 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
         id="L",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node1)
     network.add_node(node2)
     network.add_component(demand)
@@ -184,7 +184,7 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
         id="L2",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node1)
     network.add_node(node2)
     network.add_component(demand)
@@ -261,7 +261,7 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
         id="T",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node1)
     network.add_node(node2)
     network.add_component(demand)

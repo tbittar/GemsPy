@@ -21,7 +21,7 @@ from libs.standard_sc import C02_POWER_MODEL, QUOTA_CO2_MODEL
 
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
 
 
 def test_quota_co2() -> None:
@@ -45,7 +45,7 @@ def test_quota_co2() -> None:
     demand = create_component(model=DEMAND_MODEL, id="Demand")
     monQuotaCO2 = create_component(model=QUOTA_CO2_MODEL, id="QuotaCO2")
 
-    network = Network("test")
+    network = System("test")
     network.add_node(n1)
     network.add_node(n2)
     network.add_component(oil1)

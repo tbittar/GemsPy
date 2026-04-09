@@ -29,7 +29,7 @@ from gems.model.port import PortFieldDefinition, PortFieldId
 from gems.study import (
     ConstantData,
     DataBase,
-    Network,
+    System,
     Node,
     PortRef,
     ScenarioIndex,
@@ -51,13 +51,13 @@ from tests.unittests.system.libs.standard import (
 
 
 @pytest.fixture
-def mock_network() -> Network:
+def mock_network() -> System:
     node = Node(model=NODE_BALANCE_MODEL, id="1")
     demand = create_component(model=DEMAND_MODEL, id="D")
 
     gen = create_component(model=GENERATOR_MODEL, id="G")
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)
@@ -138,7 +138,7 @@ def demand_data() -> TimeScenarioSeriesData:
 
 
 def test_requirements_consistency_demand_model_fix_ok(
-    mock_network: Network, demand_data: TimeScenarioSeriesData
+    mock_network: System, demand_data: TimeScenarioSeriesData
 ) -> None:
     # Given
     # database data for "demand" defined as Time varying
@@ -154,7 +154,7 @@ def test_requirements_consistency_demand_model_fix_ok(
     database.requirements_consistency(mock_network)
 
 
-def test_requirements_consistency_generator_model_ok(mock_network: Network) -> None:
+def test_requirements_consistency_generator_model_ok(mock_network: System) -> None:
     # Given
     # database data for "demand" defined as CONSTANT
     # model "D" DEMAND_MODEL is TIME_AND_SCENARIO_FREE
@@ -168,7 +168,7 @@ def test_requirements_consistency_generator_model_ok(mock_network: Network) -> N
 
 
 def test_consistency_generation_time_free_for_constant_model_raises_exception(
-    mock_network: Network, demand_data: TimeScenarioSeriesData
+    mock_network: System, demand_data: TimeScenarioSeriesData
 ) -> None:
     # Given
     # database data for "p_max" defined as time varying
@@ -187,7 +187,7 @@ def test_consistency_generation_time_free_for_constant_model_raises_exception(
 
 
 def test_requirements_consistency_demand_model_time_varying_ok(
-    mock_network: Network, demand_data: TimeScenarioSeriesData
+    mock_network: System, demand_data: TimeScenarioSeriesData
 ) -> None:
     # Given
     # database data for "demand" defined as constant
@@ -218,7 +218,7 @@ def test_requirements_consistency_time_varying_parameter_with_correct_data_passe
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", cost_data)
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(gen)
     network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
@@ -261,7 +261,7 @@ def test_requirements_consistency_time_varying_parameter_with_scenario_varying_d
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", cost_data)
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(gen)
     network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
@@ -298,7 +298,7 @@ def test_requirements_consistency_scenario_varying_parameter_with_time_varying_d
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", cost_data)
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(gen)
     network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
@@ -324,7 +324,7 @@ def test_requirements_consistency_scenario_varying_parameter_with_correct_data_p
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", cost_data)
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(gen)
     network.add_component(gen)

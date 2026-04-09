@@ -13,7 +13,7 @@ from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study import (
     ConstantData,
     DataBase,
-    Network,
+    System,
     Node,
     PortRef,
     TimeScenarioSeriesData,
@@ -78,7 +78,7 @@ def short_term_storage_base(efficiency: float, horizon: int, result: int) -> Non
         id="STS1",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     for component in [demand, short_term_storage, spillage, unsupplied]:
         network.add_component(component)

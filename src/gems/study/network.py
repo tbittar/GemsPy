@@ -121,7 +121,7 @@ class PortsConnection:
 
 
 @dataclass
-class Network:
+class System:
     """
     Network model: simply nodes, links, and components.
     """
@@ -181,8 +181,8 @@ class Network:
     def is_empty(self) -> bool:
         return (not self._nodes) and (not self._components) and (not self._connections)
 
-    def replicate(self, /, **changes: Any) -> "Network":
-        replica = replace(self, **changes)
+    def replicate(self, /, **changes: Any) -> "System":
+        replica: System = replace(self, **changes)
 
         for node in self.nodes:
             replica.add_node(cast(Node, node.replicate()))

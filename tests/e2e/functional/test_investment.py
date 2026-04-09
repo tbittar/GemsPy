@@ -36,7 +36,7 @@ from gems.study import (
     Component,
     ConstantData,
     DataBase,
-    Network,
+    System,
     Node,
     PortRef,
     TimeScenarioSeriesData,
@@ -206,7 +206,7 @@ def test_generation_xpansion_single_time_step_single_scenario(
     database.add_data("CAND", "max_invest", ConstantData(1000))
 
     node = Node(model=NODE_BALANCE_MODEL, id="N")
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(generator)
@@ -280,7 +280,7 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
     database.add_data("DISCRETE", "p_max_per_unit", ConstantData(10))
 
     node = Node(model=NODE_BALANCE_MODEL, id="N")
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(generator)
@@ -370,7 +370,7 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
     database.add_data("CAND", "max_invest", ConstantData(1000))
 
     node = Node(model=NODE_BALANCE_MODEL, id="N")
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(generator)

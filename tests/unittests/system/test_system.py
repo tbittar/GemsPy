@@ -17,7 +17,7 @@ import pytest
 from gems.model.library import Library
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.study.network import Network, Node
+from gems.study.network import System, Node
 
 
 @pytest.fixture(scope="session")
@@ -38,7 +38,7 @@ def lib_dict(libs_dir: Path) -> dict[str, Library]:
 
 def test_network(lib_dict: dict[str, Library]) -> None:
     # This test could be done without parsing the yaml lib, ie. by giving models directly as Python object
-    network = Network("test")
+    network = System("test")
     assert network.id == "test"
     assert list(network.nodes) == []
     assert list(network.components) == []

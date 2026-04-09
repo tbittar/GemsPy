@@ -45,11 +45,10 @@ from gems.model.parsing import InputLibrary, parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study.data import DataBase
-from gems.study.network import Network
+from gems.study.network import System
 from gems.study.parsing import InputSystem, parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
-    build_network,
     consistency_check,
     resolve_system,
 )
@@ -60,13 +59,12 @@ def test_basic_balance_using_yaml(
 ) -> None:
     result_lib = resolve_library([input_library])
     components_input = resolve_system(input_system, result_lib)
-    consistency_check(components_input.components, result_lib["basic"].models)
+    consistency_check(components_input, result_lib["basic"].models)
 
     database = build_data_base(input_system, None)
-    network = build_network(components_input)
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(components_input, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
@@ -75,7 +73,7 @@ def test_basic_balance_using_yaml(
 @pytest.fixture
 def setup_test(
     libs_dir: Path, systems_dir: Path, series_dir: Path
-) -> Callable[[], Tuple[Network, DataBase]]:
+) -> Callable[[], Tuple[System, DataBase]]:
     def _setup_test(study_file_name: str):
         study_file = systems_dir / study_file_name
         lib_file = libs_dir / "lib_unittest.yml"
@@ -86,17 +84,16 @@ def setup_test(
             input_study = parse_yaml_components(c)
         lib_dict = resolve_library([input_library])
         network_components = resolve_system(input_study, lib_dict)
-        consistency_check(network_components.components, lib_dict["basic"].models)
+        consistency_check(network_components, lib_dict["basic"].models)
 
         database = build_data_base(input_study, series_dir)
-        network = build_network(network_components)
-        return network, database
+        return network_components, database
 
     return _setup_test
 
 
 def test_basic_balance_time_only_series(
-    setup_test: Callable[[], Tuple[Network, DataBase]],
+    setup_test: Callable[[], Tuple[System, DataBase]],
 ) -> None:
     network, database = setup_test("study_time_only_series.yml")
     scenarios = 1
@@ -107,7 +104,7 @@ def test_basic_balance_time_only_series(
 
 
 def test_basic_balance_scenario_only_series(
-    setup_test: Callable[[], Tuple[Network, DataBase]],
+    setup_test: Callable[[], Tuple[System, DataBase]],
 ) -> None:
     network, database = setup_test("study_scenario_only_series.yml")
     scenarios = 2
@@ -118,7 +115,7 @@ def test_basic_balance_scenario_only_series(
 
 
 def test_short_term_storage_base_with_yaml(
-    setup_test: Callable[[], Tuple[Network, DataBase]],
+    setup_test: Callable[[], Tuple[System, DataBase]],
 ) -> None:
     network, database = setup_test("components_for_short_term_storage.yml")
     # 18 produced in the 1st time-step, then consumed 2 * efficiency in the rest

@@ -23,7 +23,7 @@ from gems.simulation import build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.simulation.time_block import TimeBlock
 from gems.study.parsing import parse_yaml_components
-from gems.study.resolve_components import build_data_base, build_network, resolve_system
+from gems.study.resolve_components import build_data_base, resolve_system
 
 
 @pytest.fixture
@@ -106,7 +106,6 @@ def test_model_behaviour(
     result_lib = resolve_library(input_libraries)
     components_input = resolve_system(input_component, result_lib)
     database = build_data_base(input_component, Path(series_dir))
-    network = build_network(components_input)
     df_ref = pd.read_csv(results_dir / optim_result_file)
     expected_objective = df_ref[df_ref["output"] == "OBJECTIVE_VALUE"]["value"].iloc[0]
     ref_gen3 = (
@@ -119,7 +118,7 @@ def test_model_behaviour(
 
     for _ in range(0, batch):
         problem = build_problem(
-            network,
+            components_input,
             database,
             TimeBlock(1, timesteps),
             scenarios,

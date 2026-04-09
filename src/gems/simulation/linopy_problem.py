@@ -49,7 +49,7 @@ from gems.simulation.linopy_linearize import (
 )
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
-from gems.study.network import Component, Network
+from gems.study.network import Component, System
 
 
 def build_port_arrays(
@@ -57,7 +57,7 @@ def build_port_arrays(
     components: List[Component],
     models: Dict[int, Model],
     model_components: Dict[int, List[Component]],
-    network: "Network",
+    network: "System",
     make_builder: Callable[[int, Model], Any],
 ) -> Dict[PortFieldId, Any]:
     """Build port arrays for all ports of *model*.
@@ -119,7 +119,7 @@ def _build_slave_port_array(
     field_name: str,
     models: Dict[int, Model],
     model_components: Dict[int, List[Component]],
-    network: "Network",
+    network: "System",
     make_builder: Callable[[int, Model], Any],
 ) -> Any:
     """Build a slave port array by summing contributions from connected masters.
@@ -205,7 +205,7 @@ class LinopyOptimizationProblem:
         self,
         name: str,
         linopy_model: linopy.Model,
-        network: Network,
+        network: System,
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
@@ -273,7 +273,7 @@ class _LinopyProblemBuilder:
     def __init__(
         self,
         name: str,
-        network: Network,
+        network: System,
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
@@ -677,7 +677,7 @@ class _LinopyProblemBuilder:
 
 
 def build_problem(
-    network: Network,
+    network: System,
     database: DataBase,
     block: TimeBlock,
     scenarios: int,
@@ -691,7 +691,7 @@ def build_problem(
     Parameters
     ----------
     network:
-        Network of components and connections.
+        System of components and connections.
     database:
         Parameter data for all components.
     block:

@@ -45,7 +45,7 @@ from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study import (
     ConstantData,
     DataBase,
-    Network,
+    System,
     Node,
     PortRef,
     TimeScenarioIndex,
@@ -85,7 +85,7 @@ def test_basic_balance() -> None:
         id="G",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)
@@ -131,7 +131,7 @@ def test_timeseries() -> None:
         id="G",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)
@@ -147,7 +147,7 @@ def test_timeseries() -> None:
     assert problem.objective_value == 100 * 30 + 50 * 30
 
 
-def create_one_node_network(generator_model: Model) -> Network:
+def create_one_node_network(generator_model: Model) -> System:
     node = Node(model=NODE_BALANCE_MODEL, id="1")
     demand = create_component(
         model=DEMAND_MODEL,
@@ -159,7 +159,7 @@ def create_one_node_network(generator_model: Model) -> Network:
         id="G",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)
@@ -284,7 +284,7 @@ def short_term_storage_base(efficiency: float, horizon: int) -> None:
         id="STS1",
     )
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     for component in [demand, short_term_storage, spillage, unsupplied]:
         network.add_component(component)

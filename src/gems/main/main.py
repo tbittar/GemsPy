@@ -21,12 +21,11 @@ from gems.simulation import TimeBlock, build_problem
 from gems.study import DataBase
 from gems.study.parsing import parse_cli, parse_yaml_components
 from gems.study.resolve_components import (
-    System,
     build_data_base,
-    build_network,
     consistency_check,
     resolve_system,
 )
+from gems.study import System
 
 
 class AntaresTimeSeriesImportError(Exception):
@@ -70,7 +69,7 @@ def main_cli() -> None:
     for lib in lib_dict.values():
         models.update(lib.models)
 
-    consistency_check(study.components, models)
+    consistency_check(study, models)
 
     try:
         database = input_database(
@@ -82,13 +81,11 @@ def main_cli() -> None:
             f"An error occurred while importing time series."
         )
 
-    network = build_network(study)
-
     timeblock = TimeBlock(1, list(range(parsed_args.duration)))
     scenario = parsed_args.nb_scenarios
 
     try:
-        problem = build_problem(network, database, timeblock, scenario)
+        problem = build_problem(study, database, timeblock, scenario)
 
     except IndexError as e:
         raise IndexError(

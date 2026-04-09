@@ -7,7 +7,7 @@ from gems.simulation import TimeBlock, build_problem
 from gems.study import (
     ConstantData,
     DataBase,
-    Network,
+    System,
     Node,
     PortRef,
     TimeScenarioSeriesData,
@@ -61,7 +61,7 @@ def build_for_horizon(horizon_size, scenario_count):
         model=GENERATOR_MODEL_WITH_STORAGE, id="G"
     )  # Limits the total generation inside a TimeBlock
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(gen)

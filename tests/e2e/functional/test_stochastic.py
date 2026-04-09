@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
 from gems.study.data import TimeScenarioSeriesData
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,
@@ -113,7 +113,7 @@ def test_stochastic_model_with_HD_for_thermal_startup(
 
     peak = create_component(model=THERMAL_CLUSTER_MODEL_HD, id="PEAK")
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(base)
@@ -169,7 +169,7 @@ def test_stochastic_model_with_DH_for_thermal_startup(
 
     peak = create_component(model=THERMAL_CLUSTER_MODEL_DHD, id="PEAK")
 
-    network = Network("test")
+    network = System("test")
     network.add_node(node)
     network.add_component(demand)
     network.add_component(base)
