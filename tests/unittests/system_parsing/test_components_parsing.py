@@ -29,7 +29,9 @@ def test_parsing_components_ok(
     input_system: InputSystem, input_library: InputLibrary
 ) -> None:
     assert len(input_system.components) == 2
+    assert input_system.nodes is not None
     assert len(input_system.nodes) == 1
+    assert input_system.connections is not None
     assert len(input_system.connections) == 2
     lib_dict = resolve_library([input_library])
     result = resolve_system(input_system, lib_dict)

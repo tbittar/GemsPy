@@ -232,7 +232,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
         operand = visit(node.operand, self)
         if not self._has_dim(operand, "time"):
             return operand  # type: ignore[return-value]
-        return operand.isel(time=timestep)  # type: ignore[union-attr,return-value]
+        return operand.isel(time=timestep)  # type: ignore[union-attr,attr-defined,return-value]
 
     def time_sum(self, node: TimeSumNode) -> T_expr:
         try:
@@ -300,7 +300,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
     def all_time_sum(self, node: AllTimeSumNode) -> T_expr:
         operand = visit(node.operand, self)
         if self._has_dim(operand, "time"):
-            return operand.sum("time")  # type: ignore[union-attr,return-value]
+            return operand.sum("time")  # type: ignore[union-attr,attr-defined,return-value]
         return operand * self.block_length  # type: ignore[operator,return-value]
 
     # ------------------------------------------------------------------ #
@@ -315,7 +315,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
             )
         operand = visit(node.operand, self)
         if self._has_dim(operand, "scenario"):
-            return operand.sum("scenario") / self.scenarios_count  # type: ignore[union-attr,operator,return-value]
+            return operand.sum("scenario") / self.scenarios_count  # type: ignore[union-attr,attr-defined,operator,return-value]
         return operand  # type: ignore[return-value]
 
     # ------------------------------------------------------------------ #
@@ -357,24 +357,24 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
 
     def floor(self, node: FloorNode) -> T_expr:
         operand = visit(node.operand, self)
-        return np.floor(operand)  # type: ignore[return-value,arg-type]
+        return np.floor(operand)  # type: ignore[return-value,arg-type,call-overload]
 
     def ceil(self, node: CeilNode) -> T_expr:
         operand = visit(node.operand, self)
-        return np.ceil(operand)  # type: ignore[return-value,arg-type]
+        return np.ceil(operand)  # type: ignore[return-value,arg-type,call-overload]
 
     def maximum(self, node: MaxNode) -> T_expr:
         operands = [visit(op, self) for op in node.operands]
         result = operands[0]
         for op in operands[1:]:
-            result = xr.where(result >= op, result, op)  # type: ignore[no-untyped-call,assignment]
+            result = xr.where(result >= op, result, op)  # type: ignore[no-untyped-call,assignment,operator]
         return result  # type: ignore[return-value]
 
     def minimum(self, node: MinNode) -> T_expr:
         operands = [visit(op, self) for op in node.operands]
         result = operands[0]
         for op in operands[1:]:
-            result = xr.where(result <= op, result, op)  # type: ignore[no-untyped-call,assignment]
+            result = xr.where(result <= op, result, op)  # type: ignore[no-untyped-call,assignment,operator]
         return result  # type: ignore[return-value]
 
     # ------------------------------------------------------------------ #
