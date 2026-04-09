@@ -86,6 +86,7 @@ class ParsedArguments:
     timeseries_path: Path
     duration: int
     nb_scenarios: int
+    optim_config_path: Optional[Path] = None
 
 
 def parse_cli() -> ParsedArguments:
@@ -132,6 +133,16 @@ def parse_cli() -> ParsedArguments:
         timeseries_dir = args.timeseries
         model_paths = args.models
 
+    optim_config_candidate = components_path.parent / "optim-config.yml"
+    optim_config_path = (
+        optim_config_candidate if optim_config_candidate.exists() else None
+    )
+
     return ParsedArguments(
-        model_paths, components_path, timeseries_dir, args.duration, args.scenario
+        model_paths,
+        components_path,
+        timeseries_dir,
+        args.duration,
+        args.scenario,
+        optim_config_path,
     )

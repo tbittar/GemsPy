@@ -1,0 +1,240 @@
+# Copyright (c) 2024, RTE (https://www.rte-france.com)
+#
+# See AUTHORS.txt
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# SPDX-License-Identifier: MPL-2.0
+#
+# This file is part of the Antares project.
+
+from enum import Enum
+from pathlib import Path
+from typing import TYPE_CHECKING, List, Optional, Set
+
+from pydantic import Field, ValidationError
+from yaml import safe_load
+
+from gems.expression.expression import (
+    AdditionNode,
+    BinaryOperatorNode,
+    ExpressionNode,
+    MaxNode,
+    MinNode,
+    UnaryOperatorNode,
+    VariableNode,
+)
+from gems.utils import ModifiedBaseModel
+
+if TYPE_CHECKING:
+    from gems.model.model import Model
+    from gems.study.network import Network
+
+OPTIM_CONFIG_FILENAME = "optim-config.yml"
+
+
+class ElementLocation(str, Enum):
+    MASTER = "master"
+    SUBPROBLEMS = "subproblems"
+    MASTER_AND_SUBPROBLEMS = "master-and-subproblems"
+
+
+class ElementLocationConfig(ModifiedBaseModel):
+    id: str
+    location: ElementLocation
+
+
+class ModelDecompositionConfig(ModifiedBaseModel):
+    variables: List[ElementLocationConfig] = Field(default_factory=list)
+    constraints: List[ElementLocationConfig] = Field(default_factory=list)
+    objective_contributions: List[ElementLocationConfig] = Field(default_factory=list)
+
+
+class ModelOptimConfig(ModifiedBaseModel):
+    id: str
+    model_decomposition: Optional[ModelDecompositionConfig] = None
+
+
+class ResolutionMode(str, Enum):
+    SEQUENTIAL_SUBPROBLEMS = "sequential-subproblems"
+    BENDERS_DECOMPOSITION = "benders-decomposition"
+
+
+class OptimConfig(ModifiedBaseModel):
+    resolution_mode: ResolutionMode = ResolutionMode.SEQUENTIAL_SUBPROBLEMS
+    models: List[ModelOptimConfig] = Field(default_factory=list)
+
+
+def load_optim_config(components_path: Path) -> Optional[OptimConfig]:
+    """Load optim-config.yml from the same directory as components_path.
+
+    Returns None if the file does not exist.
+    Raises ValueError on parsing or validation failure.
+    """
+    config_path = components_path.parent / OPTIM_CONFIG_FILENAME
+    if not config_path.exists():
+        return None
+    try:
+        with config_path.open() as config_file:
+            return OptimConfig.model_validate(safe_load(config_file))
+    except ValidationError as e:
+        raise ValueError(f"Invalid {OPTIM_CONFIG_FILENAME}: {e}")
+
+
+_MASTER_LOCS: Set[ElementLocation] = {
+    ElementLocation.MASTER,
+    ElementLocation.MASTER_AND_SUBPROBLEMS,
+}
+
+
+def _collect_variable_names(expr: ExpressionNode) -> Set[str]:
+    """Recursively collect all variable names referenced in an expression."""
+    if isinstance(expr, VariableNode):
+        return {expr.name}
+    if isinstance(expr, (AdditionNode, MaxNode, MinNode)):
+        result: Set[str] = set()
+        for operand in expr.operands:
+            result |= _collect_variable_names(operand)
+        return result
+    if isinstance(expr, UnaryOperatorNode):
+        return _collect_variable_names(expr.operand)
+    if isinstance(expr, BinaryOperatorNode):
+        return _collect_variable_names(expr.left) | _collect_variable_names(expr.right)
+    return set()
+
+
+def _check_id_existence(
+    decomposition: ModelDecompositionConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
+) -> None:
+    for variable_config in decomposition.variables:
+        if variable_config.id not in model.variables:
+            errors.append(
+                f"Variable '{variable_config.id}' not found in model '{model_config_id}'"
+            )
+    for constraint_config in decomposition.constraints:
+        if (
+            constraint_config.id not in model.constraints
+            and constraint_config.id not in model.binding_constraints
+        ):
+            errors.append(
+                f"Constraint '{constraint_config.id}' not found in model '{model_config_id}'"
+            )
+    obj_keys = set(model.objective_contributions or {})
+    for obj_config in decomposition.objective_contributions:
+        if obj_config.id not in obj_keys:
+            errors.append(
+                f"Objective-contribution '{obj_config.id}' not found in model '{model_config_id}'"
+            )
+
+
+def _check_master_variables_not_time_dependent(
+    decomposition: ModelDecompositionConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
+) -> None:
+    """Variables assigned to master or master-and-subproblems must not depend on time."""
+    for variable_config in decomposition.variables:
+        if (
+            variable_config.location in _MASTER_LOCS
+            and variable_config.id in model.variables
+        ):
+            if model.variables[variable_config.id].structure.time:
+                errors.append(
+                    f"Variable '{variable_config.id}' in model '{model_config_id}' is time-dependent "
+                    f"but is assigned to '{variable_config.location.value}'; "
+                    "master variables must not depend on time"
+                )
+
+
+def _check_master_constraints_use_master_variables(
+    decomposition: ModelDecompositionConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
+) -> None:
+    """Constraints in master must only reference variables in master or master-and-subproblems."""
+    master_var_ids = {
+        variable_config.id
+        for variable_config in decomposition.variables
+        if variable_config.location in _MASTER_LOCS
+        and variable_config.id in model.variables
+    }
+    for constraint_config in decomposition.constraints:
+        if constraint_config.location == ElementLocation.MASTER:
+            constraint = model.constraints.get(
+                constraint_config.id
+            ) or model.binding_constraints.get(constraint_config.id)
+            if constraint is not None:
+                for var_name in sorted(
+                    _collect_variable_names(constraint.expression) - master_var_ids
+                ):
+                    errors.append(
+                        f"Constraint '{constraint_config.id}' in model '{model_config_id}' references variable '{var_name}' "
+                        "which is not assigned to master or master-and-subproblems"
+                    )
+
+
+def _check_master_objectives_use_master_variables(
+    decomposition: ModelDecompositionConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
+) -> None:
+    """Objective contributions in master must only reference variables in master or master-and-subproblems."""
+    master_var_ids = {
+        variable_config.id
+        for variable_config in decomposition.variables
+        if variable_config.location in _MASTER_LOCS
+        and variable_config.id in model.variables
+    }
+    obj_contribs = model.objective_contributions or {}
+    for obj_config in decomposition.objective_contributions:
+        if obj_config.location == ElementLocation.MASTER:
+            expr = obj_contribs.get(obj_config.id)
+            if expr is not None:
+                for var_name in sorted(_collect_variable_names(expr) - master_var_ids):
+                    errors.append(
+                        f"Objective contribution '{obj_config.id}' in model '{model_config_id}' references variable '{var_name}' "
+                        "which is not assigned to master or master-and-subproblems"
+                    )
+
+
+def validate_optim_config(config: OptimConfig, network: "Network") -> None:
+    """Cross-validate optim-config entries against the resolved network.
+
+    Checks that every referenced ID exists, that master variables do not
+    depend on time, and that master constraints and objectives only reference
+    variables assigned to master or master-and-subproblems.
+    Raises ValueError listing all violations.
+    """
+    models_in_network = {c.model.id: c.model for c in network.all_components}
+    errors: List[str] = []
+
+    for model_config in config.models:
+        model = models_in_network.get(model_config.id)
+        if model is None:
+            errors.append(f"Model '{model_config.id}' not found in network")
+        elif model_config.model_decomposition is not None:
+            decomposition = model_config.model_decomposition
+            _check_id_existence(decomposition, model, model_config.id, errors)
+            _check_master_variables_not_time_dependent(
+                decomposition, model, model_config.id, errors
+            )
+            _check_master_constraints_use_master_variables(
+                decomposition, model, model_config.id, errors
+            )
+            _check_master_objectives_use_master_variables(
+                decomposition, model, model_config.id, errors
+            )
+
+    if errors:
+        raise ValueError(
+            f"Errors in {OPTIM_CONFIG_FILENAME}:\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )

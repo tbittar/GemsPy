@@ -17,7 +17,21 @@ from typing import Dict, List, Optional
 from gems.model.library import Library
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.simulation import TimeBlock, build_problem
+from gems.optim_config.parsing import (
+    OptimConfig,
+    ResolutionMode,
+    load_optim_config,
+    validate_optim_config,
+)
+from gems.simulation import (
+    BendersRunner,
+    DecomposedProblems,
+    TimeBlock,
+    build_couplings,
+    build_decomposed_problems,
+    build_problem,
+    dump_couplings,
+)
 from gems.study import DataBase
 from gems.study.parsing import parse_cli, parse_yaml_components
 from gems.study.resolve_components import (
@@ -60,6 +74,14 @@ def input_study(study_path: Path, librairies: dict[str, Library]) -> System:
         return resolve_system(parse_yaml_components(comp), librairies)
 
 
+def _write_structure_txt(
+    decomposed: DecomposedProblems,
+    optim_config: OptimConfig,
+    output_dir: Path,
+) -> None:
+    dump_couplings(build_couplings(decomposed, optim_config), output_dir)
+
+
 def main_cli() -> None:
     parsed_args = parse_cli()
 
@@ -79,7 +101,7 @@ def main_cli() -> None:
 
     except UnboundLocalError:
         raise AntaresTimeSeriesImportError(
-            f"An error occurred while importing time series."
+            "An error occurred while importing time series."
         )
 
     network = build_network(study)
@@ -87,18 +109,50 @@ def main_cli() -> None:
     timeblock = TimeBlock(1, list(range(parsed_args.duration)))
     scenario = parsed_args.nb_scenarios
 
-    try:
-        problem = build_problem(network, database, timeblock, scenario)
+    # Load optional optim-config.yml
+    optim_config = load_optim_config(parsed_args.components_path)
 
-    except IndexError as e:
-        raise IndexError(
-            f"{e}. Did parameters '--duration' and '--scenario' were correctly set?"
-        )
+    if optim_config is not None:
+        validate_optim_config(optim_config, network)
 
-    problem.solve(solver_name="highs")
-    print("status : ", problem.termination_condition)
+        try:
+            decomposed = build_decomposed_problems(
+                network, database, timeblock, scenario, optim_config
+            )
+        except IndexError as e:
+            raise IndexError(
+                f"{e}. Did parameters '--duration' and '--scenario' were correctly set?"
+            )
 
-    print("final average cost : ", problem.objective_value)
+        if optim_config.resolution_mode == ResolutionMode.BENDERS_DECOMPOSITION:
+            # Generate structure.txt then hand off to the external Benders solver
+            if decomposed.master is not None:
+                _write_structure_txt(
+                    decomposed,
+                    optim_config,
+                    output_dir=parsed_args.components_path.parent,
+                )
+            BendersRunner(emplacement=parsed_args.components_path.parent).run()
+        else:
+            # sequential-subproblems (default): solve the subproblem directly
+            decomposed.subproblem.solve(solver_name="highs")
+            print("status : ", decomposed.subproblem.termination_condition)
+            print("final average cost : ", decomposed.subproblem.objective_value)
+
+    else:
+        # No optim-config.yml — original unchanged behaviour
+        try:
+            problem = build_problem(network, database, timeblock, scenario)
+
+        except IndexError as e:
+            raise IndexError(
+                f"{e}. Did parameters '--duration' and '--scenario' were correctly set?"
+            )
+
+        problem.solve(solver_name="highs")
+        print("status : ", problem.termination_condition)
+
+        print("final average cost : ", problem.objective_value)
 
 
 if __name__ == "__main__":
