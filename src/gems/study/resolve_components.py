@@ -20,7 +20,6 @@ from gems.study import (
     Component,
     ConstantData,
     DataBase,
-    Node,
     PortRef,
     PortsConnection,
     Scenarization,
@@ -46,19 +45,14 @@ def resolve_system(input_system: InputSystem, libraries: dict[str, Library]) -> 
     components_list = [
         _resolve_component(libraries, m) for m in input_system.components
     ]
-    nodes_input = getattr(input_system, "nodes", []) or []
-    nodes = [_resolve_component(libraries, n) for n in nodes_input]
 
     s = System("study")
-    for n in nodes:
-        s.add_node(Node(model=n.model, id=n.id))
     for component in components_list:
         s.add_component(component)
 
-    all_components: List[Component] = components_list + nodes
     connections_input = getattr(input_system, "connections", []) or []
     for cnx in connections_input:
-        port_ref_1, port_ref_2 = _resolve_port_refs(cnx, all_components)
+        port_ref_1, port_ref_2 = _resolve_port_refs(cnx, components_list)
         s.connect(port_ref_1, port_ref_2)
 
     return s
@@ -114,9 +108,7 @@ def build_data_base(
     input_system: InputSystem, timeseries_dir: Optional[Path]
 ) -> DataBase:
     database = DataBase()
-    nodes_input = getattr(input_system, "nodes", []) or []
-    input_system_objects = input_system.components + nodes_input
-    for comp in input_system_objects:
+    for comp in input_system.components:
         # This idiom allows mypy to 'ignore' the fact that comp.parameter can be None
         for param in comp.parameters or []:
             param_value = _build_data(

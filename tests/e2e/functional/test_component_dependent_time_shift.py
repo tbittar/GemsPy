@@ -89,9 +89,9 @@ from gems.model.port import PortFieldDefinition, PortFieldId
 from gems.model.resolve_library import resolve_library
 from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study import (
+    Component,
     ConstantData,
     DataBase,
-    Node,
     PortRef,
     System,
     TimeScenarioSeriesData,
@@ -193,7 +193,7 @@ def _add_storage(
 
 
 def _build_system(*storage_ids: str) -> System:
-    node = Node(model=NODE_BALANCE_MODEL, id="N")
+    node = Component(model=NODE_BALANCE_MODEL, id="N")
     demand_comp = create_component(model=DEMAND_MODEL, id="D")
     spillage_comp = create_component(model=SPILLAGE_MODEL, id="S")
     unsupplied_comp = create_component(model=UNSUPPLIED_ENERGY_MODEL, id="U")
@@ -202,7 +202,7 @@ def _build_system(*storage_ids: str) -> System:
     ]
 
     system = System("test")
-    system.add_node(node)
+    system.add_component(node)
     for comp in [demand_comp, spillage_comp, unsupplied_comp] + storage_comps:
         system.add_component(comp)
         system.connect(PortRef(comp, "balance_port"), PortRef(node, "balance_port"))

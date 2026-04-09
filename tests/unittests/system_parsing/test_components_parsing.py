@@ -28,16 +28,13 @@ def input_library() -> InputLibrary:
 def test_parsing_components_ok(
     input_system: InputSystem, input_library: InputLibrary
 ) -> None:
-    assert len(input_system.components) == 2
-    assert input_system.nodes is not None
-    assert len(input_system.nodes) == 1
+    assert len(input_system.components) == 3
     assert input_system.connections is not None
     assert len(input_system.connections) == 2
     lib_dict = resolve_library([input_library])
     result = resolve_system(input_system, lib_dict)
 
-    assert len(result.components) == 2
-    assert len(result.nodes) == 1
+    assert len(result.components) == 3
     assert len(result.connections) == 2
 
 
@@ -58,9 +55,10 @@ def test_load_input_system_ok(tmp_path: Path) -> None:
     result = load_input_system(file_for_load)
 
     assert isinstance(result, InputSystem)
-    assert len(result.components) == 2
-    assert result.components[0].id == "G"
-    assert result.components[1].id == "D"
+    assert len(result.components) == 3
+    assert result.components[0].id == "N"
+    assert result.components[1].id == "G"
+    assert result.components[2].id == "D"
     assert result.connections is not None
     assert len(result.connections) == 2
 

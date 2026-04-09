@@ -20,7 +20,7 @@ from gems.expression.expression import ExpressionNode, literal, param, var
 from gems.expression.indexing_structure import IndexingStructure
 from gems.model import float_parameter, float_variable, model
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
+from gems.study import Component, ConstantData, DataBase, PortRef, System, create_component
 from gems.study.data import TimeScenarioSeriesData
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,
@@ -174,7 +174,7 @@ def test_large_sum_of_port_connections() -> None:
         database.add_data(f"G_{gen_id}", "p_max", ConstantData(1))
         database.add_data(f"G_{gen_id}", "cost", ConstantData(5))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="N")
+    node = Component(model=NODE_BALANCE_MODEL, id="N")
     demand = create_component(model=DEMAND_MODEL, id="D")
     generators = [
         create_component(model=GENERATOR_MODEL, id=f"G_{gen_id}")
@@ -182,7 +182,7 @@ def test_large_sum_of_port_connections() -> None:
     ]
 
     system = System("test")
-    system.add_node(node)
+    system.add_component(node)
 
     system.add_component(demand)
     system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
@@ -216,13 +216,13 @@ def test_basic_balance_on_whole_year() -> None:
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", ConstantData(30))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="N")
+    node = Component(model=NODE_BALANCE_MODEL, id="N")
     demand = create_component(model=DEMAND_MODEL, id="D")
 
     gen = create_component(model=GENERATOR_MODEL, id="G")
 
     system = System("test")
-    system.add_node(node)
+    system.add_component(node)
     system.add_component(demand)
     system.add_component(gen)
     system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
@@ -254,14 +254,14 @@ def test_basic_balance_on_whole_year_with_large_sum() -> None:
     database.add_data("G", "cost", ConstantData(30))
     database.add_data("G", "full_storage", ConstantData(100 * horizon))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="N")
+    node = Component(model=NODE_BALANCE_MODEL, id="N")
     demand = create_component(model=DEMAND_MODEL, id="D")
     gen = create_component(
         model=GENERATOR_MODEL_WITH_STORAGE, id="G"
     )  # Limits the total generation inside a TimeBlock
 
     system = System("test")
-    system.add_node(node)
+    system.add_component(node)
     system.add_component(demand)
     system.add_component(gen)
     system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))

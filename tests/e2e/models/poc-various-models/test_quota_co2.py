@@ -21,7 +21,7 @@ from libs.standard_sc import C02_POWER_MODEL, QUOTA_CO2_MODEL
 
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
+from gems.study import Component, ConstantData, DataBase, PortRef, System, create_component
 
 
 def test_quota_co2() -> None:
@@ -37,8 +37,8 @@ def test_quota_co2() -> None:
     QuotaCO2
 
     Test of a generation of energy and co2 with a quota to limit the emission"""
-    n1 = Node(model=NODE_BALANCE_MODEL, id="N1")
-    n2 = Node(model=NODE_BALANCE_MODEL, id="N2")
+    n1 = Component(model=NODE_BALANCE_MODEL, id="N1")
+    n2 = Component(model=NODE_BALANCE_MODEL, id="N2")
     oil1 = create_component(model=C02_POWER_MODEL, id="Oil1")
     coal1 = create_component(model=C02_POWER_MODEL, id="Coal1")
     l12 = create_component(model=LINK_MODEL, id="L12")
@@ -46,8 +46,8 @@ def test_quota_co2() -> None:
     monQuotaCO2 = create_component(model=QUOTA_CO2_MODEL, id="QuotaCO2")
 
     system = System("test")
-    system.add_node(n1)
-    system.add_node(n2)
+    system.add_component(n1)
+    system.add_component(n2)
     system.add_component(oil1)
     system.add_component(coal1)
     system.add_component(l12)
