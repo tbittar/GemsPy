@@ -30,8 +30,9 @@ optimization problem in four phases:
 """
 
 from collections import defaultdict
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 
 import linopy
 import numpy as np
@@ -50,6 +51,62 @@ from gems.simulation.linopy_linearize import (
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
 from gems.study.network import Component, Network
+
+if TYPE_CHECKING:
+    from gems.optim_config.parsing import ElementLocation, OptimConfig
+
+
+# ---------------------------------------------------------------------------
+# Decomposition filter
+# ---------------------------------------------------------------------------
+
+
+class DecompositionFilter:
+    """Decides which model elements belong to a given problem side (master or subproblems).
+
+    Elements not listed in the config default to ``subproblems``.
+
+    Parameters
+    ----------
+    config:
+        Parsed OptimConfig from optim-config.yml.
+    target_locations:
+        The set of :class:`~gems.optim_config.parsing.ElementLocation` values
+        that should be *included* (not filtered out) by this filter.
+    """
+
+    def __init__(
+        self, config: "OptimConfig", target_locations: "Set[ElementLocation]"
+    ) -> None:
+        from gems.optim_config.parsing import ElementLocation as EL
+
+        self._target = target_locations
+        self._default = EL.SUBPROBLEMS
+        self._vars: Dict[Tuple[str, str], "ElementLocation"] = {}
+        self._cons: Dict[Tuple[str, str], "ElementLocation"] = {}
+        self._objs: Dict[Tuple[str, str], "ElementLocation"] = {}
+
+        for mc in config.models:
+            if mc.model_decomposition is None:
+                continue
+            for v in mc.model_decomposition.variables:
+                self._vars[(mc.id, v.id)] = v.location
+            for c in mc.model_decomposition.constraints:
+                self._cons[(mc.id, c.id)] = c.location
+            for o in mc.model_decomposition.objective_contributions:
+                self._objs[(mc.id, o.id)] = o.location
+
+    def include_variable(self, model_id: str, var_name: str) -> bool:
+        loc = self._vars.get((model_id, var_name), self._default)
+        return loc in self._target
+
+    def include_constraint(self, model_id: str, constraint_name: str) -> bool:
+        loc = self._cons.get((model_id, constraint_name), self._default)
+        return loc in self._target
+
+    def include_objective(self, model_id: str, obj_id: str) -> bool:
+        loc = self._objs.get((model_id, obj_id), self._default)
+        return loc in self._target
 
 
 def build_port_arrays(
@@ -255,6 +312,19 @@ class LinopyOptimizationProblem:
         """Objective function value after solving."""
         return float(self.linopy_model.objective.value) + self._objective_constant  # type: ignore[arg-type]
 
+    def get_variable_labels(
+        self, model_id: str, var_name: str
+    ) -> Optional[xr.DataArray]:
+        """Return the linopy integer label DataArray for *var_name* of *model_id*.
+
+        Each entry in the DataArray is the internal integer ID that linopy
+        assigned to the corresponding scalar variable instance.  Returns
+        ``None`` if the variable was not built in this problem (e.g. it was
+        filtered out by a :class:`DecompositionFilter`).
+        """
+        lv = self._linopy_vars.get((model_id, var_name))
+        return lv.labels if lv is not None else None
+
 
 # ---------------------------------------------------------------------------
 # Internal builder
@@ -277,12 +347,14 @@ class _LinopyProblemBuilder:
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
+        location_filter: Optional[DecompositionFilter] = None,
     ) -> None:
         self.name = name
         self.network = network
         self.database = database
         self.block = block
         self.scenarios = scenarios
+        self._location_filter = location_filter
 
         self.block_length = len(block.timesteps)
         self.time_coord = list(range(self.block_length))
@@ -452,6 +524,10 @@ class _LinopyProblemBuilder:
         comp_ids = [c.id for c in components]
 
         for var in model.variables.values():
+            if self._location_filter and not self._location_filter.include_variable(
+                model.id, var.name
+            ):
+                continue
             # Build coords for this variable
             coords: Dict[str, object] = {"component": comp_ids}
             dims = ["component"]
@@ -562,6 +638,10 @@ class _LinopyProblemBuilder:
 
         prefix = model.id.replace("-", "_")
         for constraint in model.get_all_constraints():
+            if self._location_filter and not self._location_filter.include_constraint(
+                model.id, constraint.name
+            ):
+                continue
             lhs = visit(constraint.expression, builder)
 
             # Sanitize constraint name for LP format (spaces → underscores)
@@ -600,7 +680,12 @@ class _LinopyProblemBuilder:
             return summed if acc is None else _linopy_add(acc, summed)
 
         if model.objective_contributions:
-            for expr in model.objective_contributions.values():
+            for obj_id, expr in model.objective_contributions.items():
+                if (
+                    self._location_filter
+                    and not self._location_filter.include_objective(model.id, obj_id)
+                ):
+                    continue
                 if expr is not None:
                     obj_term = visit(expr, builder)
                     total_obj = _accumulate(total_obj, obj_term)
@@ -698,3 +783,118 @@ def build_problem(
         scenarios=scenarios,
     )
     return builder.build()
+
+
+# ---------------------------------------------------------------------------
+# Decomposed build — public entry point
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class DecomposedProblems:
+    """Holds the results of a decomposed problem build.
+
+    Attributes
+    ----------
+    subproblem:
+        LinopyOptimizationProblem containing all elements whose location is
+        ``subproblems`` or ``master-and-subproblems``.
+    master:
+        LinopyOptimizationProblem containing all elements whose location is
+        ``master`` or ``master-and-subproblems``.  ``None`` when the
+        optim-config declares no master-side elements.
+    """
+
+    subproblem: LinopyOptimizationProblem
+    master: Optional[LinopyOptimizationProblem]
+
+
+def build_decomposed_problems(
+    network: Network,
+    database: DataBase,
+    block: TimeBlock,
+    scenarios: int,
+    optim_config: "OptimConfig",
+    *,
+    subproblem_name: str = "subproblem",
+    master_name: str = "master",
+    border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
+) -> DecomposedProblems:
+    """Build master and subproblem LinopyOptimizationProblems according to *optim_config*.
+
+    The subproblem is always built; it contains every element whose declared
+    location is ``subproblems`` (the default) or ``master-and-subproblems``.
+
+    The master is built only when at least one element in *optim_config* has
+    location ``master`` or ``master-and-subproblems``.
+
+    Parameters
+    ----------
+    network, database, block, scenarios:
+        Same semantics as :func:`build_problem`.
+    optim_config:
+        Parsed ``OptimConfig`` from an ``optim-config.yml`` file.
+    subproblem_name, master_name:
+        Labels used for the underlying linopy models.
+    border_management:
+        Only ``CYCLE`` is implemented (identical restriction as in
+        :func:`build_problem`).
+    """
+    from gems.optim_config.parsing import ElementLocation
+
+    if border_management != BlockBorderManagement.CYCLE:
+        raise NotImplementedError(
+            f"Border management {border_management} is not yet implemented. "
+            "Only BlockBorderManagement.CYCLE is supported."
+        )
+
+    database.requirements_consistency(network)
+
+    master_locs: Set["ElementLocation"] = {
+        ElementLocation.MASTER,
+        ElementLocation.MASTER_AND_SUBPROBLEMS,
+    }
+    sub_locs: Set["ElementLocation"] = {
+        ElementLocation.SUBPROBLEMS,
+        ElementLocation.MASTER_AND_SUBPROBLEMS,
+    }
+
+    subproblem = _LinopyProblemBuilder(
+        name=subproblem_name,
+        network=network,
+        database=database,
+        block=block,
+        scenarios=scenarios,
+        location_filter=DecompositionFilter(optim_config, sub_locs),
+    ).build()
+
+    master: Optional[LinopyOptimizationProblem] = None
+    if _has_any_master_element(optim_config):
+        master = _LinopyProblemBuilder(
+            name=master_name,
+            network=network,
+            database=database,
+            block=block,
+            scenarios=scenarios,
+            location_filter=DecompositionFilter(optim_config, master_locs),
+        ).build()
+
+    return DecomposedProblems(subproblem=subproblem, master=master)
+
+
+def _has_any_master_element(config: "OptimConfig") -> bool:
+    """Return True if *config* declares at least one master-side element."""
+    from gems.optim_config.parsing import ElementLocation
+
+    master_locs = {ElementLocation.MASTER, ElementLocation.MASTER_AND_SUBPROBLEMS}
+    for mc in config.models:
+        if mc.model_decomposition is None:
+            continue
+        d = mc.model_decomposition
+        if any(v.location in master_locs for v in d.variables):
+            return True
+        if any(c.location in master_locs for c in d.constraints):
+            return True
+        if any(o.location in master_locs for o in d.objective_contributions):
+            return True
+    return False
