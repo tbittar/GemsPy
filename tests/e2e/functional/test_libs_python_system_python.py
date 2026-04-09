@@ -13,7 +13,7 @@
 """
 This module contains end-to-end functional tests for systems built by:
 - Using Python models,
-- Building the network object in Python.
+- Building the system object in Python.
 
 Several cases are tested:
 
@@ -85,15 +85,15 @@ def test_basic_balance() -> None:
         id="G",
     )
 
-    network = System("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
@@ -131,17 +131,17 @@ def test_timeseries() -> None:
         id="G",
     )
 
-    network = System("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     time_block = TimeBlock(1, [0, 1])
     scenarios = 1
 
-    problem = build_problem(network, database, time_block, scenarios)
+    problem = build_problem(system, database, time_block, scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 100 * 30 + 50 * 30
@@ -159,13 +159,13 @@ def create_one_node_network(generator_model: Model) -> System:
         id="G",
     )
 
-    network = System("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
-    return network
+    system = System("test")
+    system.add_node(node)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    return system
 
 
 def create_simple_database(max_generation: float = 100) -> DataBase:
@@ -179,7 +179,7 @@ def create_simple_database(max_generation: float = 100) -> DataBase:
 
 def test_variable_bound() -> None:
     """
-    Create a network with one node, one demand and one generator on this node.
+    Create a system with one node, one demand and one generator on this node.
     Demand is constant 100, cost of generation is constant 30.
     Max generation can be chosen to make it infeasible or not.
     Variation of generator model using variable bound instead of constraint.
@@ -210,32 +210,32 @@ def test_variable_bound() -> None:
         },
     )
 
-    network = create_one_node_network(generator_model)
+    system = create_one_node_network(generator_model)
     database = create_simple_database(max_generation=200)
-    problem = build_problem(network, database, TimeBlock(1, [0]), 1)
+    problem = build_problem(system, database, TimeBlock(1, [0]), 1)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
 
-    network = create_one_node_network(generator_model)
+    system = create_one_node_network(generator_model)
     database = create_simple_database(max_generation=80)
-    problem = build_problem(network, database, TimeBlock(1, [0]), 1)
+    problem = build_problem(system, database, TimeBlock(1, [0]), 1)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "infeasible"  # Infeasible
 
-    network = create_one_node_network(generator_model)
+    system = create_one_node_network(generator_model)
     database = create_simple_database(max_generation=0)  # Equal upper and lower bounds
-    problem = build_problem(network, database, TimeBlock(1, [0]), 1)
+    problem = build_problem(system, database, TimeBlock(1, [0]), 1)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "infeasible"
 
-    network = create_one_node_network(generator_model)
+    system = create_one_node_network(generator_model)
     database = create_simple_database(max_generation=-10)
     with pytest.raises(
         ValueError,
         match=r"Upper bound \(-10\) must be strictly greater than lower bound \(0\) for variable G.generation",
     ):
-        problem = build_problem(network, database, TimeBlock(1, [0]), 1)
+        problem = build_problem(system, database, TimeBlock(1, [0]), 1)
 
 
 def generate_data(
@@ -284,19 +284,19 @@ def short_term_storage_base(efficiency: float, horizon: int) -> None:
         id="STS1",
     )
 
-    network = System("test")
-    network.add_node(node)
+    system = System("test")
+    system.add_node(node)
     for component in [demand, short_term_storage, spillage, unsupplied]:
-        network.add_component(component)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(
+        system.add_component(component)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(
         PortRef(short_term_storage, "balance_port"), PortRef(node, "balance_port")
     )
-    network.connect(PortRef(spillage, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(unsupplied, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(spillage, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(unsupplied, "balance_port"), PortRef(node, "balance_port"))
 
     problem = build_problem(
-        network,
+        system,
         database,
         time_blocks[0],
         scenarios,

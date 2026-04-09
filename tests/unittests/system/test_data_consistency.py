@@ -57,14 +57,14 @@ def mock_network() -> System:
 
     gen = create_component(model=GENERATOR_MODEL, id="G")
 
-    network = System("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
-    return network
+    return system
 
 
 @pytest.fixture
@@ -218,13 +218,13 @@ def test_requirements_consistency_time_varying_parameter_with_correct_data_passe
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", cost_data)
-    network = System("test")
-    network.add_node(node)
-    network.add_component(gen)
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(gen)
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     # No ValueError should be raised
-    database.requirements_consistency(network)
+    database.requirements_consistency(system)
 
 
 @pytest.mark.parametrize(
@@ -261,15 +261,15 @@ def test_requirements_consistency_time_varying_parameter_with_scenario_varying_d
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", cost_data)
-    network = System("test")
-    network.add_node(node)
-    network.add_component(gen)
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(gen)
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     # When
     # ValueError should be raised
     with pytest.raises(ValueError, match="Data inconsistency"):
-        database.requirements_consistency(network)
+        database.requirements_consistency(system)
 
 
 @pytest.mark.parametrize(
@@ -298,14 +298,14 @@ def test_requirements_consistency_scenario_varying_parameter_with_time_varying_d
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", cost_data)
-    network = System("test")
-    network.add_node(node)
-    network.add_component(gen)
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(gen)
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     # ValueError should be raised
     with pytest.raises(ValueError, match="Data inconsistency"):
-        database.requirements_consistency(network)
+        database.requirements_consistency(system)
 
 
 def test_requirements_consistency_scenario_varying_parameter_with_correct_data_passes(
@@ -324,13 +324,13 @@ def test_requirements_consistency_scenario_varying_parameter_with_correct_data_p
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", cost_data)
-    network = System("test")
-    network.add_node(node)
-    network.add_component(gen)
-    network.add_component(gen)
+    system = System("test")
+    system.add_node(node)
+    system.add_component(gen)
+    system.add_component(gen)
 
     # No ValueError should be raised
-    database.requirements_consistency(network)
+    database.requirements_consistency(system)
 
 
 def test_load_data_from_txt() -> None:

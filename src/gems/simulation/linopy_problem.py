@@ -14,7 +14,7 @@
 Linopy-based optimization problem builder.
 
 Provides :func:`build_problem` and :class:`LinopyOptimizationProblem`.
-The builder groups network components by model, then constructs the full
+The builder groups system components by model, then constructs the full
 optimization problem in four phases:
 
 1. Parameter arrays — convert database values to xarray DataArrays indexed
@@ -47,7 +47,6 @@ from gems.simulation.linopy_linearize import (
     VectorizedLinopyBuilder,
     _linopy_add,
 )
-
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
 from gems.study.network import Component, System
@@ -58,7 +57,7 @@ def build_port_arrays(
     components: List[Component],
     models: Dict[str, Model],
     model_components: Dict[str, List[Component]],
-    network: "System",
+    system: "System",
     make_builder: Callable[[str, Model], Any],
 ) -> Dict[PortFieldId, Any]:
     """Build port arrays for all ports of *model*.
@@ -79,8 +78,8 @@ def build_port_arrays(
         All models keyed by ``model.id``.
     model_components :
         Components grouped by ``model.id``.
-    network :
-        The network, used for connection lookup.
+    system :
+        The system, used for connection lookup.
     make_builder :
         Factory ``(model_key: str, model: Model) -> builder``.
         Called with an empty port_arrays context for master-field evaluation.
@@ -106,7 +105,7 @@ def build_port_arrays(
                     field_name,
                     models,
                     model_components,
-                    network,
+                    system,
                     make_builder,
                 )
 
@@ -120,7 +119,7 @@ def _build_slave_port_array(
     field_name: str,
     models: Dict[str, Model],
     model_components: Dict[str, List[Component]],
-    network: "System",
+    system: "System",
     make_builder: Callable[[str, Model], Any],
 ) -> Any:
     """Build a slave port array by summing contributions from connected masters.
@@ -129,13 +128,13 @@ def _build_slave_port_array(
     incidence matrix A[i, j] for each group, and accumulates
     ``sum_j A[i,j] * expr_master[j]`` into the result.
     """
-    per_master: Dict[
-        Tuple[str, PortFieldId], List[Tuple[int, Component]]
-    ] = defaultdict(list)
+    per_master: Dict[Tuple[str, PortFieldId], List[Tuple[int, Component]]] = (
+        defaultdict(list)
+    )
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
     comp_id_set = set(comp_ids)
-    for cnx in network.connections:
+    for cnx in system.connections:
         for port_ref in [cnx.port1, cnx.port2]:
             if (
                 port_ref.port_id != port_name
@@ -206,7 +205,7 @@ class LinopyOptimizationProblem:
         self,
         name: str,
         linopy_model: linopy.Model,
-        network: System,
+        system: System,
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
@@ -218,7 +217,7 @@ class LinopyOptimizationProblem:
     ) -> None:
         self.name = name
         self.linopy_model = linopy_model
-        self.network = network
+        self.system = system
         self.database = database
         self.block = block
         self.scenarios = scenarios
@@ -274,13 +273,13 @@ class _LinopyProblemBuilder:
     def __init__(
         self,
         name: str,
-        network: System,
+        system: System,
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
     ) -> None:
         self.name = name
-        self.network = network
+        self.system = system
         self.database = database
         self.block = block
         self.scenarios = scenarios
@@ -298,7 +297,7 @@ class _LinopyProblemBuilder:
         # Group components by model.id.
         self.model_components: Dict[str, List[Component]] = defaultdict(list)
         self.models: Dict[str, Model] = {}
-        for component in network.all_components:
+        for component in system.all_components:
             m = component.model
             mk = m.id
             if mk not in self.models:
@@ -352,7 +351,7 @@ class _LinopyProblemBuilder:
         return LinopyOptimizationProblem(
             name=self.name,
             linopy_model=self.linopy_model,
-            network=self.network,
+            system=self.system,
             database=self.database,
             block=self.block,
             scenarios=self.scenarios,
@@ -545,7 +544,7 @@ class _LinopyProblemBuilder:
             components,
             self.models,
             dict(self.model_components),
-            self.network,
+            self.system,
             lambda mk_, m: self._make_builder(m, port_arrays={}),
         )
 
@@ -657,7 +656,7 @@ class _LinopyProblemBuilder:
 
 
 def build_problem(
-    network: System,
+    system: System,
     database: DataBase,
     block: TimeBlock,
     scenarios: int,
@@ -670,7 +669,7 @@ def build_problem(
 
     Parameters
     ----------
-    network:
+    system:
         System of components and connections.
     database:
         Parameter data for all components.
@@ -689,11 +688,11 @@ def build_problem(
             "Only BlockBorderManagement.CYCLE is supported."
         )
 
-    database.requirements_consistency(network)
+    database.requirements_consistency(system)
 
     builder = _LinopyProblemBuilder(
         name=problem_name,
-        network=network,
+        system=system,
         database=database,
         block=block,
         scenarios=scenarios,

@@ -78,19 +78,19 @@ def short_term_storage_base(efficiency: float, horizon: int, result: int) -> Non
         id="STS1",
     )
 
-    network = System("test")
-    network.add_node(node)
+    system = System("test")
+    system.add_node(node)
     for component in [demand, short_term_storage, spillage, unsupplied]:
-        network.add_component(component)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(
+        system.add_component(component)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(
         PortRef(short_term_storage, "balance_port"), PortRef(node, "balance_port")
     )
-    network.connect(PortRef(spillage, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(unsupplied, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(spillage, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(unsupplied, "balance_port"), PortRef(node, "balance_port"))
 
     problem = build_problem(
-        network,
+        system,
         database,
         time_blocks[0],
         scenarios,

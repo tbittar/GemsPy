@@ -86,46 +86,46 @@ def test_electrolyzer_n_inputs_1(
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = System("test")
-    network.add_node(elec_node_1)
-    network.add_component(electric_prod_1)
-    network.add_component(electrolyzer1)
-    network.add_node(elec_node_2)
-    network.add_component(electric_prod_2)
-    network.add_component(electrolyzer2)
-    network.add_node(gaz_node)
-    network.add_component(gaz_prod)
-    network.add_component(gaz_demand)
+    system = System("test")
+    system.add_node(elec_node_1)
+    system.add_component(electric_prod_1)
+    system.add_component(electrolyzer1)
+    system.add_node(elec_node_2)
+    system.add_component(electric_prod_2)
+    system.add_component(electrolyzer2)
+    system.add_node(gaz_node)
+    system.add_component(gaz_prod)
+    system.add_component(gaz_demand)
 
-    network.connect(
+    system.connect(
         PortRef(electric_prod_1, "injection_port"),
         PortRef(elec_node_1, "injection_port"),
     )
-    network.connect(
+    system.connect(
         PortRef(elec_node_1, "injection_port"), PortRef(electrolyzer1, "input_port")
     )
-    network.connect(
+    system.connect(
         PortRef(electrolyzer1, "output_port"), PortRef(gaz_node, "injection_port")
     )
-    network.connect(
+    system.connect(
         PortRef(electric_prod_2, "injection_port"),
         PortRef(elec_node_2, "injection_port"),
     )
-    network.connect(
+    system.connect(
         PortRef(elec_node_2, "injection_port"), PortRef(electrolyzer2, "input_port")
     )
-    network.connect(
+    system.connect(
         PortRef(electrolyzer2, "output_port"), PortRef(gaz_node, "injection_port")
     )
-    network.connect(
+    system.connect(
         PortRef(gaz_node, "injection_port"), PortRef(gaz_demand, "injection_port")
     )
-    network.connect(
+    system.connect(
         PortRef(gaz_prod, "injection_port"), PortRef(gaz_node, "injection_port")
     )
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -196,42 +196,42 @@ def test_electrolyzer_n_inputs_2(
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = System("test")
-    network.add_node(elec_node_1)
-    network.add_node(elec_node_2)
-    network.add_node(gaz_node)
-    network.add_component(electric_prod_1)
-    network.add_component(electric_prod_2)
-    network.add_component(gaz_prod)
-    network.add_component(gaz_demand)
-    network.add_component(electrolyzer)
+    system = System("test")
+    system.add_node(elec_node_1)
+    system.add_node(elec_node_2)
+    system.add_node(gaz_node)
+    system.add_component(electric_prod_1)
+    system.add_component(electric_prod_2)
+    system.add_component(gaz_prod)
+    system.add_component(gaz_demand)
+    system.add_component(electrolyzer)
 
-    network.connect(
+    system.connect(
         PortRef(electric_prod_1, "injection_port"),
         PortRef(elec_node_1, "injection_port"),
     )
-    network.connect(
+    system.connect(
         PortRef(elec_node_1, "injection_port"), PortRef(electrolyzer, "input_port1")
     )
-    network.connect(
+    system.connect(
         PortRef(electric_prod_2, "injection_port"),
         PortRef(elec_node_2, "injection_port"),
     )
-    network.connect(
+    system.connect(
         PortRef(elec_node_2, "injection_port"), PortRef(electrolyzer, "input_port2")
     )
-    network.connect(
+    system.connect(
         PortRef(electrolyzer, "output_port"), PortRef(gaz_node, "injection_port")
     )
-    network.connect(
+    system.connect(
         PortRef(gaz_node, "injection_port"), PortRef(gaz_demand, "injection_port")
     )
-    network.connect(
+    system.connect(
         PortRef(gaz_prod, "injection_port"), PortRef(gaz_node, "injection_port")
     )
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -307,49 +307,49 @@ def test_electrolyzer_n_inputs_3(
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = System("test")
-    network.add_node(elec_node_1)
-    network.add_node(elec_node_2)
-    network.add_node(gaz_node)
-    network.add_component(electric_prod_1)
-    network.add_component(electric_prod_2)
-    network.add_component(gaz_prod)
-    network.add_component(gaz_demand)
-    network.add_component(electrolyzer)
-    network.add_component(consumption_electrolyzer)
+    system = System("test")
+    system.add_node(elec_node_1)
+    system.add_node(elec_node_2)
+    system.add_node(gaz_node)
+    system.add_component(electric_prod_1)
+    system.add_component(electric_prod_2)
+    system.add_component(gaz_prod)
+    system.add_component(gaz_demand)
+    system.add_component(electrolyzer)
+    system.add_component(consumption_electrolyzer)
 
-    network.connect(
+    system.connect(
         PortRef(electric_prod_1, "injection_port"),
         PortRef(elec_node_1, "injection_port"),
     )
-    network.connect(
+    system.connect(
         PortRef(elec_node_1, "injection_port"),
         PortRef(consumption_electrolyzer, "input_port1"),
     )
-    network.connect(
+    system.connect(
         PortRef(electric_prod_2, "injection_port"),
         PortRef(elec_node_2, "injection_port"),
     )
-    network.connect(
+    system.connect(
         PortRef(elec_node_2, "injection_port"),
         PortRef(consumption_electrolyzer, "input_port2"),
     )
-    network.connect(
+    system.connect(
         PortRef(consumption_electrolyzer, "output_port"),
         PortRef(electrolyzer, "input_port"),
     )
-    network.connect(
+    system.connect(
         PortRef(electrolyzer, "output_port"), PortRef(gaz_node, "injection_port")
     )
-    network.connect(
+    system.connect(
         PortRef(gaz_node, "injection_port"), PortRef(gaz_demand, "injection_port")
     )
-    network.connect(
+    system.connect(
         PortRef(gaz_prod, "injection_port"), PortRef(gaz_node, "injection_port")
     )
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -422,42 +422,42 @@ def test_electrolyzer_n_inputs_4(
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = System("test")
-    network.add_node(elec_node_1)
-    network.add_node(elec_node_2)
-    network.add_node(gaz_node)
-    network.add_component(electric_prod_1)
-    network.add_component(electric_prod_2)
-    network.add_component(gaz_prod)
-    network.add_component(gaz_demand)
-    network.add_component(electrolyzer)
+    system = System("test")
+    system.add_node(elec_node_1)
+    system.add_node(elec_node_2)
+    system.add_node(gaz_node)
+    system.add_component(electric_prod_1)
+    system.add_component(electric_prod_2)
+    system.add_component(gaz_prod)
+    system.add_component(gaz_demand)
+    system.add_component(electrolyzer)
 
-    network.connect(
+    system.connect(
         PortRef(electric_prod_1, "injection_port"),
         PortRef(elec_node_1, "injection_port_n"),
     )
-    network.connect(
+    system.connect(
         PortRef(elec_node_1, "injection_port_e"), PortRef(electrolyzer, "input_port")
     )
-    network.connect(
+    system.connect(
         PortRef(electric_prod_2, "injection_port"),
         PortRef(elec_node_2, "injection_port_n"),
     )
-    network.connect(
+    system.connect(
         PortRef(elec_node_2, "injection_port_e"), PortRef(electrolyzer, "input_port")
     )
-    network.connect(
+    system.connect(
         PortRef(electrolyzer, "output_port"), PortRef(gaz_node, "injection_port")
     )
-    network.connect(
+    system.connect(
         PortRef(gaz_node, "injection_port"), PortRef(gaz_demand, "injection_port")
     )
-    network.connect(
+    system.connect(
         PortRef(gaz_prod, "injection_port"), PortRef(gaz_node, "injection_port")
     )
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
 
