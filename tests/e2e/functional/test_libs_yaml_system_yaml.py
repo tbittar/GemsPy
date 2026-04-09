@@ -45,11 +45,10 @@ from gems.model.parsing import InputLibrary, parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study.data import DataBase
-from gems.study.network import Network
+from gems.study.system import System as Network
 from gems.study.parsing import InputSystem, parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
-    build_network,
     consistency_check,
     resolve_system,
 )
@@ -59,11 +58,10 @@ def test_basic_balance_using_yaml(
     input_system: InputSystem, input_library: InputLibrary
 ) -> None:
     result_lib = resolve_library([input_library])
-    components_input = resolve_system(input_system, result_lib)
-    consistency_check(components_input.components, result_lib["basic"].models)
+    network = resolve_system(input_system, result_lib)
+    consistency_check(network.components, result_lib["basic"].models)
 
     database = build_data_base(input_system, None)
-    network = build_network(components_input)
 
     scenarios = 1
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
@@ -85,11 +83,10 @@ def setup_test(
         with study_file.open() as c:
             input_study = parse_yaml_components(c)
         lib_dict = resolve_library([input_library])
-        network_components = resolve_system(input_study, lib_dict)
-        consistency_check(network_components.components, lib_dict["basic"].models)
+        network = resolve_system(input_study, lib_dict)
+        consistency_check(network.components, lib_dict["basic"].models)
 
         database = build_data_base(input_study, series_dir)
-        network = build_network(network_components)
         return network, database
 
     return _setup_test

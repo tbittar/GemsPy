@@ -9,17 +9,16 @@ from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import TimeBlock, build_problem
 from gems.study.data import DataBase
-from gems.study.network import Network
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
-    build_network,
     consistency_check,
     resolve_system,
 )
+from gems.study.system import System
 
 
-def setup_data(pypsa_dir: Path) -> Tuple[Network, DataBase]:
+def setup_data(pypsa_dir: Path) -> Tuple[System, DataBase]:
     study_file = pypsa_dir / "input" / "system.yml"
     lib_file = pypsa_dir / "input" / "model-libraries" / "pypsa_models.yml"
     series_dir = pypsa_dir / "input" / "data-series"
@@ -29,16 +28,15 @@ def setup_data(pypsa_dir: Path) -> Tuple[Network, DataBase]:
     with study_file.open() as c:
         input_study = parse_yaml_components(c)
     lib_dict = resolve_library([input_library])
-    network_components = resolve_system(input_study, lib_dict)
-    consistency_check(network_components.components, lib_dict["pypsa_models"].models)
+    network = resolve_system(input_study, lib_dict)
+    consistency_check(network.components, lib_dict["pypsa_models"].models)
 
     database = build_data_base(input_study, series_dir)
-    network = build_network(network_components)
     return network, database
 
 
 def build_pypsa_problem(
-    network: Network, database: DataBase, time_horizon: int
+    network: System, database: DataBase, time_horizon: int
 ) -> float:
     scenarios = 1
     time_block = TimeBlock(1, list(range(time_horizon)))

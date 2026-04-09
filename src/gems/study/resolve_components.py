@@ -9,7 +9,6 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # This file is part of the Antares project.
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
 
@@ -21,11 +20,10 @@ from gems.study import (
     Component,
     ConstantData,
     DataBase,
-    Network,
-    Node,
     PortRef,
     PortsConnection,
     Scenarization,
+    System,
 )
 from gems.study.data import (
     AbstractDataStructure,
@@ -39,43 +37,26 @@ from gems.study.data import (
 from gems.study.parsing import InputComponent, InputPortConnections, InputSystem
 
 
-@dataclass(frozen=True)
-class System:
-    components: Dict[str, Component]
-    nodes: Dict[str, Component]
-    connections: List[PortsConnection]
-
-
-def system(
-    components_list: Iterable[Component],
-    nodes: Iterable[Component],
-    connections: Iterable[PortsConnection],
-) -> System:
-    return System(
-        components=dict((m.id, m) for m in components_list),
-        nodes=dict((n.id, n) for n in nodes),
-        connections=list(connections),
-    )
-
-
 def resolve_system(input_system: InputSystem, libraries: dict[str, Library]) -> System:
     """
-    Resolves:
-    - components to be used for study
-    - connections between components"""
-    components_list = [
-        _resolve_component(libraries, m) for m in input_system.components
-    ]
-    nodes_input = getattr(input_system, "nodes", []) or []
-    nodes = [_resolve_component(libraries, n) for n in nodes_input]
-    all_components: List[Component] = components_list + nodes
+    Resolves components and connections into a System ready for simulation.
+    Nodes (from the YAML `nodes:` section) are treated as regular components.
+    """
+    all_input_components = input_system.components + (input_system.nodes or [])
+    components_list = [_resolve_component(libraries, m) for m in all_input_components]
+
     connections_input = getattr(input_system, "connections", []) or []
     connections = []
     for cnx in connections_input:
-        resolved_cnx = _resolve_connections(cnx, all_components)
+        resolved_cnx = _resolve_connections(cnx, components_list)
         connections.append(resolved_cnx)
 
-    return system(components_list, nodes, connections)
+    sys = System("study")
+    for component in components_list:
+        sys.add_component(component)
+    for connection in connections:
+        sys.connect(connection.port1, connection.port2)
+    return sys
 
 
 def _resolve_component(
@@ -116,7 +97,7 @@ def _get_component_by_id(
 
 
 def consistency_check(
-    input_study: Dict[str, Component], input_models: Dict[str, Model]
+    input_study: Iterable[Component], input_models: Dict[str, Model]
 ) -> bool:
     """
     Checks if all components in the Components instances have a valid model from the library.
@@ -124,28 +105,12 @@ def consistency_check(
     """
     # TODO: Update this consistency check to check if each component have a valid model from the lib it refers to (and not all libs)
     model_ids_set = input_models.keys()
-    for component_id, component in input_study.items():
+    for component in input_study:
         if component.model.id not in model_ids_set:
             raise ValueError(
-                f"Error: Component {component_id} has invalid model ID: {component.model.id}"
+                f"Error: Component {component.id} has invalid model ID: {component.model.id}"
             )
     return True
-
-
-def build_network(system: System) -> Network:
-    # It seems that System and Network are almost the same thing -> could be simplified ?
-    network = Network("study")
-
-    for node_id, node in system.nodes.items():
-        node = Node(model=node.model, id=node_id)
-        network.add_node(node)
-
-    for component in system.components.values():
-        network.add_component(component)
-
-    for connection in system.connections:
-        network.connect(connection.port1, connection.port2)
-    return network
 
 
 def build_data_base(

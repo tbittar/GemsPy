@@ -19,7 +19,7 @@ from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, System, Component, PortRef, create_component
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", ConstantData(30))
 
-    node = Node(model=ac_node_model, id="N")
+    node = Component(model=ac_node_model, id="N")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -66,8 +66,8 @@ def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
         id="G",
     )
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     network.add_component(demand)
     network.add_component(gen)
     network.connect(PortRef(demand, "balance_port"), PortRef(node, "injections"))
@@ -101,8 +101,8 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
 
     database.add_data("L", "reactance", ConstantData(1))
 
-    node1 = Node(model=ac_node_model, id="1")
-    node2 = Node(model=ac_node_model, id="2")
+    node1 = Component(model=ac_node_model, id="1")
+    node2 = Component(model=ac_node_model, id="2")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -118,9 +118,9 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
         id="L",
     )
 
-    network = Network("test")
-    network.add_node(node1)
-    network.add_node(node2)
+    network = System("test")
+    network.add_component(node1)
+    network.add_component(node2)
     network.add_component(demand)
     network.add_component(gen)
     network.add_component(link)
@@ -165,8 +165,8 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
     database.add_data("L1", "reactance", ConstantData(1))
     database.add_data("L2", "reactance", ConstantData(2))
 
-    node1 = Node(model=ac_node_model, id="1")
-    node2 = Node(model=ac_node_model, id="2")
+    node1 = Component(model=ac_node_model, id="1")
+    node2 = Component(model=ac_node_model, id="2")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -184,9 +184,9 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
         id="L2",
     )
 
-    network = Network("test")
-    network.add_node(node1)
-    network.add_node(node2)
+    network = System("test")
+    network.add_component(node1)
+    network.add_component(node2)
     network.add_component(demand)
     network.add_component(gen)
     network.add_component(link1)
@@ -242,8 +242,8 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
     database.add_data("T", "flow_limit", ConstantData(50))
     database.add_data("T", "phase_shift_cost", ConstantData(1))
 
-    node1 = Node(model=ac_node_model, id="1")
-    node2 = Node(model=ac_node_model, id="2")
+    node1 = Component(model=ac_node_model, id="1")
+    node2 = Component(model=ac_node_model, id="2")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -261,9 +261,9 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
         id="T",
     )
 
-    network = Network("test")
-    network.add_node(node1)
-    network.add_node(node2)
+    network = System("test")
+    network.add_component(node1)
+    network.add_component(node2)
     network.add_component(demand)
     network.add_component(gen)
     network.add_component(link1)

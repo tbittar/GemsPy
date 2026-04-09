@@ -13,8 +13,8 @@ from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study import (
     ConstantData,
     DataBase,
-    Network,
-    Node,
+    System,
+    Component,
     PortRef,
     TimeScenarioSeriesData,
     create_component,
@@ -66,7 +66,7 @@ def short_term_storage_base(efficiency: float, horizon: int, result: int) -> Non
     database.add_data("STS1", "Pgrad+s_penality", ConstantData(0))
     database.add_data("STS1", "Pgrad-s_penality", ConstantData(0))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="1")
+    node = Component(model=NODE_BALANCE_MODEL, id="1")
     spillage = create_component(model=SPILLAGE_MODEL, id="S")
 
     unsupplied = create_component(model=UNSUPPLIED_ENERGY_MODEL, id="U")
@@ -78,8 +78,8 @@ def short_term_storage_base(efficiency: float, horizon: int, result: int) -> Non
         id="STS1",
     )
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     for component in [demand, short_term_storage, spillage, unsupplied]:
         network.add_component(component)
     network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))

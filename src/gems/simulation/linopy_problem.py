@@ -49,7 +49,7 @@ from gems.simulation.linopy_linearize import (
 )
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
-from gems.study.network import Component, Network
+from gems.study.system import Component, System as Network
 
 
 def build_port_arrays(
@@ -297,7 +297,7 @@ class _LinopyProblemBuilder:
         # Group components by model.id.
         self.model_components: Dict[str, List[Component]] = defaultdict(list)
         self.models: Dict[str, Model] = {}
-        for component in network.all_components:
+        for component in network.components:
             m = component.model
             mk = m.id
             if mk not in self.models:

@@ -22,7 +22,6 @@ from gems.simulation.time_block import TimeBlock
 from gems.study.data import DataBase
 from gems.study.parsing import parse_scenario_builder, parse_yaml_components
 from gems.study.resolve_components import (
-    build_network,
     build_scenarized_data_base,
     consistency_check,
     resolve_system,
@@ -57,10 +56,9 @@ def test_system_with_scenarization(
     components_path = systems_dir / "with_scenarization.yml"
     with components_path.open("r") as file:
         yaml_comp = parse_yaml_components(file)
-        components = resolve_system(yaml_comp, lib_dict)
+        network = resolve_system(yaml_comp, lib_dict)
 
-    consistency_check(components.components, lib_dict["basic"].models)
-    network = build_network(components)
+    consistency_check(network.components, lib_dict["basic"].models)
 
     timeblock = TimeBlock(1, list(range(2)))
     problem = build_problem(network, database, timeblock, 3)

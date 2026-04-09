@@ -38,8 +38,8 @@ from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study import (
     ConstantData,
     DataBase,
-    Network,
-    Node,
+    System,
+    Component,
     PortRef,
     TimeScenarioSeriesData,
     create_component,
@@ -63,7 +63,7 @@ def test_basic_balance(lib_dict: dict[str, Library]) -> None:
     demand_model = lib_dict["basic"].models["basic.demand"]
     production_model = lib_dict["basic"].models["basic.production"]
 
-    node = Node(model=node_model, id="N")
+    node = Component(model=node_model, id="N")
     demand = create_component(
         model=demand_model,
         id="D",
@@ -74,8 +74,8 @@ def test_basic_balance(lib_dict: dict[str, Library]) -> None:
         id="G",
     )
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     network.add_component(demand)
     network.add_component(gen)
     network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
@@ -106,8 +106,8 @@ def test_link(lib_dict: dict[str, Library]) -> None:
     production_model = lib_dict["basic"].models["basic.production"]
     link_model = lib_dict["basic"].models["basic.link"]
 
-    node1 = Node(model=node_model, id="1")
-    node2 = Node(model=node_model, id="2")
+    node1 = Component(model=node_model, id="1")
+    node2 = Component(model=node_model, id="2")
     demand = create_component(
         model=demand_model,
         id="D",
@@ -121,9 +121,9 @@ def test_link(lib_dict: dict[str, Library]) -> None:
         id="L",
     )
 
-    network = Network("test")
-    network.add_node(node1)
-    network.add_node(node2)
+    network = System("test")
+    network.add_component(node1)
+    network.add_component(node2)
     network.add_component(demand)
     network.add_component(gen)
     network.add_component(link)
@@ -159,7 +159,7 @@ def test_stacking_generation(lib_dict: dict[str, Library]) -> None:
     demand_model = lib_dict["basic"].models["basic.demand"]
     production_model = lib_dict["basic"].models["basic.production"]
 
-    node1 = Node(model=node_model, id="1")
+    node1 = Component(model=node_model, id="1")
 
     demand = create_component(
         model=demand_model,
@@ -176,8 +176,8 @@ def test_stacking_generation(lib_dict: dict[str, Library]) -> None:
         id="G2",
     )
 
-    network = Network("test")
-    network.add_node(node1)
+    network = System("test")
+    network.add_component(node1)
     network.add_component(demand)
     network.add_component(gen1)
     network.add_component(gen2)
@@ -210,14 +210,14 @@ def test_spillage(lib_dict: dict[str, Library]) -> None:
     production_with_min_model = lib_dict["basic"].models["basic.production_with_min"]
     spillage_model = lib_dict["basic"].models["basic.spillage"]
 
-    node = Node(model=node_model, id="1")
+    node = Component(model=node_model, id="1")
     spillage = create_component(model=spillage_model, id="S")
     demand = create_component(model=demand_model, id="D")
 
     gen1 = create_component(model=production_with_min_model, id="G1")
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     network.add_component(demand)
     network.add_component(gen1)
     network.add_component(spillage)
@@ -288,7 +288,7 @@ def test_min_up_down_times(lib_dict: dict[str, Library]) -> None:
     unsuplied_model = lib_dict["basic"].models["basic.unsuplied"]
     thermal_cluster = lib_dict["basic"].models["basic.thermal_cluster"]
 
-    node = Node(model=node_model, id="1")
+    node = Component(model=node_model, id="1")
     demand = create_component(model=demand_model, id="D")
 
     gen = create_component(model=thermal_cluster, id="G")
@@ -297,8 +297,8 @@ def test_min_up_down_times(lib_dict: dict[str, Library]) -> None:
 
     unsupplied_energy = create_component(model=unsuplied_model, id="U")
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     network.add_component(demand)
     network.add_component(gen)
     network.add_component(spillage)
@@ -354,13 +354,13 @@ def test_changing_demand(lib_dict: dict[str, Library]) -> None:
     demand_model = lib_dict["basic"].models["basic.demand"]
     production_model = lib_dict["basic"].models["basic.production"]
 
-    node = Node(model=node_model, id="1")
+    node = Component(model=node_model, id="1")
     demand = create_component(model=demand_model, id="D")
 
     prod = create_component(model=production_model, id="G")
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     network.add_component(demand)
     network.add_component(prod)
     network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
@@ -435,7 +435,7 @@ def test_min_up_down_times_2(lib_dict: dict[str, Library]) -> None:
     unsuplied_model = lib_dict["basic"].models["basic.unsuplied"]
     thermal_cluster = lib_dict["basic"].models["basic.thermal_cluster"]
 
-    node = Node(model=node_model, id="1")
+    node = Component(model=node_model, id="1")
     demand = create_component(model=demand_model, id="D")
 
     gen = create_component(model=thermal_cluster, id="G")
@@ -444,8 +444,8 @@ def test_min_up_down_times_2(lib_dict: dict[str, Library]) -> None:
 
     unsupplied_energy = create_component(model=unsuplied_model, id="U")
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     network.add_component(demand)
     network.add_component(gen)
     network.add_component(spillage)

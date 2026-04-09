@@ -19,7 +19,7 @@ import math
 from gems.model.library import Library
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, System, Component, PortRef, create_component
 
 
 def test_quota_co2(
@@ -43,17 +43,17 @@ def test_quota_co2(
     demand_model = lib_dict["basic"].models["basic.demand"]
     link_model = lib_dict_sc["basic"].models["basic.link"]
 
-    n1 = Node(model=node_model, id="N1")
-    n2 = Node(model=node_model, id="N2")
+    n1 = Component(model=node_model, id="N1")
+    n2 = Component(model=node_model, id="N2")
     oil1 = create_component(model=gen_model, id="Oil1")
     coal1 = create_component(model=gen_model, id="Coal1")
     l12 = create_component(model=link_model, id="L12")
     demand = create_component(model=demand_model, id="Demand")
     monQuotaCO2 = create_component(model=quota_co2_model, id="QuotaCO2")
 
-    network = Network("test")
-    network.add_node(n1)
-    network.add_node(n2)
+    network = System("test")
+    network.add_component(n1)
+    network.add_component(n2)
     network.add_component(oil1)
     network.add_component(coal1)
     network.add_component(l12)

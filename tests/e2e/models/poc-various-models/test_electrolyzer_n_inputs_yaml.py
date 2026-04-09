@@ -15,7 +15,7 @@ import math
 from gems.model.library import Library
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, System, Component, PortRef, create_component
 
 """
 This file tests various modellings for an electrolyser with multiple inputs. The models are read from a YAML model file.
@@ -60,15 +60,15 @@ def test_electrolyzer_n_inputs_1(
     convertor_model = lib_dict_sc["basic"].models["basic.convertor"]
     demand_model = lib_dict["basic"].models["basic.demand"]
 
-    elec_node_1 = Node(model=node_model, id="e1")
+    elec_node_1 = Component(model=node_model, id="e1")
     electric_prod_1 = create_component(model=gen_model, id="ep1")
     electrolyzer1 = create_component(model=convertor_model, id="ez1")
 
-    elec_node_2 = Node(model=node_model, id="e2")
+    elec_node_2 = Component(model=node_model, id="e2")
     electric_prod_2 = create_component(model=gen_model, id="ep2")
     electrolyzer2 = create_component(model=convertor_model, id="ez2")
 
-    gaz_node = Node(model=node_model, id="g")
+    gaz_node = Component(model=node_model, id="g")
     gaz_prod = create_component(model=gen_model, id="gp")
     gaz_demand = create_component(model=demand_model, id="gd")
 
@@ -86,14 +86,14 @@ def test_electrolyzer_n_inputs_1(
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = Network("test")
-    network.add_node(elec_node_1)
+    network = System("test")
+    network.add_component(elec_node_1)
     network.add_component(electric_prod_1)
     network.add_component(electrolyzer1)
-    network.add_node(elec_node_2)
+    network.add_component(elec_node_2)
     network.add_component(electric_prod_2)
     network.add_component(electrolyzer2)
-    network.add_node(gaz_node)
+    network.add_component(gaz_node)
     network.add_component(gaz_prod)
     network.add_component(gaz_demand)
 
@@ -169,9 +169,9 @@ def test_electrolyzer_n_inputs_2(
     convertor_model = lib_dict_sc["basic"].models["basic.two_input_convertor"]
     demand_model = lib_dict["basic"].models["basic.demand"]
 
-    elec_node_1 = Node(model=node_model, id="e1")
-    elec_node_2 = Node(model=node_model, id="e2")
-    gaz_node = Node(model=node_model, id="g")
+    elec_node_1 = Component(model=node_model, id="e1")
+    elec_node_2 = Component(model=node_model, id="e2")
+    gaz_node = Component(model=node_model, id="g")
 
     electric_prod_1 = create_component(model=gen_model, id="ep1")
     electric_prod_2 = create_component(model=gen_model, id="ep2")
@@ -196,10 +196,10 @@ def test_electrolyzer_n_inputs_2(
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = Network("test")
-    network.add_node(elec_node_1)
-    network.add_node(elec_node_2)
-    network.add_node(gaz_node)
+    network = System("test")
+    network.add_component(elec_node_1)
+    network.add_component(elec_node_2)
+    network.add_component(gaz_node)
     network.add_component(electric_prod_1)
     network.add_component(electric_prod_2)
     network.add_component(gaz_prod)
@@ -280,9 +280,9 @@ def test_electrolyzer_n_inputs_3(
         "basic.decompose_1_flow_into_2_flow"
     ]
 
-    elec_node_1 = Node(model=node_model, id="e1")
-    elec_node_2 = Node(model=node_model, id="e2")
-    gaz_node = Node(model=node_model, id="g")
+    elec_node_1 = Component(model=node_model, id="e1")
+    elec_node_2 = Component(model=node_model, id="e2")
+    gaz_node = Component(model=node_model, id="g")
 
     electric_prod_1 = create_component(model=gen_model, id="ep1")
     electric_prod_2 = create_component(model=gen_model, id="ep2")
@@ -307,10 +307,10 @@ def test_electrolyzer_n_inputs_3(
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = Network("test")
-    network.add_node(elec_node_1)
-    network.add_node(elec_node_2)
-    network.add_node(gaz_node)
+    network = System("test")
+    network.add_component(elec_node_1)
+    network.add_component(elec_node_2)
+    network.add_component(gaz_node)
     network.add_component(electric_prod_1)
     network.add_component(electric_prod_2)
     network.add_component(gaz_prod)
@@ -396,9 +396,9 @@ def test_electrolyzer_n_inputs_4(
     convertor_model = lib_dict_sc["basic"].models["basic.convertor_receive_in"]
     demand_model = lib_dict["basic"].models["basic.demand"]
 
-    elec_node_1 = Node(model=node_mod_model, id="e1")
-    elec_node_2 = Node(model=node_mod_model, id="e2")
-    gaz_node = Node(model=node_model, id="g")
+    elec_node_1 = Component(model=node_mod_model, id="e1")
+    elec_node_2 = Component(model=node_mod_model, id="e2")
+    gaz_node = Component(model=node_model, id="g")
 
     electric_prod_1 = create_component(model=gen_model, id="ep1")
     electric_prod_2 = create_component(model=gen_model, id="ep2")
@@ -422,10 +422,10 @@ def test_electrolyzer_n_inputs_4(
     database.add_data("gp", "p_max", ConstantData(30))
     database.add_data("gp", "cost", ConstantData(15))
 
-    network = Network("test")
-    network.add_node(elec_node_1)
-    network.add_node(elec_node_2)
-    network.add_node(gaz_node)
+    network = System("test")
+    network.add_component(elec_node_1)
+    network.add_component(elec_node_2)
+    network.add_component(gaz_node)
     network.add_component(electric_prod_1)
     network.add_component(electric_prod_2)
     network.add_component(gaz_prod)

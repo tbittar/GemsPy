@@ -21,11 +21,10 @@ from .data import (
     TimeScenarioSeriesData,
     TimeSeriesData,
 )
-from .network import (
+from .system import (
     Component,
-    Network,
-    Node,
     PortRef,
     PortsConnection,
+    System,
     create_component,
 )

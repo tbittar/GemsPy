@@ -17,7 +17,7 @@ from typing import Dict, List, Mapping, Optional, Union
 import numpy as np
 import pandas as pd
 
-from gems.study.network import Network
+from gems.study.system import System as Network
 
 
 @dataclass(frozen=True)

@@ -24,8 +24,8 @@ def test_extra_output_with_sum_connections() -> None:
     from gems.simulation import TimeBlock, build_problem
     from gems.study import (
         DataBase,
-        Network,
-        Node,
+        System,
+        Component,
         PortRef,
         create_component,
     )
@@ -59,11 +59,11 @@ def test_extra_output_with_sum_connections() -> None:
     database = DataBase()
 
     gen_comp = create_component(model=GEN_MODEL, id="gen_1")
-    node_comp = Node(model=NODE_MODEL, id="node_1")
+    node_comp = Component(model=NODE_MODEL, id="node_1")
 
-    network = Network("test_sum_connections")
+    network = System("test_sum_connections")
     network.add_component(gen_comp)
-    network.add_node(node_comp)
+    network.add_component(node_comp)
     network.connect(
         PortRef(gen_comp, "balance_port"), PortRef(node_comp, "balance_port")
     )
@@ -94,7 +94,7 @@ def test_extra_output_nonlinear() -> None:
     from gems.model.model import model
     from gems.model.variable import float_variable
     from gems.simulation import TimeBlock, build_problem
-    from gems.study import DataBase, Network, create_component
+    from gems.study import DataBase, System as Network, create_component
 
     SIMPLE_MODEL = model(
         id="SIMPLE_NL",
@@ -105,7 +105,7 @@ def test_extra_output_nonlinear() -> None:
     database = DataBase()
     comp = create_component(model=SIMPLE_MODEL, id="comp_1")
 
-    network = Network("test_nonlinear")
+    network = System("test_nonlinear")
     network.add_component(comp)
 
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios=1)

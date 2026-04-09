@@ -36,9 +36,8 @@ def test_parsing_components_ok(
     lib_dict = resolve_library([input_library])
     result = resolve_system(input_system, lib_dict)
 
-    assert len(result.components) == 2
-    assert len(result.nodes) == 1
-    assert len(result.connections) == 2
+    assert len(list(result.components)) == 3  # 2 components + 1 node, all merged
+    assert len(list(result.connections)) == 2
 
 
 def test_consistency_check_ok(

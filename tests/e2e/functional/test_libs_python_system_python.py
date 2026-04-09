@@ -45,8 +45,8 @@ from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study import (
     ConstantData,
     DataBase,
-    Network,
-    Node,
+    System,
+    Component,
     PortRef,
     TimeScenarioIndex,
     TimeScenarioSeriesData,
@@ -74,7 +74,7 @@ def test_basic_balance() -> None:
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", ConstantData(30))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="N")
+    node = Component(model=NODE_BALANCE_MODEL, id="N")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -85,8 +85,8 @@ def test_basic_balance() -> None:
         id="G",
     )
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     network.add_component(demand)
     network.add_component(gen)
     network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
@@ -120,7 +120,7 @@ def test_timeseries() -> None:
     demand_time_scenario_series = TimeScenarioSeriesData(demand_data)
     database.add_data("D", "demand", demand_time_scenario_series)
 
-    node = Node(model=NODE_BALANCE_MODEL, id="1")
+    node = Component(model=NODE_BALANCE_MODEL, id="1")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -131,8 +131,8 @@ def test_timeseries() -> None:
         id="G",
     )
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     network.add_component(demand)
     network.add_component(gen)
     network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
@@ -147,8 +147,8 @@ def test_timeseries() -> None:
     assert problem.objective_value == 100 * 30 + 50 * 30
 
 
-def create_one_node_network(generator_model: Model) -> Network:
-    node = Node(model=NODE_BALANCE_MODEL, id="1")
+def create_one_node_network(generator_model: Model) -> System:
+    node = Component(model=NODE_BALANCE_MODEL, id="1")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -159,8 +159,8 @@ def create_one_node_network(generator_model: Model) -> Network:
         id="G",
     )
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     network.add_component(demand)
     network.add_component(gen)
     network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
@@ -272,7 +272,7 @@ def short_term_storage_base(efficiency: float, horizon: int) -> None:
     database.add_data("STS1", "inflows", ConstantData(0))
     database.add_data("STS1", "efficiency", ConstantData(efficiency))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="1")
+    node = Component(model=NODE_BALANCE_MODEL, id="1")
     spillage = create_component(model=SPILLAGE_MODEL, id="S")
 
     unsupplied = create_component(model=UNSUPPLIED_ENERGY_MODEL, id="U")
@@ -284,8 +284,8 @@ def short_term_storage_base(efficiency: float, horizon: int) -> None:
         id="STS1",
     )
 
-    network = Network("test")
-    network.add_node(node)
+    network = System("test")
+    network.add_component(node)
     for component in [demand, short_term_storage, spillage, unsupplied]:
         network.add_component(component)
     network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
