@@ -107,7 +107,7 @@ class SimulationTableBuilder:
                 components,
                 problem.models,
                 problem.model_components,
-                problem.network,
+                problem.system,
                 lambda mk_, m: VectorizedExtraOutputBuilder(
                     model_id=mk_,
                     param_arrays=problem.param_arrays,

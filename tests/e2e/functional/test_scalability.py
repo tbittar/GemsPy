@@ -61,15 +61,15 @@ def build_for_horizon(horizon_size: int, scenario_count: int) -> float:
         model=GENERATOR_MODEL_WITH_STORAGE, id="G"
     )  # Limits the total generation inside a TimeBlock
 
-    network = System("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     start = time.time()
-    problem = build_problem(network, database, time_block, scenarios)
+    problem = build_problem(system, database, time_block, scenarios)
     end = time.time()
     print(f"Time elapsed for horizon {horizon_size}: {end - start:.4f}")
     return end - start
