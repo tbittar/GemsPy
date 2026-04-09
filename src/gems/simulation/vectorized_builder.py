@@ -137,7 +137,8 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
     # ------------------------------------------------------------------ #
 
     @abstractmethod
-    def variable(self, node: VariableNode) -> T_expr: ...
+    def variable(self, node: VariableNode) -> T_expr:
+        ...
 
     # ------------------------------------------------------------------ #
     # Leaf nodes                                                            #
