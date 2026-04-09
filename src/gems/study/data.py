@@ -222,8 +222,7 @@ class TreeData(AbstractDataStructure):
 
     def get_value(
         self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
-    ) -> Union[float, np.ndarray
-    ]:
+    ) -> Union[float, np.ndarray]:
         return self.data[node_id].get_value(timestep, scenario)
 
     def check_requirement(self, time: bool, scenario: bool) -> bool:
