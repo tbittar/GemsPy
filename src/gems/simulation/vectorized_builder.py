@@ -33,7 +33,7 @@ behaviour (operand-swap in addition, type guards in nonlinear functions).
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Generic, Optional, Tuple, TypeVar, Union
 
 import linopy
 import numpy as np
@@ -75,6 +75,9 @@ VectorizedExpr = Union[xr.DataArray, linopy.LinearExpression, linopy.Variable]
 # Backward-compatible alias kept for external callers that imported the old name.
 LinopyExpression = VectorizedExpr
 
+T_expr = TypeVar("T_expr", bound=VectorizedExpr)
+"""Type variable for the concrete expression type used by a builder subclass."""
+
 
 # ---------------------------------------------------------------------------
 # Module-level helper — also used by linopy_problem.py
@@ -100,7 +103,7 @@ def _linopy_add(a: VectorizedExpr, b: VectorizedExpr) -> VectorizedExpr:
 
 
 @dataclass(kw_only=True)
-class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr]):
+class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr], Generic[T_expr]):
     """
     Abstract base for vectorized expression builders.
 
@@ -129,7 +132,7 @@ class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr]):
 
     model_id: str
     param_arrays: Dict[Tuple[str, str], xr.DataArray]
-    port_arrays: Dict[PortFieldId, VectorizedExpr]
+    port_arrays: Dict[PortFieldId, T_expr]
     block_length: int
     scenarios_count: int
 
@@ -138,7 +141,7 @@ class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr]):
     # ------------------------------------------------------------------ #
 
     @abstractmethod
-    def variable(self, node: VariableNode) -> VectorizedExpr:
+    def variable(self, node: VariableNode) -> T_expr:
         ...
 
     # ------------------------------------------------------------------ #

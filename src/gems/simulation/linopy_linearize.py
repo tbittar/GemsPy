@@ -48,7 +48,7 @@ from gems.simulation.vectorized_builder import (
 
 
 @dataclass(kw_only=True)
-class VectorizedLinopyBuilder(VectorizedBuilderBase):
+class VectorizedLinopyBuilder(VectorizedBuilderBase[VectorizedExpr]):
     """
     Builds a linopy LinearExpression from a model-level AST.
 
