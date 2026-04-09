@@ -408,17 +408,16 @@ class _LinopyProblemBuilder:
                 if isinstance(param_data, ConstantData):
                     data[i] = param_data.value  # broadcasts into remaining dims
                 elif isinstance(param_data, TimeSeriesData):
-                    for t in range(T):
-                        v = param_data.get_value(abs_timesteps[t], None)
-                        if use_time and use_scenario:
-                            data[i, t, :] = v
-                        elif use_time:
-                            data[i, t] = v
-                        else:
-                            data[i] = v  # constant in time
+                    v = param_data.get_value(abs_timesteps, None)
+                    if use_time and use_scenario:
+                        data[i, :, :] = v[:, np.newaxis]  # broadcast T across S
+                    elif use_time:
+                        data[i, :] = v
+                    else:
+                        data[i] = v  # constant in time
                 elif isinstance(param_data, ScenarioSeriesData):
                     for s in range(S):
-                        v = param_data.get_value(None, s)
+                        v = param_data.get_value(None, s)  # type: ignore[assignment]
                         if use_time and use_scenario:
                             data[i, :, s] = v
                         elif use_scenario:
@@ -426,18 +425,19 @@ class _LinopyProblemBuilder:
                         else:
                             data[i] = v  # constant in scenario
                 else:
-                    # TimeScenarioSeriesData or other
-                    for t in range(T):
-                        for s in range(S):
-                            v = param_data.get_value(abs_timesteps[t], s)
-                            if use_time and use_scenario:
-                                data[i, t, s] = v
-                            elif use_time:
-                                data[i, t] = v
-                            elif use_scenario:
-                                data[i, s] = v
-                            else:
-                                data[i] = v  # take any single value
+                    # TimeScenarioSeriesData
+                    for s in range(S):
+                        v = param_data.get_value(  # type: ignore[assignment]
+                            abs_timesteps, s
+                        )
+                        if use_time and use_scenario:
+                            data[i, :, s] = v
+                        elif use_time:
+                            data[i, :] = v
+                        elif use_scenario:
+                            data[i, s] = v
+                        else:
+                            data[i] = v  # take any single value
 
             arr = xr.DataArray(data, dims=dims, coords=coords)
             self.param_arrays[(model.id, param.name)] = arr

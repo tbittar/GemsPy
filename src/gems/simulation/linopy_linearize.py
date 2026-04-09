@@ -355,7 +355,7 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
     def multiplication(self, node: MultiplicationNode) -> LinopyExpression:
         left = visit(node.left, self)
         right = visit(node.right, self)
-        return left * right  # type: ignore[operator]
+        return left * right  # type: ignore[operator,return-value]
 
     def division(self, node: DivisionNode) -> LinopyExpression:
         left = visit(node.left, self)

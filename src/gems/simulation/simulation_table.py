@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -5,7 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import xarray as xr
-from attr import dataclass
 
 from gems.expression.visitor import visit
 from gems.simulation.extra_output import VectorizedExtraOutputBuilder
