@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import pandas as pd
-from attr import dataclass
+from dataclasses import dataclass
 
 # from gems.simulation.extra_output import ExtraOutput
 # from optimization import OptimizationProblem  # Adjust import as needed

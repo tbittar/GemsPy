@@ -455,7 +455,7 @@ class _LinopyProblemBuilder:
                         data[i] = v  # constant in time
                 elif isinstance(param_data, ScenarioSeriesData):
                     for s in range(S):
-                        v = param_data.get_value(None, s, self.decision_tree_node)
+                        v = param_data.get_value(None, s, self.decision_tree_node)  # type: ignore[assignment]
                         if use_time and use_scenario:
                             data[i, :, s] = v
                         elif use_scenario:
@@ -465,7 +465,7 @@ class _LinopyProblemBuilder:
                 else:
                     # TimeScenarioSeriesData, TreeData, or other
                     for s in range(S):
-                        v = param_data.get_value(
+                        v = param_data.get_value(  # type: ignore[assignment]
                             abs_timesteps, s, self.decision_tree_node
                         )
                         if use_time and use_scenario:
