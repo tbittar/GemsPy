@@ -425,7 +425,7 @@ class _LinopyProblemBuilder:
                         else:
                             data[i] = v  # constant in scenario
                 else:
-                    # TimeScenarioSeriesData, TreeData, or other
+                    # TimeScenarioSeriesData
                     for s in range(S):
                         v = param_data.get_value(  # type: ignore[assignment]
                             abs_timesteps, s
