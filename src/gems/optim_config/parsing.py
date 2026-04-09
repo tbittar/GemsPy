@@ -33,7 +33,6 @@ if TYPE_CHECKING:
     from gems.study.network import Network
 
 
-
 class ElementLocation(str, Enum):
     MASTER = "master"
     SUBPROBLEMS = "subproblems"
@@ -233,6 +232,5 @@ def validate_optim_config(config: OptimConfig, network: "Network") -> None:
 
     if errors:
         raise ValueError(
-            f"Errors in optim config file:\n"
-            + "\n".join(f"  - {e}" for e in errors)
+            f"Errors in optim config file:\n" + "\n".join(f"  - {e}" for e in errors)
         )

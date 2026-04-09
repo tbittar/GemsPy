@@ -48,7 +48,6 @@ from gems.simulation.linopy_linearize import (
     VectorizedLinopyBuilder,
     _linopy_add,
 )
-
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
 from gems.study.network import Component, Network

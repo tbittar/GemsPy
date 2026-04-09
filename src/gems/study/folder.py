@@ -12,10 +12,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from gems.model.model import Model
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.optim_config import load_optim_config
 from gems.simulation import TimeBlock, build_problem
+from gems.simulation.linopy_problem import LinopyOptimizationProblem
+from gems.study.data import DataBase
+from gems.study.network import Network
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
@@ -25,7 +29,7 @@ from gems.study.resolve_components import (
 )
 
 
-def load_study(study_dir: Path):
+def load_study(study_dir: Path) -> tuple[Network, DataBase]:
     """
     Loads a study from a given directory.
 
@@ -46,8 +50,10 @@ def load_study(study_dir: Path):
 
     if config_file.exists():
         optim_config = load_optim_config(config_file)
-        raise Warning('An optim config file has been provided but is not '
-                      'used in the current version of problem definition')
+        raise Warning(
+            "An optim config file has been provided but is not "
+            "used in the current version of problem definition"
+        )
 
     input_libraries = []
     for lib_file in lib_folder.glob("*.yml"):
@@ -58,9 +64,9 @@ def load_study(study_dir: Path):
         input_study = parse_yaml_components(c)
     lib_dict = resolve_library(input_libraries)
     network_components = resolve_system(input_study, lib_dict)
-    model_dict = {}
-    for lib in lib_dict.values():
-        model_dict |= lib.models
+    model_dict: dict[str, Model] = {}
+    for library in lib_dict.values():
+        model_dict |= library.models
     consistency_check(network_components.components, model_dict)
 
     database = build_data_base(input_study, series_dir)
@@ -68,7 +74,9 @@ def load_study(study_dir: Path):
     return network, database
 
 
-def run_study(study_dir: Path, scenarios: int, time_block: TimeBlock):
+def run_study(
+    study_dir: Path, scenarios: int, time_block: TimeBlock
+) -> LinopyOptimizationProblem:
     """
     Runs a simulation study.
 
@@ -82,10 +90,9 @@ def run_study(study_dir: Path, scenarios: int, time_block: TimeBlock):
     Returns:
         The solved simulation problem.
     """
-    
-    
+
     network, database = load_study(study_dir)
     problem = build_problem(network, database, time_block, scenarios)
     problem.solve()
-    
+
     return problem
