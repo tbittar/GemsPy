@@ -14,8 +14,6 @@ import pytest
 
 from gems.expression.expression import (
     ExpressionNode,
-    comp_param,
-    comp_var,
     literal,
     param,
     port_field,
@@ -196,8 +194,6 @@ def test_instantiating_a_model_with_non_linear_scenario_operator_in_the_objectiv
     "expression",
     [
         var("x") <= 0,
-        comp_var("c", "x"),
-        comp_param("c", "x"),
         port_field("p", "f"),
         port_field("p", "f").sum_connections(),
     ],

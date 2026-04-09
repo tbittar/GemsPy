@@ -16,8 +16,6 @@ import gems.expression.scenario_operator
 from gems.expression.expression import (
     AllTimeSumNode,
     CeilNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     FloorNode,
     MaxNode,
     MinNode,
@@ -75,12 +73,6 @@ class ExpressionDegreeVisitor(ExpressionVisitor[int | float]):
         return 1
 
     def parameter(self, node: ParameterNode) -> int | float:
-        return 0
-
-    def comp_variable(self, node: ComponentVariableNode) -> int | float:
-        return 1
-
-    def comp_parameter(self, node: ComponentParameterNode) -> int | float:
         return 0
 
     def time_shift(self, node: TimeShiftNode) -> int | float:

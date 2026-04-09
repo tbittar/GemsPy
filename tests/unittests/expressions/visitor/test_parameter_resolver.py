@@ -15,9 +15,6 @@ from gems.expression import ParameterValueProvider, param, resolve_parameters, v
 
 def test_parameters_resolution() -> None:
     class TestParamProvider(ParameterValueProvider):
-        def get_component_parameter_value(self, component_id: str, name: str) -> float:
-            raise NotImplementedError()
-
         def get_parameter_value(self, name: str) -> float:
             return 2
 

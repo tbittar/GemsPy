@@ -39,20 +39,6 @@ def _make_structure_provider(model: "Model") -> IndexingStructureProvider:
         def get_variable_structure(self, name: str) -> IndexingStructure:
             return model.variables[name].structure
 
-        def get_component_parameter_structure(
-            self, component_id: str, name: str
-        ) -> IndexingStructure:
-            raise NotImplementedError(
-                "Cannot have parameters associated to components in models."
-            )
-
-        def get_component_variable_structure(
-            self, component_id: str, name: str
-        ) -> IndexingStructure:
-            raise NotImplementedError(
-                "Cannot have variables associated to components in models."
-            )
-
     return Provider()
 
 

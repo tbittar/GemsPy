@@ -24,7 +24,6 @@ from gems.expression.copy import copy_expression
 from gems.expression.equality import expressions_equal
 from gems.expression.expression import (
     AllTimeSumNode,
-    ComponentParameterNode,
     MultiplicationNode,
     TimeEvalNode,
     TimeShiftNode,
@@ -77,7 +76,7 @@ def test_copy_ast() -> None:
             ),
             TimeShiftNode(
                 MultiplicationNode(LiteralNode(1), VariableNode("x")),
-                ComponentParameterNode("comp1", "p"),
+                ParameterNode("p"),
             ),
         ),
     )
