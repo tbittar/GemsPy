@@ -14,6 +14,7 @@ import pandas as pd
 
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
+from gems.optim_config import load_optim_config
 from gems.simulation import TimeBlock, build_problem
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
@@ -41,6 +42,12 @@ def load_study(study_dir: Path):
     study_file = study_dir / "input" / "system.yml"
     lib_folder = study_dir / "input" / "model-libraries"
     series_dir = study_dir / "input" / "data-series"
+    config_file = study_dir / "input" / "optim-config.yml"
+
+    if config_file.exists():
+        optim_config = load_optim_config(config_file)
+        raise Warning('An optim config file has been provided but is not '
+                      'used in the current version of problem definition')
 
     input_libraries = []
     for lib_file in lib_folder.glob("*.yml"):
