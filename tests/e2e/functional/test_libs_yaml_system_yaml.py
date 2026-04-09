@@ -75,8 +75,8 @@ def test_basic_balance_using_yaml(
 @pytest.fixture
 def setup_test(
     libs_dir: Path, systems_dir: Path, series_dir: Path
-) -> Callable[[], Tuple[Network, DataBase]]:
-    def _setup_test(study_file_name: str):
+) -> Callable[[str], Tuple[Network, DataBase]]:
+    def _setup_test(study_file_name: str) -> Tuple[Network, DataBase]:
         study_file = systems_dir / study_file_name
         lib_file = libs_dir / "lib_unittest.yml"
         with lib_file.open() as lib:
@@ -96,7 +96,7 @@ def setup_test(
 
 
 def test_basic_balance_time_only_series(
-    setup_test: Callable[[], Tuple[Network, DataBase]],
+    setup_test: Callable[[str], Tuple[Network, DataBase]],
 ) -> None:
     network, database = setup_test("study_time_only_series.yml")
     scenarios = 1
@@ -107,7 +107,7 @@ def test_basic_balance_time_only_series(
 
 
 def test_basic_balance_scenario_only_series(
-    setup_test: Callable[[], Tuple[Network, DataBase]],
+    setup_test: Callable[[str], Tuple[Network, DataBase]],
 ) -> None:
     network, database = setup_test("study_scenario_only_series.yml")
     scenarios = 2
@@ -118,7 +118,7 @@ def test_basic_balance_scenario_only_series(
 
 
 def test_short_term_storage_base_with_yaml(
-    setup_test: Callable[[], Tuple[Network, DataBase]],
+    setup_test: Callable[[str], Tuple[Network, DataBase]],
 ) -> None:
     network, database = setup_test("components_for_short_term_storage.yml")
     # 18 produced in the 1st time-step, then consumed 2 * efficiency in the rest

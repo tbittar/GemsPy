@@ -38,12 +38,12 @@ def test_basic_balance_on_whole_year_with_large_sum() -> None:
         durations[int(horizon)] = build_for_horizon(int(horizon), 1)
 
     duration_df = pd.DataFrame.from_dict(durations, orient="index")
-    duration_df.columns = ["build time"]
+    duration_df.columns = pd.Index(["build time"])
     print(duration_df)
     duration_df.to_csv("build_time_scalability.csv")
 
 
-def build_for_horizon(horizon_size, scenario_count):
+def build_for_horizon(horizon_size: int, scenario_count: int) -> float:
     scenarios = scenario_count
     time_block = TimeBlock(1, list(range(horizon_size)))
     database = DataBase()

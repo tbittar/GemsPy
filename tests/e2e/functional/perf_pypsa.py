@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -7,6 +8,8 @@ import pandas as pd
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import TimeBlock, build_problem
+from gems.study.data import DataBase
+from gems.study.network import Network
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
@@ -16,7 +19,7 @@ from gems.study.resolve_components import (
 )
 
 
-def setup_data(pypsa_dir: Path):
+def setup_data(pypsa_dir: Path) -> Tuple[Network, DataBase]:
     study_file = pypsa_dir / "input" / "system.yml"
     lib_file = pypsa_dir / "input" / "model-libraries" / "pypsa_models.yml"
     series_dir = pypsa_dir / "input" / "data-series"
@@ -34,7 +37,7 @@ def setup_data(pypsa_dir: Path):
     return network, database
 
 
-def build_pypsa_problem(network, database, time_horizon):
+def build_pypsa_problem(network: Network, database: DataBase, time_horizon: int) -> float:
     scenarios = 1
     time_block = TimeBlock(1, list(range(time_horizon)))
     start = time.time()
@@ -44,7 +47,7 @@ def build_pypsa_problem(network, database, time_horizon):
     return end - start
 
 
-def run_pypsa_performance_scalability(pypsa_dir: Path):
+def run_pypsa_performance_scalability(pypsa_dir: Path) -> None:
     network, database = setup_data(pypsa_dir)
     durations = {}
 
@@ -52,7 +55,7 @@ def run_pypsa_performance_scalability(pypsa_dir: Path):
         durations[int(horizon)] = build_pypsa_problem(network, database, int(horizon))
 
     duration_df = pd.DataFrame.from_dict(durations, orient="index")
-    duration_df.columns = ["build time"]
+    duration_df.columns = pd.Index(["build time"])
     print(duration_df)
     duration_df.to_csv(pypsa_dir / "pypsa_build_time_scalability.csv")
 

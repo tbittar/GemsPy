@@ -27,7 +27,7 @@ from gems.study.resolve_components import build_data_base, build_network, resolv
 
 
 @pytest.fixture
-def data_dir(request) -> Path:
+def data_dir(request: pytest.FixtureRequest) -> Path:
     return request.param
 
 
