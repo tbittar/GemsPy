@@ -116,7 +116,7 @@ def test_simulation_table_builder_manual(tmp_path: Path) -> None:
     expected_df = pd.DataFrame(expected_rows)
 
     pd.testing.assert_frame_equal(
-        df.reset_index(drop=True),
+        df.data.reset_index(drop=True),
         expected_df,
         check_dtype=False,
     )

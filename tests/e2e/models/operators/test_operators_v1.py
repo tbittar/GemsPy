@@ -132,12 +132,7 @@ def test_model_behaviour(
         )
 
         df = SimulationTableBuilder().build(problem)
-        sub = df[
-            (df["component"] == "unique_prod3")
-            & (df["output"] == "generation")
-            & (df["scenario-index"] == 0)
-        ]
-        gen3_values = sub.sort_values("block-time-index")["value"].tolist()
+        gen3_values = df.component("unique_prod3").output("generation").value(scenario_index=0).tolist()
 
         for t, (ref_val, sol_val) in enumerate(zip(ref_gen3, gen3_values)):
             assert math.isclose(

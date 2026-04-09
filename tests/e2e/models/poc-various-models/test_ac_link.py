@@ -136,9 +136,7 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
     assert problem.objective_value == pytest.approx(3500, abs=0.01)
 
     df = SimulationTableBuilder().build(problem)
-    assert df[(df["component"] == "L") & (df["output"] == "flow")]["value"].iloc[
-        0
-    ] == pytest.approx(-100, abs=0.01)
+    assert df.component("L").output("flow").value(time_index=0, scenario_index=0) == pytest.approx(-100, abs=0.01)
 
 
 def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
@@ -205,12 +203,8 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
     assert problem.objective_value == pytest.approx(3500, abs=0.01)
 
     df = SimulationTableBuilder().build(problem)
-    assert df[(df["component"] == "L1") & (df["output"] == "flow")]["value"].iloc[
-        0
-    ] == pytest.approx(-66.67, abs=0.01)
-    assert df[(df["component"] == "L2") & (df["output"] == "flow")]["value"].iloc[
-        0
-    ] == pytest.approx(-33.33, abs=0.01)
+    assert df.component("L1").output("flow").value(time_index=0, scenario_index=0) == pytest.approx(-66.67, abs=0.01)
+    assert df.component("L2").output("flow").value(time_index=0, scenario_index=0) == pytest.approx(-33.33, abs=0.01)
 
 
 def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
@@ -282,12 +276,6 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
     assert problem.objective_value == pytest.approx(3550, abs=0.01)
 
     df = SimulationTableBuilder().build(problem)
-    assert df[(df["component"] == "L") & (df["output"] == "flow")]["value"].iloc[
-        0
-    ] == pytest.approx(-50, abs=0.01)
-    assert df[(df["component"] == "T") & (df["output"] == "flow")]["value"].iloc[
-        0
-    ] == pytest.approx(-50, abs=0.01)
-    assert df[(df["component"] == "T") & (df["output"] == "phase_shift")]["value"].iloc[
-        0
-    ] == pytest.approx(-50, abs=0.01)
+    assert df.component("L").output("flow").value(time_index=0, scenario_index=0) == pytest.approx(-50, abs=0.01)
+    assert df.component("T").output("flow").value(time_index=0, scenario_index=0) == pytest.approx(-50, abs=0.01)
+    assert df.component("T").output("phase_shift").value(time_index=0, scenario_index=0) == pytest.approx(-50, abs=0.01)
