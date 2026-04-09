@@ -87,14 +87,13 @@ class DecompositionFilter:
         self._objs: Dict[Tuple[str, str], "ElementLocation"] = {}
 
         for mc in config.models:
-            if mc.model_decomposition is None:
-                continue
-            for v in mc.model_decomposition.variables:
-                self._vars[(mc.id, v.id)] = v.location
-            for c in mc.model_decomposition.constraints:
-                self._cons[(mc.id, c.id)] = c.location
-            for o in mc.model_decomposition.objective_contributions:
-                self._objs[(mc.id, o.id)] = o.location
+            if mc.model_decomposition is not None:
+                for v in mc.model_decomposition.variables:
+                    self._vars[(mc.id, v.id)] = v.location
+                for c in mc.model_decomposition.constraints:
+                    self._cons[(mc.id, c.id)] = c.location
+                for o in mc.model_decomposition.objective_contributions:
+                    self._objs[(mc.id, o.id)] = o.location
 
     def include_variable(self, model_id: str, var_name: str) -> bool:
         loc = self._vars.get((model_id, var_name), self._default)
@@ -536,89 +535,88 @@ class _LinopyProblemBuilder:
         comp_ids = [c.id for c in components]
 
         for var in model.variables.values():
-            if self._location_filter and not self._location_filter.include_variable(
+            if not self._location_filter or self._location_filter.include_variable(
                 model.id, var.name
             ):
-                continue
-            # Build coords for this variable
-            coords: Dict[str, object] = {"component": comp_ids}
-            dims = ["component"]
-            if var.structure.time:
-                coords["time"] = self.time_coord
-                dims.append("time")
-            if var.structure.scenario:
-                coords["scenario"] = self.scenario_coord
-                dims.append("scenario")
+                # Build coords for this variable
+                coords: Dict[str, object] = {"component": comp_ids}
+                dims = ["component"]
+                if var.structure.time:
+                    coords["time"] = self.time_coord
+                    dims.append("time")
+                if var.structure.scenario:
+                    coords["scenario"] = self.scenario_coord
+                    dims.append("scenario")
 
-            # Shape of this variable (used to broadcast scalar bounds)
-            var_shape = tuple(
-                (
-                    len(comp_ids)
-                    if d == "component"
-                    else (
-                        len(self.time_coord)
-                        if d == "time"
-                        else len(self.scenario_coord)
+                # Shape of this variable (used to broadcast scalar bounds)
+                var_shape = tuple(
+                    (
+                        len(comp_ids)
+                        if d == "component"
+                        else (
+                            len(self.time_coord)
+                            if d == "time"
+                            else len(self.scenario_coord)
+                        )
+                    )
+                    for d in dims
+                )
+
+                # Build a minimal builder for bound expressions (no variables needed)
+                bound_builder = VectorizedLinopyBuilder(
+                    model_id=model.id,
+                    linopy_vars={},
+                    param_arrays=self.param_arrays,
+                    port_arrays={},
+                    block_length=self.block_length,
+                    scenarios_count=self.scenarios,
+                )
+
+                lower: object = (
+                    np.full(var_shape, -np.inf)
+                    if var.lower_bound is None
+                    else self._to_bound_array(
+                        visit(var.lower_bound, bound_builder), var_shape, dims
                     )
                 )
-                for d in dims
-            )
-
-            # Build a minimal builder for bound expressions (no variables needed)
-            bound_builder = VectorizedLinopyBuilder(
-                model_id=model.id,
-                linopy_vars={},
-                param_arrays=self.param_arrays,
-                port_arrays={},
-                block_length=self.block_length,
-                scenarios_count=self.scenarios,
-            )
-
-            lower: object = (
-                np.full(var_shape, -np.inf)
-                if var.lower_bound is None
-                else self._to_bound_array(
-                    visit(var.lower_bound, bound_builder), var_shape, dims
-                )
-            )
-            upper: object = (
-                np.full(var_shape, np.inf)
-                if var.upper_bound is None
-                else self._to_bound_array(
-                    visit(var.upper_bound, bound_builder), var_shape, dims
-                )
-            )
-
-            # Validate bounds: upper must be >= lower across all timesteps/scenarios
-            lower_arr = lower if isinstance(lower, np.ndarray) else np.array(lower)
-            upper_arr = upper if isinstance(upper, np.ndarray) else np.array(upper)
-            for ci, comp_id in enumerate(comp_ids):
-                lo = np.asarray(lower_arr[ci] if lower_arr.ndim > 0 else lower_arr)
-                up = np.asarray(upper_arr[ci] if upper_arr.ndim > 0 else upper_arr)
-                finite = np.isfinite(lo) & np.isfinite(up)
-                violation = finite & (up < lo)
-                if np.any(violation):
-                    idx = int(np.argmax(violation))
-                    raise ValueError(
-                        f"Upper bound ({float(up.flat[idx]):g}) must be strictly "
-                        f"greater than lower bound ({float(lo.flat[idx]):g}) "
-                        f"for variable {comp_id}.{var.name}"
+                upper: object = (
+                    np.full(var_shape, np.inf)
+                    if var.upper_bound is None
+                    else self._to_bound_array(
+                        visit(var.upper_bound, bound_builder), var_shape, dims
                     )
+                )
 
-            prefix = model.id.replace("-", "_")
-            name = f"{prefix}__{var.name}"
-            binary = var.data_type == ValueType.BOOLEAN
-            integer = var.data_type == ValueType.INTEGER
+                # Validate bounds: upper must be >= lower across all timesteps/scenarios
+                lower_arr = lower if isinstance(lower, np.ndarray) else np.array(lower)
+                upper_arr = upper if isinstance(upper, np.ndarray) else np.array(upper)
+                for ci, comp_id in enumerate(comp_ids):
+                    lo = np.asarray(lower_arr[ci] if lower_arr.ndim > 0 else lower_arr)
+                    up = np.asarray(upper_arr[ci] if upper_arr.ndim > 0 else upper_arr)
+                    finite = np.isfinite(lo) & np.isfinite(up)
+                    violation = finite & (up < lo)
+                    if np.any(violation):
+                        idx = int(np.argmax(violation))
+                        raise ValueError(
+                            f"Upper bound ({float(up.flat[idx]):g}) must be strictly "
+                            f"greater than lower bound ({float(lo.flat[idx]):g}) "
+                            f"for variable {comp_id}.{var.name}"
+                        )
 
-            lv = self.linopy_model.add_variables(
-                lower=lower,
-                upper=upper,
-                coords=coords,
-                name=name,
-                binary=binary,
-                integer=integer,
-            )
-            self.linopy_vars[(model.id, var.name)] = lv
+                prefix = model.id.replace("-", "_")
+                name = f"{prefix}__{var.name}"
+                binary = var.data_type == ValueType.BOOLEAN
+                integer = var.data_type == ValueType.INTEGER
+
+                lv = self.linopy_model.add_variables(
+                    lower=lower,
+                    upper=upper,
+                    coords=coords,
+                    name=name,
+                    binary=binary,
+                    integer=integer,
+                )
+                self.linopy_vars[(model.id, var.name)] = lv
 
     # ------------------------------------------------------------------
     # Phase 3 — Port arrays
@@ -659,28 +657,27 @@ class _LinopyProblemBuilder:
 
         prefix = model.id.replace("-", "_")
         for constraint in model.get_all_constraints():
-            if self._location_filter and not self._location_filter.include_constraint(
+            if not self._location_filter or self._location_filter.include_constraint(
                 model.id, constraint.name
             ):
-                continue
-            lhs = visit(constraint.expression, builder)
+                lhs = visit(constraint.expression, builder)
 
-            # Sanitize constraint name for LP format (spaces → underscores)
-            safe_name = constraint.name.replace(" ", "_").replace("-", "_")
+                # Sanitize constraint name for LP format (spaces → underscores)
+                safe_name = constraint.name.replace(" ", "_").replace("-", "_")
 
-            # Lower bound constraint: lhs >= lb  (if lb != -inf)
-            if not is_unbounded(constraint.lower_bound):
-                lb = visit(constraint.lower_bound, builder)
-                name = f"{prefix}__{safe_name}__lb"
-                con_lb = lhs >= lb  # type: ignore[operator]
-                self.linopy_model.add_constraints(con_lb, name=name)  # type: ignore[arg-type]
+                # Lower bound constraint: lhs >= lb  (if lb != -inf)
+                if not is_unbounded(constraint.lower_bound):
+                    lb = visit(constraint.lower_bound, builder)
+                    name = f"{prefix}__{safe_name}__lb"
+                    con_lb = lhs >= lb  # type: ignore[operator]
+                    self.linopy_model.add_constraints(con_lb, name=name)  # type: ignore[arg-type]
 
-            # Upper bound constraint: lhs <= ub  (if ub != +inf)
-            if not is_unbounded(constraint.upper_bound):
-                ub = visit(constraint.upper_bound, builder)
-                name = f"{prefix}__{safe_name}__ub"
-                con_ub = lhs <= ub  # type: ignore[operator]
-                self.linopy_model.add_constraints(con_ub, name=name)  # type: ignore[arg-type]
+                # Upper bound constraint: lhs <= ub  (if ub != +inf)
+                if not is_unbounded(constraint.upper_bound):
+                    ub = visit(constraint.upper_bound, builder)
+                    name = f"{prefix}__{safe_name}__ub"
+                    con_ub = lhs <= ub  # type: ignore[operator]
+                    self.linopy_model.add_constraints(con_ub, name=name)  # type: ignore[arg-type]
 
     def _add_objectives_for_model(
         self,
@@ -703,11 +700,9 @@ class _LinopyProblemBuilder:
         if model.objective_contributions:
             for obj_id, expr in model.objective_contributions.items():
                 if (
-                    self._location_filter
-                    and not self._location_filter.include_objective(model.id, obj_id)
-                ):
-                    continue
-                if expr is not None:
+                    not self._location_filter
+                    or self._location_filter.include_objective(model.id, obj_id)
+                ) and expr is not None:
                     obj_term = visit(expr, builder)
                     total_obj = _accumulate(total_obj, obj_term)
 
@@ -909,13 +904,12 @@ def _has_any_master_element(config: "OptimConfig") -> bool:
 
     master_locs = {ElementLocation.MASTER, ElementLocation.MASTER_AND_SUBPROBLEMS}
     for mc in config.models:
-        if mc.model_decomposition is None:
-            continue
-        d = mc.model_decomposition
-        if any(v.location in master_locs for v in d.variables):
-            return True
-        if any(c.location in master_locs for c in d.constraints):
-            return True
-        if any(o.location in master_locs for o in d.objective_contributions):
-            return True
+        if mc.model_decomposition is not None:
+            d = mc.model_decomposition
+            if any(v.location in master_locs for v in d.variables):
+                return True
+            if any(c.location in master_locs for c in d.constraints):
+                return True
+            if any(o.location in master_locs for o in d.objective_contributions):
+                return True
     return False
