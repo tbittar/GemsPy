@@ -30,7 +30,7 @@ from gems.utils import ModifiedBaseModel
 
 if TYPE_CHECKING:
     from gems.model.model import Model
-    from gems.study.network import System
+    from gems.study.system import System
 
 
 class ElementLocation(str, Enum):
@@ -203,20 +203,20 @@ def _check_master_objectives_use_master_variables(
 
 
 def validate_optim_config(config: OptimConfig, system: "System") -> None:
-    """Cross-validate optim-config entries against the resolved network.
+    """Cross-validate optim-config entries against the resolved system.
 
     Checks that every referenced ID exists, that master variables do not
     depend on time, and that master constraints and objectives only reference
     variables assigned to master or master-and-subproblems.
     Raises ValueError listing all violations.
     """
-    models_in_network = {c.model.id: c.model for c in system.all_components}
+    models_in_system = {c.model.id: c.model for c in system.all_components}
     errors: List[str] = []
 
     for model_config in config.models:
-        model = models_in_network.get(model_config.id)
+        model = models_in_system.get(model_config.id)
         if model is None:
-            errors.append(f"Model '{model_config.id}' not found in network")
+            errors.append(f"Model '{model_config.id}' not found in system")
         elif model_config.model_decomposition is not None:
             decomposition = model_config.model_decomposition
             _check_id_existence(decomposition, model, model_config.id, errors)

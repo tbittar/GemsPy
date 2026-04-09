@@ -9,7 +9,7 @@ from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import TimeBlock, build_problem
 from gems.study.data import DataBase
-from gems.study.network import System
+from gems.study.system import System
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,

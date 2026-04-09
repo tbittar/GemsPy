@@ -34,7 +34,7 @@ import xarray as xr
 from gems.expression.expression import VariableNode
 from gems.model.port import PortFieldId
 from gems.simulation.vectorized_builder import VectorizedBuilderBase
-from gems.study.network import Component
+from gems.study.system import Component
 
 
 @dataclass

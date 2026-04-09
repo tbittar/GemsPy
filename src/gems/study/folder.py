@@ -20,7 +20,7 @@ from gems.optim_config import load_optim_config
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.linopy_problem import LinopyOptimizationProblem
 from gems.study.data import DataBase
-from gems.study.network import System
+from gems.study.system import System
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
@@ -34,14 +34,14 @@ def load_study(study_dir: Path) -> tuple[System, DataBase]:
     Loads a study from a given directory.
 
     This function reads the system definition, model libraries, and data series
-    from the study directory, resolves them, and builds the simulation network
+    from the study directory, resolves them, and builds the simulation system
     and database.
 
     Args:
         study_dir: The path to the study directory.
 
     Returns:
-        A tuple containing the simulation network and the database.
+        A tuple containing the simulation system and the database.
     """
     system_file = study_dir / "input" / "system.yml"
     lib_folder = study_dir / "input" / "model-libraries"
@@ -94,8 +94,8 @@ def run_study(
         The solved simulation problem.
     """
 
-    network, database = load_study(study_dir)
-    problem = build_problem(network, database, time_block, scenarios)
+    system, database = load_study(study_dir)
+    problem = build_problem(system, database, time_block, scenarios)
     problem.solve()
     if export_simulation_table:
         from gems.simulation.simulation_table import SimulationTableBuilder
