@@ -18,7 +18,6 @@ from gems.model.library import Library
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.optim_config.parsing import (
-    ElementLocation,
     OptimConfig,
     ResolutionMode,
     load_optim_config,
@@ -28,8 +27,10 @@ from gems.simulation import (
     BendersRunner,
     DecomposedProblems,
     TimeBlock,
+    build_couplings,
     build_decomposed_problems,
     build_problem,
+    dump_couplings,
 )
 from gems.study import DataBase
 from gems.study.parsing import parse_cli, parse_yaml_components
@@ -73,74 +74,12 @@ def input_study(study_path: Path, librairies: dict[str, Library]) -> System:
         return resolve_system(parse_yaml_components(comp), librairies)
 
 
-def _structure_row(problem_id: str, component_id: str, variable_int_id: int) -> str:
-    return f"{problem_id:>24}{component_id:>48}{variable_int_id:>9}"
-
-
-def _master_rows(
-    decomposed: DecomposedProblems,
-    model_id: str,
-    var_name: str,
-    comp_id: str,
-) -> List[str]:
-    if decomposed.master is None:
-        return []
-    labels = decomposed.master.get_variable_labels(model_id, var_name)
-    if labels is None:
-        return []
-    return [
-        _structure_row(
-            decomposed.master.name, comp_id, int(labels.sel(component=comp_id).item())
-        )
-    ]
-
-
-def _subproblem_rows(
-    decomposed: DecomposedProblems,
-    model_id: str,
-    var_name: str,
-    comp_id: str,
-    scenarios: int,
-) -> List[str]:
-    labels = decomposed.subproblem.get_variable_labels(model_id, var_name)
-    if labels is None:
-        return []
-    sid = int(labels.sel(component=comp_id).item())
-    return [
-        _structure_row(decomposed.subproblem.name, comp_id, sid)
-        for _ in range(1, scenarios + 1)
-    ]
-
-
 def _write_structure_txt(
     decomposed: DecomposedProblems,
     optim_config: OptimConfig,
-    scenarios: int,
     output_dir: Path,
 ) -> None:
-    """Write structure.txt for master-and-subproblems variables.
-
-    Each such variable produces one row per component in the master problem
-    and one row per (scenario, component) in the subproblem.  All scenarios
-    share identical variable IDs because they use the same model structure.
-    """
-    lines: List[str] = []
-
-    for mc in optim_config.models:
-        if mc.model_decomposition is None:
-            continue
-        for var_cfg in mc.model_decomposition.variables:
-            if var_cfg.location != ElementLocation.MASTER_AND_SUBPROBLEMS:
-                continue
-            components = decomposed.subproblem.model_components.get(mc.id, [])
-            for comp in components:
-                lines.extend(_master_rows(decomposed, mc.id, var_cfg.id, comp.id))
-                lines.extend(
-                    _subproblem_rows(decomposed, mc.id, var_cfg.id, comp.id, scenarios)
-                )
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "structure.txt").write_text("\n".join(lines) + "\n")
+    dump_couplings(build_couplings(decomposed, optim_config), output_dir)
 
 
 def main_cli() -> None:
@@ -191,7 +130,6 @@ def main_cli() -> None:
                 _write_structure_txt(
                     decomposed,
                     optim_config,
-                    scenario,
                     output_dir=parsed_args.components_path.parent,
                 )
             BendersRunner(emplacement=parsed_args.components_path.parent).run()

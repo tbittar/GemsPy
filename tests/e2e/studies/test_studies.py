@@ -71,33 +71,38 @@ def test_study_mps_matches_expected(study_id: str, tmp_path: Path) -> None:
     )
 
     # --- Write MPS files ---
-    decomposed.subproblem.linopy_model.to_file(tmp_path / "subproblem.mps")
+    decomposed.subproblem.linopy_model.to_file(
+        tmp_path / f"{decomposed.subproblem.name}.mps"
+    )
     if decomposed.master is not None:
-        decomposed.master.linopy_model.to_file(tmp_path / "master.mps")
+        decomposed.master.linopy_model.to_file(
+            tmp_path / f"{decomposed.master.name}.mps"
+        )
 
     # --- Write structure.txt ---
     _write_structure_txt(
         decomposed,
         optim_config,
-        scenarios=scenarios,
         output_dir=tmp_path,
     )
 
     # --- Assert subproblem MPS matches expected ---
-    generated_sub = (tmp_path / "subproblem.mps").read_text()
-    expected_sub = (expected_dir / "subproblem.mps").read_text()
+    sub_name = decomposed.subproblem.name
+    generated_sub = (tmp_path / f"{sub_name}.mps").read_text()
+    expected_sub = (expected_dir / f"{sub_name}.mps").read_text()
     assert generated_sub == expected_sub, (
-        f"[{study_id}] subproblem.mps mismatch.\n"
+        f"[{study_id}] {sub_name}.mps mismatch.\n"
         f"Generated:\n{generated_sub}\n"
         f"Expected:\n{expected_sub}"
     )
 
     # --- Assert master MPS matches expected (if present) ---
     if decomposed.master is not None:
-        generated_master = (tmp_path / "master.mps").read_text()
-        expected_master = (expected_dir / "master.mps").read_text()
+        master_name = decomposed.master.name
+        generated_master = (tmp_path / f"{master_name}.mps").read_text()
+        expected_master = (expected_dir / f"{master_name}.mps").read_text()
         assert generated_master == expected_master, (
-            f"[{study_id}] master.mps mismatch.\n"
+            f"[{study_id}] {master_name}.mps mismatch.\n"
             f"Generated:\n{generated_master}\n"
             f"Expected:\n{expected_master}"
         )

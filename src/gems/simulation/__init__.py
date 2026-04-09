@@ -10,6 +10,7 @@
 #
 # This file is part of the Antares project.
 
+from .couplings import CouplingRow, build_couplings, dump_couplings
 from .linopy_problem import (
     BlockBorderManagement,
     DecomposedProblems,
