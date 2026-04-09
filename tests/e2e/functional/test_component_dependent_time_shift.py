@@ -91,16 +91,15 @@ from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study import (
     ConstantData,
     DataBase,
-    Network,
     Node,
     PortRef,
+    System,
     TimeScenarioSeriesData,
     create_component,
 )
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
-    build_network,
     consistency_check,
     resolve_system,
 )
@@ -193,7 +192,7 @@ def _add_storage(
     database.add_data(component_id, "inflows", ConstantData(inflows))
 
 
-def _build_network(*storage_ids: str) -> Network:
+def _build_system(*storage_ids: str) -> System:
     node = Node(model=NODE_BALANCE_MODEL, id="N")
     demand_comp = create_component(model=DEMAND_MODEL, id="D")
     spillage_comp = create_component(model=SPILLAGE_MODEL, id="S")
@@ -202,12 +201,12 @@ def _build_network(*storage_ids: str) -> Network:
         create_component(model=LAGGED_STORAGE_MODEL, id=sid) for sid in storage_ids
     ]
 
-    network = Network("test")
-    network.add_node(node)
+    system = System("test")
+    system.add_node(node)
     for comp in [demand_comp, spillage_comp, unsupplied_comp] + storage_comps:
-        network.add_component(comp)
-        network.connect(PortRef(comp, "balance_port"), PortRef(node, "balance_port"))
-    return network
+        system.add_component(comp)
+        system.connect(PortRef(comp, "balance_port"), PortRef(node, "balance_port"))
+    return system
 
 
 # ---------------------------------------------------------------------------
@@ -239,9 +238,9 @@ def test_single_lag2_forced_odd_spillage() -> None:
     database = _base_database(_make_demand_series([5.0, 0.0, 5.0, 0.0]))
     _add_storage(database, "STS", lag=2, inflows=inflows, p_max=10.0)
 
-    network = _build_network("STS")
+    system = _build_system("STS")
     problem = build_problem(
-        network,
+        system,
         database,
         TimeBlock(1, list(range(horizon))),
         scenarios=1,
@@ -294,9 +293,9 @@ def test_two_components_different_lags_asymmetric_demand() -> None:
     _add_storage(database, "STS1", lag=1, inflows=inflows, p_max=10.0)
     _add_storage(database, "STS2", lag=2, inflows=inflows, p_max=10.0)
 
-    network = _build_network("STS1", "STS2")
+    system = _build_system("STS1", "STS2")
     problem = build_problem(
-        network,
+        system,
         database,
         TimeBlock(1, list(range(horizon))),
         scenarios=1,
@@ -356,9 +355,9 @@ def test_three_components_distinct_lags_orbit_spillage() -> None:
     for lag, sid in [(1, "STS1"), (2, "STS2"), (3, "STS3")]:
         _add_storage(database, sid, lag=lag, inflows=inflows, p_max=15.0)
 
-    network = _build_network("STS1", "STS2", "STS3")
+    system = _build_system("STS1", "STS2", "STS3")
     problem = build_problem(
-        network,
+        system,
         database,
         TimeBlock(1, list(range(horizon))),
         scenarios=1,
@@ -418,14 +417,13 @@ def test_two_components_different_lags_yaml(
         input_system = parse_yaml_components(f)
 
     lib_dict = resolve_library([input_library])
-    network_components = resolve_system(input_system, lib_dict)
-    consistency_check(network_components.components, lib_dict["time_shift_test"].models)
+    system = resolve_system(input_system, lib_dict)
+    consistency_check(system, lib_dict["time_shift_test"].models)
 
     database = build_data_base(input_system, timeseries_dir=_series_dir)
-    network = build_network(network_components)
 
     problem = build_problem(
-        network,
+        system,
         database,
         TimeBlock(1, list(range(4))),
         scenarios=1,

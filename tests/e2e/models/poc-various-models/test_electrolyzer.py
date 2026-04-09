@@ -25,7 +25,7 @@ from gems.model import (
 )
 from gems.model.port import PortFieldDefinition, PortFieldId
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
 
 ELECTRICAL_PORT = PortType(id="electrical_port", fields=[PortField("flow")])
 
@@ -148,24 +148,24 @@ def test_electrolyzer() -> None:
     database.add_data("G", "cost", ConstantData(30))
     database.add_data("E", "efficiency", ConstantData(0.7))
 
-    network = Network("test")
-    network.add_node(elec_node)
-    network.add_node(h2_node)
-    network.add_component(demand_h2)
-    network.add_component(electric_gen)
-    network.add_component(electrolyzer)
-    network.connect(PortRef(demand_h2, "h2_port"), PortRef(h2_node, "h2_port"))
-    network.connect(PortRef(h2_node, "h2_port"), PortRef(electrolyzer, "h2_port"))
-    network.connect(
+    system = System("test")
+    system.add_node(elec_node)
+    system.add_node(h2_node)
+    system.add_component(demand_h2)
+    system.add_component(electric_gen)
+    system.add_component(electrolyzer)
+    system.connect(PortRef(demand_h2, "h2_port"), PortRef(h2_node, "h2_port"))
+    system.connect(PortRef(h2_node, "h2_port"), PortRef(electrolyzer, "h2_port"))
+    system.connect(
         PortRef(elec_node, "electrical_port"), PortRef(electrolyzer, "electrical_port")
     )
-    network.connect(
+    system.connect(
         PortRef(elec_node, "electrical_port"),
         PortRef(electric_gen, "electrical_port"),
     )
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000

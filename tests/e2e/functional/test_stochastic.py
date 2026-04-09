@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
 from gems.study.data import TimeScenarioSeriesData
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,
@@ -113,19 +113,19 @@ def test_stochastic_model_with_HD_for_thermal_startup(
 
     peak = create_component(model=THERMAL_CLUSTER_MODEL_HD, id="PEAK")
 
-    network = Network("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(base)
-    network.add_component(semibase)
-    network.add_component(peak)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(base, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(semibase, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(peak, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(demand)
+    system.add_component(base)
+    system.add_component(semibase)
+    system.add_component(peak)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(base, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(semibase, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(peak, "balance_port"), PortRef(node, "balance_port"))
 
     for block in time_blocks:  # TODO : To manage blocks simply for now
-        problem = build_problem(network, database, block, scenarios)
+        problem = build_problem(system, database, block, scenarios)
         problem.solve(solver_name="highs")
         assert (
             problem.termination_condition == "optimal"
@@ -169,19 +169,19 @@ def test_stochastic_model_with_DH_for_thermal_startup(
 
     peak = create_component(model=THERMAL_CLUSTER_MODEL_DHD, id="PEAK")
 
-    network = Network("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(base)
-    network.add_component(semibase)
-    network.add_component(peak)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(base, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(semibase, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(peak, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(demand)
+    system.add_component(base)
+    system.add_component(semibase)
+    system.add_component(peak)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(base, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(semibase, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(peak, "balance_port"), PortRef(node, "balance_port"))
 
     for block in time_blocks:  # TODO : To manage blocks simply for now
-        problem = build_problem(network, database, block, scenarios)
+        problem = build_problem(system, database, block, scenarios)
         problem.solve(solver_name="highs")
         assert (
             problem.termination_condition == "optimal"

@@ -11,8 +11,8 @@
 # This file is part of the Antares project.
 
 """
-The network module defines the data model for an instance of network,
-including nodes, links, and components (model instantations).
+The system module defines the data model for an instance of a system,
+including components and connections.
 """
 
 import itertools
@@ -48,7 +48,7 @@ def create_component(model: Model, id: str) -> Component:
 @dataclass(frozen=True)
 class Node(Component):
     """
-    A node in the network.
+    A node in the system.
     """
 
     pass
@@ -121,9 +121,9 @@ class PortsConnection:
 
 
 @dataclass
-class Network:
+class System:
     """
-    Network model: simply nodes, links, and components.
+    A system model consisting of components and their connections.
     """
 
     id: str
@@ -133,13 +133,13 @@ class Network:
 
     def _check_node_exists(self, node_id: str) -> None:
         if node_id not in self._nodes:
-            raise ValueError(f"Node {node_id} does not exist in the network.")
+            raise ValueError(f"Node {node_id} does not exist in the system.")
 
     def _check_model_id_unique(self, model: Model) -> None:
         for existing in self.all_components:
             if existing.model is not model and existing.model.id == model.id:
                 raise ValueError(
-                    f"Model id '{model.id}' is already used by a different model object in this network."
+                    f"Model id '{model.id}' is already used by a different model object in this system."
                 )
 
     def add_component(self, component: Component) -> None:
@@ -190,8 +190,8 @@ class Network:
     def is_empty(self) -> bool:
         return (not self._nodes) and (not self._components) and (not self._connections)
 
-    def replicate(self, /, **changes: Any) -> "Network":
-        replica = replace(self, **changes)
+    def replicate(self, /, **changes: Any) -> "System":
+        replica: System = replace(self, **changes)
 
         for node in self.nodes:
             replica.add_node(cast(Node, node.replicate()))

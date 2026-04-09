@@ -20,7 +20,7 @@ from gems.expression.expression import ExpressionNode, literal, param, var
 from gems.expression.indexing_structure import IndexingStructure
 from gems.model import float_parameter, float_variable, model
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
 from gems.study.data import TimeScenarioSeriesData
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,
@@ -65,11 +65,11 @@ def test_large_sum_inside_model_with_loop() -> None:
         },
     )
 
-    network = Network("test")
+    system = System("test")
     cost_model = create_component(model=SIMPLE_COST_MODEL, id="simple_cost")
-    network.add_component(cost_model)
+    system.add_component(cost_model)
 
-    problem = build_problem(network, database, time_blocks[0], scenarios)
+    problem = build_problem(system, database, time_blocks[0], scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert math.isclose(
@@ -96,15 +96,15 @@ def test_large_sum_outside_model_with_loop() -> None:
         objective_contributions={"operational": literal(obj_coeff)},
     )
 
-    network = Network("test")
+    system = System("test")
 
     simple_model = create_component(
         model=SIMPLE_COST_MODEL,
         id="simple_cost",
     )
-    network.add_component(simple_model)
+    system.add_component(simple_model)
 
-    problem = build_problem(network, database, time_blocks[0], scenarios)
+    problem = build_problem(system, database, time_blocks[0], scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == obj_coeff
@@ -146,12 +146,12 @@ def test_large_sum_inside_model_with_sum_operator() -> None:
         },
     )
 
-    network = Network("test")
+    system = System("test")
 
     cost_model = create_component(model=SIMPLE_COST_MODEL, id="simple_cost")
-    network.add_component(cost_model)
+    system.add_component(cost_model)
 
-    problem = build_problem(network, database, time_blocks[0], scenarios)
+    problem = build_problem(system, database, time_blocks[0], scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3 * nb_terms
@@ -181,19 +181,19 @@ def test_large_sum_of_port_connections() -> None:
         for gen_id in range(nb_generators)
     ]
 
-    network = Network("test")
-    network.add_node(node)
+    system = System("test")
+    system.add_node(node)
 
-    network.add_component(demand)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.add_component(demand)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
 
     for gen_id in range(nb_generators):
-        network.add_component(generators[gen_id])
-        network.connect(
+        system.add_component(generators[gen_id])
+        system.connect(
             PortRef(generators[gen_id], "balance_port"), PortRef(node, "balance_port")
         )
 
-    problem = build_problem(network, database, time_block, scenarios)
+    problem = build_problem(system, database, time_block, scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 5 * nb_generators
@@ -221,15 +221,15 @@ def test_basic_balance_on_whole_year() -> None:
 
     gen = create_component(model=GENERATOR_MODEL, id="G")
 
-    network = Network("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     with cProfile.Profile() as pr:
-        problem = build_problem(network, database, time_block, scenarios)
+        problem = build_problem(system, database, time_block, scenarios)
         pr.print_stats(sort=SortKey.CUMULATIVE)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
@@ -260,14 +260,14 @@ def test_basic_balance_on_whole_year_with_large_sum() -> None:
         model=GENERATOR_MODEL_WITH_STORAGE, id="G"
     )  # Limits the total generation inside a TimeBlock
 
-    network = Network("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
+    system = System("test")
+    system.add_node(node)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
-    problem = build_problem(network, database, time_block, scenarios)
+    problem = build_problem(system, database, time_block, scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 30 * 100 * horizon

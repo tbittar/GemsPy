@@ -46,7 +46,7 @@ def test_consistency_check_ok(
 ) -> None:
     result_lib = resolve_library([input_library])
     result_system = resolve_system(input_system, result_lib)
-    consistency_check(result_system.components, result_lib["basic"].models)
+    consistency_check(result_system, result_lib["basic"].models)
 
 
 def test_load_input_system_ok(tmp_path: Path) -> None:
@@ -93,4 +93,4 @@ def test_consistency_check_ko(
         ValueError,
         match=r"Error: Component G has invalid model ID: basic.generator",
     ):
-        consistency_check(result_comp.components, result_lib["basic"].models)
+        consistency_check(result_comp, result_lib["basic"].models)

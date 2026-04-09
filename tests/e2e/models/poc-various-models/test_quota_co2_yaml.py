@@ -19,7 +19,7 @@ import math
 from gems.model.library import Library
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
 
 
 def test_quota_co2(
@@ -51,22 +51,22 @@ def test_quota_co2(
     demand = create_component(model=demand_model, id="Demand")
     monQuotaCO2 = create_component(model=quota_co2_model, id="QuotaCO2")
 
-    network = Network("test")
-    network.add_node(n1)
-    network.add_node(n2)
-    network.add_component(oil1)
-    network.add_component(coal1)
-    network.add_component(l12)
-    network.add_component(demand)
-    network.add_component(monQuotaCO2)
+    system = System("test")
+    system.add_node(n1)
+    system.add_node(n2)
+    system.add_component(oil1)
+    system.add_component(coal1)
+    system.add_component(l12)
+    system.add_component(demand)
+    system.add_component(monQuotaCO2)
 
-    network.connect(PortRef(demand, "injection_port"), PortRef(n2, "injection_port"))
-    network.connect(PortRef(n2, "injection_port"), PortRef(l12, "injection_port_from"))
-    network.connect(PortRef(l12, "injection_port_to"), PortRef(n1, "injection_port"))
-    network.connect(PortRef(n1, "injection_port"), PortRef(oil1, "injection_port"))
-    network.connect(PortRef(n2, "injection_port"), PortRef(coal1, "injection_port"))
-    network.connect(PortRef(oil1, "co2_port"), PortRef(monQuotaCO2, "emission_port"))
-    network.connect(PortRef(coal1, "co2_port"), PortRef(monQuotaCO2, "emission_port"))
+    system.connect(PortRef(demand, "injection_port"), PortRef(n2, "injection_port"))
+    system.connect(PortRef(n2, "injection_port"), PortRef(l12, "injection_port_from"))
+    system.connect(PortRef(l12, "injection_port_to"), PortRef(n1, "injection_port"))
+    system.connect(PortRef(n1, "injection_port"), PortRef(oil1, "injection_port"))
+    system.connect(PortRef(n2, "injection_port"), PortRef(coal1, "injection_port"))
+    system.connect(PortRef(oil1, "co2_port"), PortRef(monQuotaCO2, "emission_port"))
+    system.connect(PortRef(coal1, "co2_port"), PortRef(monQuotaCO2, "emission_port"))
 
     database = DataBase()
     database.add_data("Demand", "demand", ConstantData(100))
@@ -82,7 +82,7 @@ def test_quota_co2(
     database.add_data("QuotaCO2", "quota", ConstantData(150))
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
