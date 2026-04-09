@@ -102,11 +102,12 @@ def run_study(
 
         builder = SimulationTableBuilder(simulation_id=study_dir.stem)
         df = builder.build(problem)
-        output_file = (
-            study_dir
-            / "output"
-            / f"{study_dir.stem}_simulation_table_{time.time()}.csv"
-        )
+        output_dir = study_dir / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        output_file = output_dir / f"{study_dir.stem}_simulation_table_{timestamp}.csv"
+
         df.to_csv(output_file, index=False)
 
     return problem
