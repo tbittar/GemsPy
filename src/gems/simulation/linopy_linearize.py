@@ -47,7 +47,6 @@ from gems.simulation.vectorized_builder import (
 )
 
 
-
 @dataclass(kw_only=True)
 class VectorizedLinopyBuilder(VectorizedBuilderBase):
     """
