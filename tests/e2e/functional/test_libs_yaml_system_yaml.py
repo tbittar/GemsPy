@@ -141,3 +141,48 @@ def test_short_term_storage_base_with_yaml(
     assert problem.objective_value == 0
 
     # TODO: update variable access
+
+
+def test_varying_down_time(
+    setup_test: Callable[[], Tuple[Network, DataBase]],
+) -> None:
+    """
+    Two thermal clusters with different min-down-times actually start and stop,
+    proving the per-component aggregation constraint is binding.
+
+    Setup:
+      G_0: cost=10, p_min=p_max=50, d_min_down=3
+      G_1: cost=15, p_min=p_max=50, d_min_down=5
+      G_2: cost=50, p_max=100 (backup generator, no p_min)
+      Demand: [100,100,100, 0,0,0, 100,100,100,100]
+
+    Both G_0 and G_1 have p_min=50, so they MUST be off when demand=0 (t=3,4,5).
+    They stop at t=3 and cannot restart until their min-down-time is met:
+      G_0 (d_min_down=3): off at t=3,4,5 → restarts at t=6
+      G_1 (d_min_down=5): off at t=3,4,5,6,7 → restarts at t=8
+
+    At t=6 and t=7, demand=100 but G_1 is still locked out → G_2 covers 50.
+
+    The fact that objective=12250 (not 9250 which would be achieved if G_1
+    could restart at t=6) proves d_min_down=5 is binding.
+
+    Expected objective:
+      G_0: 7 steps × 50 × 10 =  3500
+      G_1: 5 steps × 50 × 15 =  3750
+      G_2: 2 steps × 50 × 50 =  5000
+      Total                   = 12250
+    """
+    network, database = setup_test("system_with_varying_down_time.yml")
+    scenarios = 1
+    horizon = 10
+
+    problem = build_problem(
+        network,
+        database,
+        TimeBlock(0, list(range(horizon))),
+        scenarios,
+        border_management=BlockBorderManagement.CYCLE,
+    )
+    problem.solve(solver_name="highs")
+    assert problem.termination_condition == "optimal"
+    assert problem.objective_value == pytest.approx(12250.0)
