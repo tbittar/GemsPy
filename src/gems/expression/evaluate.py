@@ -47,10 +47,12 @@ class ValueProvider(ABC):
     """
 
     @abstractmethod
-    def get_variable_value(self, name: str) -> float: ...
+    def get_variable_value(self, name: str) -> float:
+        ...
 
     @abstractmethod
-    def get_parameter_value(self, name: str) -> float: ...
+    def get_parameter_value(self, name: str) -> float:
+        ...
 
 
 @dataclass(frozen=True)
