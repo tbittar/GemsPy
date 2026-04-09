@@ -138,7 +138,7 @@ GENERATOR_MODEL = model(
 )
 
 GENERATOR_MODEL_WITH_PMIN = model(
-    id="GEN",
+    id="GEN_WITH_PMIN",
     parameters=[
         float_parameter("p_max", CONSTANT),
         float_parameter("p_min", CONSTANT),
@@ -172,7 +172,7 @@ A model for a linear cost generation limited by a maximum generation per time-st
 and total generation in whole period. It considers a full storage with no replenishing
 """
 GENERATOR_MODEL_WITH_STORAGE = model(
-    id="GEN",
+    id="GEN_WITH_STORAGE",
     parameters=[
         float_parameter("p_max", CONSTANT),
         float_parameter("cost", CONSTANT),
@@ -202,7 +202,7 @@ GENERATOR_MODEL_WITH_STORAGE = model(
 
 # For now, no starting cost
 THERMAL_CLUSTER_MODEL_HD = model(
-    id="GEN",
+    id="THERMAL_CLUSTER_HD",
     parameters=[
         float_parameter("p_max", CONSTANT),  # p_max of a single unit
         float_parameter("p_min", CONSTANT),
@@ -274,7 +274,7 @@ THERMAL_CLUSTER_MODEL_HD = model(
 
 # Same model as previous one, except that starting/stopping variables are now non anticipative
 THERMAL_CLUSTER_MODEL_DHD = model(
-    id="GEN",
+    id="THERMAL_CLUSTER_DHD",
     parameters=[
         float_parameter("p_max", CONSTANT),  # p_max of a single unit
         float_parameter("p_min", CONSTANT),
@@ -425,7 +425,7 @@ SHORT_TERM_STORAGE_SIMPLE = model(
 
 """ Simple thermal unit that can be invested on"""
 THERMAL_CANDIDATE = model(
-    id="GEN",
+    id="THERMAL_CANDIDATE",
     parameters=[
         float_parameter("op_cost", CONSTANT),
         float_parameter("invest_cost", CONSTANT),
@@ -459,7 +459,7 @@ THERMAL_CANDIDATE = model(
 
 """ Simple thermal unit that can be invested on and with already installed capacity"""
 THERMAL_CANDIDATE_WITH_ALREADY_INSTALLED_CAPA = model(
-    id="GEN",
+    id="THERMAL_CANDIDATE_WITH_ALREADY_INSTALLED_CAPA",
     parameters=[
         float_parameter("op_cost", CONSTANT),
         float_parameter("invest_cost", CONSTANT),

@@ -60,7 +60,7 @@ COUPLING = ProblemContext.COUPLING
 @pytest.fixture
 def thermal_candidate() -> Model:
     THERMAL_CANDIDATE = model(
-        id="GEN",
+        id="THERMAL_CANDIDATE",
         parameters=[
             float_parameter("op_cost", CONSTANT),
             float_parameter("invest_cost", CONSTANT),
