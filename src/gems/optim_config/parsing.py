@@ -30,7 +30,7 @@ from gems.utils import ModifiedBaseModel
 
 if TYPE_CHECKING:
     from gems.model.model import Model
-    from gems.study.network import Network
+    from gems.study.network import System
 
 OPTIM_CONFIG_FILENAME = "optim-config.yml"
 
@@ -205,7 +205,7 @@ def _check_master_objectives_use_master_variables(
                     )
 
 
-def validate_optim_config(config: OptimConfig, network: "Network") -> None:
+def validate_optim_config(config: OptimConfig, system: "System") -> None:
     """Cross-validate optim-config entries against the resolved network.
 
     Checks that every referenced ID exists, that master variables do not
@@ -213,7 +213,7 @@ def validate_optim_config(config: OptimConfig, network: "Network") -> None:
     variables assigned to master or master-and-subproblems.
     Raises ValueError listing all violations.
     """
-    models_in_network = {c.model.id: c.model for c in network.all_components}
+    models_in_network = {c.model.id: c.model for c in system.all_components}
     errors: List[str] = []
 
     for model_config in config.models:

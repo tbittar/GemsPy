@@ -190,9 +190,9 @@ def _build_slave_port_array(
     incidence matrix A[i, j] for each group, and accumulates
     ``sum_j A[i,j] * expr_master[j]`` into the result.
     """
-    per_master: Dict[
-        Tuple[str, PortFieldId], List[Tuple[int, Component]]
-    ] = defaultdict(list)
+    per_master: Dict[Tuple[str, PortFieldId], List[Tuple[int, Component]]] = (
+        defaultdict(list)
+    )
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
     comp_id_set = set(comp_ids)
@@ -826,7 +826,7 @@ class DecomposedProblems:
 
 
 def build_decomposed_problems(
-    network: Network,
+    system: System,
     database: DataBase,
     block: TimeBlock,
     scenarios: int,
@@ -846,7 +846,7 @@ def build_decomposed_problems(
 
     Parameters
     ----------
-    network, database, block, scenarios:
+    system, database, block, scenarios:
         Same semantics as :func:`build_problem`.
     optim_config:
         Parsed ``OptimConfig`` from an ``optim-config.yml`` file.
@@ -864,7 +864,7 @@ def build_decomposed_problems(
             "Only BlockBorderManagement.CYCLE is supported."
         )
 
-    database.requirements_consistency(network)
+    database.requirements_consistency(system)
 
     master_locs: Set["ElementLocation"] = {
         ElementLocation.MASTER,
@@ -877,7 +877,7 @@ def build_decomposed_problems(
 
     subproblem = _LinopyProblemBuilder(
         name=subproblem_name,
-        network=network,
+        system=system,
         database=database,
         block=block,
         scenarios=scenarios,
@@ -888,7 +888,7 @@ def build_decomposed_problems(
     if _has_any_master_element(optim_config):
         master = _LinopyProblemBuilder(
             name=master_name,
-            network=network,
+            system=system,
             database=database,
             block=block,
             scenarios=scenarios,
