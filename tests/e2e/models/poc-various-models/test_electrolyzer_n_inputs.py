@@ -132,19 +132,15 @@ def test_electrolyzer_n_inputs_1() -> None:
 
     df = SimulationTableBuilder().build(problem)
     assert math.isclose(
-        df[(df["component"] == "ep1") & (df["output"] == "generation")]["value"].iloc[
-            0
-        ],
+        df.component("ep1").output("generation").value(time_index=0, scenario_index=0),
         70,
     )
     assert math.isclose(
-        df[(df["component"] == "ep2") & (df["output"] == "generation")]["value"].iloc[
-            0
-        ],
+        df.component("ep2").output("generation").value(time_index=0, scenario_index=0),
         42,
     )
     assert math.isclose(
-        df[(df["component"] == "gp") & (df["output"] == "generation")]["value"].iloc[0],
+        df.component("gp").output("generation").value(time_index=0, scenario_index=0),
         30,
     )
 
@@ -225,19 +221,15 @@ def test_electrolyzer_n_inputs_2() -> None:
 
     df = SimulationTableBuilder().build(problem)
     assert math.isclose(
-        df[(df["component"] == "ep1") & (df["output"] == "generation")]["value"].iloc[
-            0
-        ],
+        df.component("ep1").output("generation").value(time_index=0, scenario_index=0),
         70,
     )
     assert math.isclose(
-        df[(df["component"] == "ep2") & (df["output"] == "generation")]["value"].iloc[
-            0
-        ],
+        df.component("ep2").output("generation").value(time_index=0, scenario_index=0),
         42,
     )
     assert math.isclose(
-        df[(df["component"] == "gp") & (df["output"] == "generation")]["value"].iloc[0],
+        df.component("gp").output("generation").value(time_index=0, scenario_index=0),
         30,
     )
 
@@ -327,19 +319,15 @@ def test_electrolyzer_n_inputs_3() -> None:
 
     df = SimulationTableBuilder().build(problem)
     assert math.isclose(
-        df[(df["component"] == "ep1") & (df["output"] == "generation")]["value"].iloc[
-            0
-        ],
+        df.component("ep1").output("generation").value(time_index=0, scenario_index=0),
         70,
     )
     assert math.isclose(
-        df[(df["component"] == "ep2") & (df["output"] == "generation")]["value"].iloc[
-            0
-        ],
+        df.component("ep2").output("generation").value(time_index=0, scenario_index=0),
         30,
     )
     assert math.isclose(
-        df[(df["component"] == "gp") & (df["output"] == "generation")]["value"].iloc[0],
+        df.component("gp").output("generation").value(time_index=0, scenario_index=0),
         30,
     )
 
@@ -421,18 +409,14 @@ def test_electrolyzer_n_inputs_4() -> None:
 
     df = SimulationTableBuilder().build(problem)
     assert math.isclose(
-        df[(df["component"] == "ep1") & (df["output"] == "generation")]["value"].iloc[
-            0
-        ],
+        df.component("ep1").output("generation").value(time_index=0, scenario_index=0),
         70,
     )
     assert math.isclose(
-        df[(df["component"] == "ep2") & (df["output"] == "generation")]["value"].iloc[
-            0
-        ],
+        df.component("ep2").output("generation").value(time_index=0, scenario_index=0),
         30,
     )
     assert math.isclose(
-        df[(df["component"] == "gp") & (df["output"] == "generation")]["value"].iloc[0],
+        df.component("gp").output("generation").value(time_index=0, scenario_index=0),
         30,
     )

@@ -74,3 +74,8 @@ exclude = '''
 
 [tool.isort]
 profile = "black"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
