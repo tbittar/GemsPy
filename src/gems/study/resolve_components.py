@@ -83,7 +83,9 @@ def _resolve_port_refs(
     component_1 = _get_component_by_id(all_components, connection.component1)
     component_2 = _get_component_by_id(all_components, connection.component2)
     assert component_1 is not None and component_2 is not None
-    return PortRef(component_1, connection.port1), PortRef(component_2, connection.port2)
+    return PortRef(component_1, connection.port1), PortRef(
+        component_2, connection.port2
+    )
 
 
 def _get_component_by_id(
@@ -93,9 +95,7 @@ def _get_component_by_id(
     return components_dict.get(component_id)
 
 
-def consistency_check(
-    system: System, input_models: Dict[str, Model]
-) -> bool:
+def consistency_check(system: System, input_models: Dict[str, Model]) -> bool:
     """
     Checks if all components in the System have a valid model from the library.
     Returns True if all components are consistent, raises ValueError otherwise.
