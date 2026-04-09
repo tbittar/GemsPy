@@ -43,10 +43,12 @@ from gems.model.common import ValueType
 from gems.model.model import Model
 from gems.model.port import PortField, PortFieldId
 from gems.simulation.linopy_linearize import (
-    LinopyExpression,
+    VectorizedExpr,
     VectorizedLinopyBuilder,
     _linopy_add,
 )
+
+LinopyExpression = VectorizedExpr  # backward-compatible local alias
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
 from gems.study.network import Component, Network

@@ -13,7 +13,7 @@
 """
 Shared abstract base for vectorized expression builders.
 
-Provides :data:`LinopyExpression`, :func:`_linopy_add`, and
+Provides :data:`VectorizedExpr`, :func:`_linopy_add`, and
 :class:`VectorizedBuilderBase`, the abstract parent of both the pre-solve
 (:class:`~gems.simulation.linopy_linearize.VectorizedLinopyBuilder`) and
 post-solve (:class:`~gems.simulation.extra_output.VectorizedExtraOutputBuilder`)
@@ -33,7 +33,7 @@ behaviour (operand-swap in addition, type guards in nonlinear functions).
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import linopy
 import numpy as np
@@ -69,10 +69,11 @@ from gems.model.port import PortFieldId
 # Public types
 # ---------------------------------------------------------------------------
 
-LinopyExpression = Union[xr.DataArray, linopy.LinearExpression, linopy.Variable]
-"""Union of all value types that may appear during linopy expression building."""
+VectorizedExpr = Union[xr.DataArray, linopy.LinearExpression, linopy.Variable]
+"""Union of all value types that may appear during vectorized expression building."""
 
-T_expr = TypeVar("T_expr")
+# Backward-compatible alias kept for external callers that imported the old name.
+LinopyExpression = VectorizedExpr
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +81,7 @@ T_expr = TypeVar("T_expr")
 # ---------------------------------------------------------------------------
 
 
-def _linopy_add(a: LinopyExpression, b: LinopyExpression) -> LinopyExpression:
+def _linopy_add(a: VectorizedExpr, b: VectorizedExpr) -> VectorizedExpr:
     """Add two linopy-compatible expressions, keeping linopy types on the left.
 
     ``xr.DataArray.__add__`` does not recognise linopy objects, so
@@ -99,7 +100,7 @@ def _linopy_add(a: LinopyExpression, b: LinopyExpression) -> LinopyExpression:
 
 
 @dataclass(kw_only=True)
-class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
+class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr]):
     """
     Abstract base for vectorized expression builders.
 
@@ -128,7 +129,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
 
     model_id: str
     param_arrays: Dict[Tuple[str, str], xr.DataArray]
-    port_arrays: Dict[PortFieldId, T_expr]
+    port_arrays: Dict[PortFieldId, VectorizedExpr]
     block_length: int
     scenarios_count: int
 
@@ -137,7 +138,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
     # ------------------------------------------------------------------ #
 
     @abstractmethod
-    def variable(self, node: VariableNode) -> T_expr:
+    def variable(self, node: VariableNode) -> VectorizedExpr:
         ...
 
     # ------------------------------------------------------------------ #
@@ -159,10 +160,10 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
     # Arithmetic operators                                                  #
     # ------------------------------------------------------------------ #
 
-    def negation(self, node: NegationNode) -> T_expr:
+    def negation(self, node: NegationNode) -> VectorizedExpr:
         return -visit(node.operand, self)  # type: ignore[operator,return-value]
 
-    def addition(self, node: AdditionNode) -> T_expr:
+    def addition(self, node: AdditionNode) -> VectorizedExpr:
         """Simple left-to-right addition (DataArray default).
 
         Overridden in
@@ -175,17 +176,17 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
             result = result + op  # type: ignore[operator]
         return result  # type: ignore[return-value]
 
-    def multiplication(self, node: MultiplicationNode) -> T_expr:
+    def multiplication(self, node: MultiplicationNode) -> VectorizedExpr:
         left = visit(node.left, self)
         right = visit(node.right, self)
         return left * right  # type: ignore[operator,return-value]
 
-    def division(self, node: DivisionNode) -> T_expr:
+    def division(self, node: DivisionNode) -> VectorizedExpr:
         left = visit(node.left, self)
         right = visit(node.right, self)
         return left / right  # type: ignore[operator,return-value]
 
-    def comparison(self, node: ComparisonNode) -> T_expr:
+    def comparison(self, node: ComparisonNode) -> VectorizedExpr:
         raise NotImplementedError(
             f"ComparisonNode is not supported by {type(self).__name__}. "
             "Decompose comparisons into expressions before visiting."
@@ -195,7 +196,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
     # Time operators                                                        #
     # ------------------------------------------------------------------ #
 
-    def time_shift(self, node: TimeShiftNode) -> T_expr:
+    def time_shift(self, node: TimeShiftNode) -> VectorizedExpr:
         operand = visit(node.operand, self)
 
         # Fast path: compile-time integer constant.
@@ -227,14 +228,14 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
             acc = contrib if acc is None else _linopy_add(acc, contrib)
         return acc  # type: ignore[return-value]
 
-    def time_eval(self, node: TimeEvalNode) -> T_expr:
+    def time_eval(self, node: TimeEvalNode) -> VectorizedExpr:
         timestep = self._eval_int_expr(node.eval_time) % self.block_length
         operand = visit(node.operand, self)
         if not self._has_dim(operand, "time"):
             return operand  # type: ignore[return-value]
         return operand.isel(time=timestep)  # type: ignore[union-attr,attr-defined,return-value]
 
-    def time_sum(self, node: TimeSumNode) -> T_expr:
+    def time_sum(self, node: TimeSumNode) -> VectorizedExpr:
         try:
             from_shift_scalar: Optional[int] = self._eval_int(node.from_time)
         except (ValueError, KeyError):
@@ -297,7 +298,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
             acc = contrib if acc is None else _linopy_add(acc, contrib)
         return acc  # type: ignore[return-value]
 
-    def all_time_sum(self, node: AllTimeSumNode) -> T_expr:
+    def all_time_sum(self, node: AllTimeSumNode) -> VectorizedExpr:
         operand = visit(node.operand, self)
         if self._has_dim(operand, "time"):
             return operand.sum("time")  # type: ignore[union-attr,attr-defined,return-value]
@@ -307,7 +308,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
     # Scenario operators                                                    #
     # ------------------------------------------------------------------ #
 
-    def scenario_operator(self, node: ScenarioOperatorNode) -> T_expr:
+    def scenario_operator(self, node: ScenarioOperatorNode) -> VectorizedExpr:
         if node.name != "Expectation":
             raise NotImplementedError(
                 f"Scenario operator {node.name!r} is not supported. "
@@ -322,7 +323,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
     # Port operators                                                        #
     # ------------------------------------------------------------------ #
 
-    def port_field(self, node: PortFieldNode) -> T_expr:
+    def port_field(self, node: PortFieldNode) -> VectorizedExpr:
         key = PortFieldId(node.port_name, node.field_name)
         if key not in self.port_arrays:
             raise KeyError(
@@ -331,7 +332,7 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
             )
         return self.port_arrays[key]
 
-    def port_field_aggregator(self, node: PortFieldAggregatorNode) -> T_expr:
+    def port_field_aggregator(self, node: PortFieldAggregatorNode) -> VectorizedExpr:
         if node.aggregator != "PortSum":
             raise NotImplementedError(
                 f"Port aggregator {node.aggregator!r} is not supported. "
@@ -355,22 +356,22 @@ class VectorizedBuilderBase(ExpressionVisitor[T_expr]):
     # Overridden in VectorizedLinopyBuilder to raise when operands contain
     # linopy types: these operations cannot be expressed as linear constraints.
 
-    def floor(self, node: FloorNode) -> T_expr:
+    def floor(self, node: FloorNode) -> VectorizedExpr:
         operand = visit(node.operand, self)
         return np.floor(operand)  # type: ignore[return-value,arg-type,call-overload]
 
-    def ceil(self, node: CeilNode) -> T_expr:
+    def ceil(self, node: CeilNode) -> VectorizedExpr:
         operand = visit(node.operand, self)
         return np.ceil(operand)  # type: ignore[return-value,arg-type,call-overload]
 
-    def maximum(self, node: MaxNode) -> T_expr:
+    def maximum(self, node: MaxNode) -> VectorizedExpr:
         operands = [visit(op, self) for op in node.operands]
         result = operands[0]
         for op in operands[1:]:
             result = xr.where(result >= op, result, op)  # type: ignore[no-untyped-call,assignment,operator]
         return result  # type: ignore[return-value]
 
-    def minimum(self, node: MinNode) -> T_expr:
+    def minimum(self, node: MinNode) -> VectorizedExpr:
         operands = [visit(op, self) for op in node.operands]
         result = operands[0]
         for op in operands[1:]:
