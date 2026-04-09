@@ -213,7 +213,7 @@ def test_requirements_consistency_time_varying_parameter_with_correct_data_passe
         model=mock_generator_with_fixed_scenario_time_varying_param, id="G"
     )
 
-    cost_data = TimeSeriesData({TimeIndex(0): 100, TimeIndex(1): 50})
+    cost_data = TimeSeriesData(pd.Series({TimeIndex(0): 100, TimeIndex(1): 50}))
 
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
@@ -275,7 +275,7 @@ def test_requirements_consistency_time_varying_parameter_with_scenario_varying_d
 @pytest.mark.parametrize(
     "cost_data",
     [
-        (TimeSeriesData({TimeIndex(0): 100, TimeIndex(1): 50})),
+        (TimeSeriesData(pd.Series({TimeIndex(0): 100, TimeIndex(1): 50}))),
         (
             TimeScenarioSeriesData(
                 pd.DataFrame({(0, 0): [100, 500], (0, 1): [50, 540]}, index=[0, 1])
