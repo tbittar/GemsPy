@@ -68,7 +68,7 @@ def _resolve_component(
     libraries: dict[str, Library], component: InputComponent
 ) -> Component:
     lib_id, model_id = component.model.split(".")
-    model = libraries[lib_id].models[model_id]
+    model = libraries[lib_id].models[f"{lib_id}.{model_id}"]
 
     return Component(
         model=model,

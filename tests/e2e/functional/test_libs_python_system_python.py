@@ -186,7 +186,7 @@ def test_variable_bound() -> None:
     """
 
     generator_model = model(
-        id="GEN",
+        id="GEN_WITH_VARIABLE_BOUND",
         parameters=[
             float_parameter("p_max", IndexingStructure(False, False)),
             float_parameter("cost", IndexingStructure(False, False)),
@@ -205,9 +205,9 @@ def test_variable_bound() -> None:
                 definition=var("generation"),
             )
         ],
-        objective_operational_contribution=(param("cost") * var("generation"))
-        .time_sum()
-        .expec(),
+        objective_contributions={
+            "operational": (param("cost") * var("generation")).time_sum().expec()
+        },
     )
 
     network = create_one_node_network(generator_model)

@@ -58,9 +58,11 @@ def test_large_sum_inside_model_with_loop() -> None:
             float_parameter(f"cost_{i}", IndexingStructure(False, False))
             for i in range(1, nb_terms)
         ],
-        objective_operational_contribution=cast(
-            ExpressionNode, sum(param(f"cost_{i}") for i in range(1, nb_terms))
-        ),
+        objective_contributions={
+            "operational": cast(
+                ExpressionNode, sum(param(f"cost_{i}") for i in range(1, nb_terms))
+            )
+        },
     )
 
     network = System("test")
@@ -91,7 +93,7 @@ def test_large_sum_outside_model_with_loop() -> None:
     SIMPLE_COST_MODEL = model(
         id="SIMPLE_COST",
         parameters=[],
-        objective_operational_contribution=literal(obj_coeff),
+        objective_contributions={"operational": literal(obj_coeff)},
     )
 
     network = System("test")
@@ -139,7 +141,9 @@ def test_large_sum_inside_model_with_sum_operator() -> None:
                 structure=IndexingStructure(True, False),
             ),
         ],
-        objective_operational_contribution=(param("cost") * var("var")).time_sum(),
+        objective_contributions={
+            "operational": (param("cost") * var("var")).time_sum()
+        },
     )
 
     network = System("test")

@@ -86,9 +86,9 @@ def test_consistency_check_ko(
 ) -> None:
     result_lib = resolve_library([input_library])
     result_comp = resolve_system(input_system, result_lib)
-    result_lib["basic"].models.pop("generator")
+    result_lib["basic"].models.pop("basic.generator")
     with pytest.raises(
         ValueError,
-        match=r"Error: Component G has invalid model ID: generator",
+        match=r"Error: Component G has invalid model ID: basic.generator",
     ):
         consistency_check(result_comp, result_lib["basic"].models)

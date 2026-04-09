@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -5,7 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import xarray as xr
-from attr import dataclass
 
 from gems.expression.visitor import visit
 from gems.simulation.extra_output import VectorizedExtraOutputBuilder
@@ -90,7 +90,7 @@ class SimulationTableBuilder:
     ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
 
-        var_solution_arrays: Dict[Tuple[int, str], xr.DataArray] = {}
+        var_solution_arrays: Dict[Tuple[str, str], xr.DataArray] = {}
         solution = problem.linopy_model.solution
         if solution is not None:
             for (mk, vname), lv in problem._linopy_vars.items():
@@ -109,8 +109,7 @@ class SimulationTableBuilder:
                 problem.model_components,
                 problem.network,
                 lambda mk_, m: VectorizedExtraOutputBuilder(
-                    model_key=mk_,
-                    model_name=m.id,
+                    model_id=mk_,
                     param_arrays=problem.param_arrays,
                     var_solution_arrays=var_solution_arrays,
                     port_arrays={},
@@ -121,8 +120,7 @@ class SimulationTableBuilder:
 
             for out_id, expr_node in model.extra_outputs.items():
                 builder = VectorizedExtraOutputBuilder(
-                    model_key=mk,
-                    model_name=model.id,
+                    model_id=mk,
                     param_arrays=problem.param_arrays,
                     var_solution_arrays=var_solution_arrays,
                     port_arrays=port_arrays,

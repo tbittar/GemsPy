@@ -37,11 +37,11 @@ def test_quota_co2(
     QuotaCO2
 
     Test of a generation of energy and co2 with a quota to limit the emission"""
-    gen_model = lib_dict_sc["basic"].models["generator_with_co2"]
-    node_model = lib_dict["basic"].models["node"]
-    quota_co2_model = lib_dict_sc["basic"].models["quota_co2"]
-    demand_model = lib_dict["basic"].models["demand"]
-    link_model = lib_dict_sc["basic"].models["link"]
+    gen_model = lib_dict_sc["basic"].models["basic.generator_with_co2"]
+    node_model = lib_dict["basic"].models["basic.node"]
+    quota_co2_model = lib_dict_sc["basic"].models["basic.quota_co2"]
+    demand_model = lib_dict["basic"].models["basic.demand"]
+    link_model = lib_dict_sc["basic"].models["basic.link"]
 
     n1 = Node(model=node_model, id="N1")
     n2 = Node(model=node_model, id="N2")

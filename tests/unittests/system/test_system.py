@@ -48,7 +48,7 @@ def test_network(lib_dict: dict[str, Library]) -> None:
     with pytest.raises(KeyError):
         network.get_node("N")
 
-    node_model = lib_dict["basic"].models["node"]
+    node_model = lib_dict["basic"].models["basic.node"]
 
     N1 = Node(model=node_model, id="N1")
     N2 = Node(model=node_model, id="N2")

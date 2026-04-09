@@ -29,8 +29,6 @@ from gems.expression.expression import (
     AllTimeSumNode,
     BinaryOperatorNode,
     CeilNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     FloorNode,
     MaxNode,
     MinNode,
@@ -128,16 +126,6 @@ class _PortFieldExpressionChecker(ExpressionVisitor[None]):
 
     def parameter(self, node: ParameterNode) -> None:
         pass
-
-    def comp_parameter(self, node: ComponentParameterNode) -> None:
-        raise ValueError(
-            "Port definition must not contain a parameter associated to a component."
-        )
-
-    def comp_variable(self, node: ComponentVariableNode) -> None:
-        raise ValueError(
-            "Port definition must not contain a variable associated to a component."
-        )
 
     def time_shift(self, node: TimeShiftNode) -> None:
         visit(node.operand, self)

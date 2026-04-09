@@ -34,7 +34,7 @@ def test_basic_balance_on_whole_year_with_large_sum() -> None:
     """
 
     durations = {}
-    for horizon in [10000]:
+    for horizon in np.logspace(1, 6, num=10):
         durations[int(horizon)] = build_for_horizon(int(horizon), 1)
 
     duration_df = pd.DataFrame.from_dict(durations, orient="index")

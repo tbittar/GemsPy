@@ -135,8 +135,16 @@ class System:
         if node_id not in self._nodes:
             raise ValueError(f"Node {node_id} does not exist in the network.")
 
+    def _check_model_id_unique(self, model: Model) -> None:
+        for existing in self.all_components:
+            if existing.model is not model and existing.model.id == model.id:
+                raise ValueError(
+                    f"Model id '{model.id}' is already used by a different model object in this network."
+                )
+
     def add_component(self, component: Component) -> None:
         require_not_none(component)
+        self._check_model_id_unique(component.model)
         self._components[component.id] = component
 
     def get_component(self, component_id: str) -> Component:
@@ -151,6 +159,7 @@ class System:
         return self._components.values()
 
     def add_node(self, node: Node) -> None:
+        self._check_model_id_unique(node.model)
         self._nodes[node.id] = node
 
     def get_node(self, node_id: str) -> Node:

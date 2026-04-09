@@ -60,7 +60,7 @@ COUPLING = ProblemContext.COUPLING
 @pytest.fixture
 def thermal_candidate() -> Model:
     THERMAL_CANDIDATE = model(
-        id="GEN",
+        id="THERMAL_CANDIDATE",
         parameters=[
             float_parameter("op_cost", CONSTANT),
             float_parameter("invest_cost", CONSTANT),
@@ -87,10 +87,10 @@ def thermal_candidate() -> Model:
                 name="Max generation", expression=var("generation") <= var("p_max")
             )
         ],
-        objective_operational_contribution=(param("op_cost") * var("generation"))
-        .time_sum()
-        .expec(),
-        objective_investment_contribution=param("invest_cost") * var("p_max"),
+        objective_contributions={
+            "operational": (param("op_cost") * var("generation")).time_sum().expec(),
+            "investment": param("invest_cost") * var("p_max"),
+        },
     )
     return THERMAL_CANDIDATE
 
@@ -137,10 +137,10 @@ def discrete_candidate() -> Model:
                 context=INVESTMENT,
             ),
         ],
-        objective_operational_contribution=(param("op_cost") * var("generation"))
-        .time_sum()
-        .expec(),
-        objective_investment_contribution=param("invest_cost") * var("p_max"),
+        objective_contributions={
+            "operational": (param("op_cost") * var("generation")).time_sum().expec(),
+            "investment": param("invest_cost") * var("p_max"),
+        },
     )
     return DISCRETE_CANDIDATE
 

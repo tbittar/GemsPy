@@ -12,8 +12,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Mapping, Optional
+from typing import Dict, List, Mapping, Optional, Union
 
+import numpy as np
 import pandas as pd
 
 from gems.study.network import System
@@ -51,7 +52,9 @@ class Scenarization:
 @dataclass(frozen=True)
 class AbstractDataStructure(ABC):
     @abstractmethod
-    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
+    def get_value(
+        self, timestep: Optional[List[int]], scenario: Optional[int]
+    ) -> Union[float, np.ndarray]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -67,7 +70,9 @@ class AbstractDataStructure(ABC):
 class ConstantData(AbstractDataStructure):
     value: float
 
-    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
+    def get_value(
+        self, timestep: Optional[List[int]], scenario: Optional[int]
+    ) -> float:
         return self.value
 
     # ConstantData can be used for time varying or constant models
@@ -85,12 +90,14 @@ class TimeSeriesData(AbstractDataStructure):
     can be defined by referencing one of those timeseries by its ID.
     """
 
-    time_series: Mapping[TimeIndex, float]
+    time_series: pd.Series
 
-    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
+    def get_value(
+        self, timestep: Optional[List[int]], scenario: Optional[int]
+    ) -> np.ndarray:
         if timestep is None:
             raise KeyError("Time series data requires a time index.")
-        return self.time_series[TimeIndex(timestep)]
+        return self.time_series.iloc[np.array(timestep)].to_numpy()
 
     def check_requirement(self, time: bool, scenario: bool) -> bool:
         if not isinstance(self, TimeSeriesData):
@@ -110,7 +117,9 @@ class ScenarioSeriesData(AbstractDataStructure):
     scenario_series: Mapping[ScenarioIndex, float]
     scenarization: Optional[Scenarization] = None
 
-    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
+    def get_value(
+        self, timestep: Optional[List[int]], scenario: Optional[int]
+    ) -> float:
         if scenario is None:
             raise KeyError("Scenario series data requires a scenario index.")
         if self.scenarization:
@@ -154,16 +163,12 @@ def load_ts_from_file(
     )
 
 
-def dataframe_to_time_series(ts_dataframe: pd.DataFrame) -> Dict[TimeIndex, float]:
+def dataframe_to_time_series(ts_dataframe: pd.DataFrame) -> pd.Series:
     if ts_dataframe.shape[1] != 1:
         raise ValueError(
             f"Could not convert input data to time series data. Expect data series with exactly one column, got shape {ts_dataframe.shape}"
         )
-    df_index = ts_dataframe.index.astype(int)  # Only for mypy
-    return {
-        TimeIndex(index): float(value)
-        for index, value in zip(df_index, ts_dataframe.iloc[:, 0].values)
-    }
+    return ts_dataframe.iloc[:, 0]
 
 
 def dataframe_to_scenario_series(
@@ -193,15 +198,16 @@ class TimeScenarioSeriesData(AbstractDataStructure):
     time_scenario_series: pd.DataFrame
     scenarization: Optional[Scenarization] = None
 
-    def get_value(self, timestep: Optional[int], scenario: Optional[int]) -> float:
+    def get_value(
+        self, timestep: Optional[List[int]], scenario: Optional[int]
+    ) -> np.ndarray:
         if timestep is None:
             raise KeyError("Time scenario data requires a time index.")
         if scenario is None:
             raise KeyError("Time scenario data requires a scenario index.")
         if self.scenarization:
             scenario = self.scenarization.get_scenario_for_year(scenario)
-        value = str(self.time_scenario_series.iloc[timestep, scenario])
-        return float(value)
+        return self.time_scenario_series.iloc[np.array(timestep), scenario].to_numpy()
 
     def check_requirement(self, time: bool, scenario: bool) -> bool:
         if not isinstance(self, TimeScenarioSeriesData):
@@ -239,9 +245,9 @@ class DataBase:
 
     def get_value(
         self, index: ComponentParameterIndex, timestep: int, scenario: int
-    ) -> float:
+    ) -> Union[float, np.ndarray]:
         if index in self._data:
-            return self._data[index].get_value(timestep, scenario)
+            return self._data[index].get_value([timestep], scenario)
         else:
             raise KeyError(f"Index {index} not found.")
 

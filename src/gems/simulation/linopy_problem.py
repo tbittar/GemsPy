@@ -64,7 +64,7 @@ def build_port_arrays(
 
     For each PortFieldId (port_name, field_name):
     - If *model* defines the field (master): evaluate the definition with
-      ``make_builder(id(model), model)``.
+      ``make_builder(model.id, model)``.
     - Otherwise (slave): sum contributions from connected master components
       via incidence matrices.
 
@@ -75,13 +75,13 @@ def build_port_arrays(
     components :
         Components of this model.
     models :
-        All models keyed by ``id(model)``.
+        All models keyed by ``model.id``.
     model_components :
-        Components grouped by ``id(model)``.
+        Components grouped by ``model.id``.
     network :
         The network, used for connection lookup.
     make_builder :
-        Factory ``(model_key: int, model: Model) -> builder``.
+        Factory ``(model_key: str, model: Model) -> builder``.
         Called with an empty port_arrays context for master-field evaluation.
     """
     comp_ids = [c.id for c in components]
@@ -94,7 +94,7 @@ def build_port_arrays(
             pf_id = PortFieldId(port_name, field_name)
 
             if pf_id in model.port_fields_definitions:
-                builder = make_builder(id(model), model)
+                builder = make_builder(model.id, model)
                 defn = model.port_fields_definitions[pf_id].definition
                 port_arrays[pf_id] = visit(defn, builder)
             else:
@@ -124,12 +124,12 @@ def _build_slave_port_array(
 ) -> Any:
     """Build a slave port array by summing contributions from connected masters.
 
-    Groups connections by (id(master_model), master_port_field_id), builds an
+    Groups connections by (master_model.id, master_port_field_id), builds an
     incidence matrix A[i, j] for each group, and accumulates
     ``sum_j A[i,j] * expr_master[j]`` into the result.
     """
     per_master: Dict[
-        Tuple[int, PortFieldId], List[Tuple[int, Component]]
+        Tuple[str, PortFieldId], List[Tuple[int, Component]]
     ] = defaultdict(list)
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
@@ -147,7 +147,7 @@ def _build_slave_port_array(
                 continue
             master_comp = master_ref.component
             master_pf_id = PortFieldId(master_ref.port_id, field_name)
-            per_master[(id(master_comp.model), master_pf_id)].append((i, master_comp))
+            per_master[(master_comp.model.id, master_pf_id)].append((i, master_comp))
 
     if not per_master:
         return xr.DataArray(0.0)
@@ -209,10 +209,10 @@ class LinopyOptimizationProblem:
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
-        linopy_vars: Dict[Tuple[int, str], linopy.Variable],
-        param_arrays: Dict[Tuple[int, str], xr.DataArray],
-        model_components: Dict[int, List[Component]],
-        models: Dict[int, Model],
+        linopy_vars: Dict[Tuple[str, str], linopy.Variable],
+        param_arrays: Dict[Tuple[str, str], xr.DataArray],
+        model_components: Dict[str, List[Component]],
+        models: Dict[str, Model],
         objective_constant: float = 0.0,
     ) -> None:
         self.name = name
@@ -290,28 +290,17 @@ class _LinopyProblemBuilder:
 
         # Populated during build
         self.linopy_model = linopy.Model()
-        # Keys use id(model) (int) so two distinct Model objects with the same .id
-        # string are never confused (e.g. GENERATOR_MODEL vs thermal_candidate both
-        # having model.id == "GEN").
-        self.linopy_vars: Dict[Tuple[int, str], linopy.Variable] = {}
-        self.param_arrays: Dict[Tuple[int, str], xr.DataArray] = {}
-        self.port_arrays: Dict[int, Dict[PortFieldId, LinopyExpression]] = {}
+        self.linopy_vars: Dict[Tuple[str, str], linopy.Variable] = {}
+        self.param_arrays: Dict[Tuple[str, str], xr.DataArray] = {}
+        self.port_arrays: Dict[str, Dict[PortFieldId, LinopyExpression]] = {}
 
-        # Group components by model object identity.
-        # model_var_prefix gives each unique Model object a distinct linopy name prefix
-        # so two models with the same .id string (e.g. "GEN") don't collide.
-        self.model_components: Dict[int, List[Component]] = defaultdict(list)
-        self.models: Dict[int, Model] = {}
-        self.model_var_prefix: Dict[int, str] = {}
-        _id_usage: Dict[str, int] = defaultdict(int)
+        # Group components by model.id.
+        self.model_components: Dict[str, List[Component]] = defaultdict(list)
+        self.models: Dict[str, Model] = {}
         for component in network.all_components:
             m = component.model
-            mk = id(m)
+            mk = m.id
             if mk not in self.models:
-                count = _id_usage[m.id]
-                _id_usage[m.id] += 1
-                suffix = f"_{count}" if count > 0 else ""
-                self.model_var_prefix[mk] = (m.id + suffix).replace("-", "_")
                 self.models[mk] = m
             self.model_components[mk].append(component)
 
@@ -419,17 +408,16 @@ class _LinopyProblemBuilder:
                 if isinstance(param_data, ConstantData):
                     data[i] = param_data.value  # broadcasts into remaining dims
                 elif isinstance(param_data, TimeSeriesData):
-                    for t in range(T):
-                        v = param_data.get_value(abs_timesteps[t], None)
-                        if use_time and use_scenario:
-                            data[i, t, :] = v
-                        elif use_time:
-                            data[i, t] = v
-                        else:
-                            data[i] = v  # constant in time
+                    v = param_data.get_value(abs_timesteps, None)
+                    if use_time and use_scenario:
+                        data[i, :, :] = v[:, np.newaxis]  # broadcast T across S
+                    elif use_time:
+                        data[i, :] = v
+                    else:
+                        data[i] = v  # constant in time
                 elif isinstance(param_data, ScenarioSeriesData):
                     for s in range(S):
-                        v = param_data.get_value(None, s)
+                        v = param_data.get_value(None, s)  # type: ignore[assignment]
                         if use_time and use_scenario:
                             data[i, :, s] = v
                         elif use_scenario:
@@ -437,21 +425,22 @@ class _LinopyProblemBuilder:
                         else:
                             data[i] = v  # constant in scenario
                 else:
-                    # TimeScenarioSeriesData or other
-                    for t in range(T):
-                        for s in range(S):
-                            v = param_data.get_value(abs_timesteps[t], s)
-                            if use_time and use_scenario:
-                                data[i, t, s] = v
-                            elif use_time:
-                                data[i, t] = v
-                            elif use_scenario:
-                                data[i, s] = v
-                            else:
-                                data[i] = v  # take any single value
+                    # TimeScenarioSeriesData
+                    for s in range(S):
+                        v = param_data.get_value(  # type: ignore[assignment]
+                            abs_timesteps, s
+                        )
+                        if use_time and use_scenario:
+                            data[i, :, s] = v
+                        elif use_time:
+                            data[i, :] = v
+                        elif use_scenario:
+                            data[i, s] = v
+                        else:
+                            data[i] = v  # take any single value
 
             arr = xr.DataArray(data, dims=dims, coords=coords)
-            self.param_arrays[(id(model), param.name)] = arr
+            self.param_arrays[(model.id, param.name)] = arr
 
     # ------------------------------------------------------------------
     # Phase 2 — Variables
@@ -489,8 +478,7 @@ class _LinopyProblemBuilder:
 
             # Build a minimal builder for bound expressions (no variables needed)
             bound_builder = VectorizedLinopyBuilder(
-                model_key=id(model),
-                model_name=model.id,
+                model_id=model.id,
                 linopy_vars={},
                 param_arrays=self.param_arrays,
                 port_arrays={},
@@ -529,7 +517,7 @@ class _LinopyProblemBuilder:
                         f"for variable {comp_id}.{var.name}"
                     )
 
-            prefix = self.model_var_prefix[id(model)]
+            prefix = model.id.replace("-", "_")
             name = f"{prefix}__{var.name}"
             binary = var.data_type == ValueType.BOOLEAN
             integer = var.data_type == ValueType.INTEGER
@@ -542,7 +530,7 @@ class _LinopyProblemBuilder:
                 binary=binary,
                 integer=integer,
             )
-            self.linopy_vars[(id(model), var.name)] = lv
+            self.linopy_vars[(model.id, var.name)] = lv
 
     # ------------------------------------------------------------------
     # Phase 3 — Port arrays
@@ -551,7 +539,7 @@ class _LinopyProblemBuilder:
     def _build_port_arrays_for_model(
         self, model: Model, components: List[Component]
     ) -> None:
-        self.port_arrays[id(model)] = build_port_arrays(
+        self.port_arrays[model.id] = build_port_arrays(
             model,
             components,
             self.models,
@@ -572,7 +560,7 @@ class _LinopyProblemBuilder:
         """Add all constraints for *model* to the linopy model."""
         builder = self._make_builder(model, port_arrays=port_arrays_for_model)
 
-        prefix = self.model_var_prefix[id(model)]
+        prefix = model.id.replace("-", "_")
         for constraint in model.get_all_constraints():
             lhs = visit(constraint.expression, builder)
 
@@ -616,14 +604,6 @@ class _LinopyProblemBuilder:
                 if expr is not None:
                     obj_term = visit(expr, builder)
                     total_obj = _accumulate(total_obj, obj_term)
-        else:
-            for obj_expr in [
-                model.objective_operational_contribution,
-                model.objective_investment_contribution,
-            ]:
-                if obj_expr is not None:
-                    obj_term = visit(obj_expr, builder)
-                    total_obj = _accumulate(total_obj, obj_term)
 
         return total_obj
 
@@ -661,8 +641,7 @@ class _LinopyProblemBuilder:
         port_arrays: Dict[PortFieldId, LinopyExpression],
     ) -> VectorizedLinopyBuilder:
         return VectorizedLinopyBuilder(
-            model_key=id(model),
-            model_name=model.id,
+            model_id=model.id,
             linopy_vars=self.linopy_vars,
             param_arrays=self.param_arrays,
             port_arrays=port_arrays,

@@ -29,8 +29,6 @@ from gems.expression.expression import (
     AllTimeSumNode,
     BinaryOperatorNode,
     CeilNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     FloorNode,
     MaxNode,
     MinNode,
@@ -79,14 +77,6 @@ class EqualityVisitor:
             return self.variable(left, right)
         if isinstance(left, ParameterNode) and isinstance(right, ParameterNode):
             return self.parameter(left, right)
-        if isinstance(left, ComponentVariableNode) and isinstance(
-            right, ComponentVariableNode
-        ):
-            return self.comp_variable(left, right)
-        if isinstance(left, ComponentParameterNode) and isinstance(
-            right, ComponentParameterNode
-        ):
-            return self.comp_parameter(left, right)
         if isinstance(left, TimeShiftNode) and isinstance(right, TimeShiftNode):
             return self.time_shift(left, right)
         if isinstance(left, TimeEvalNode) and isinstance(right, TimeEvalNode):
@@ -151,16 +141,6 @@ class EqualityVisitor:
 
     def parameter(self, left: ParameterNode, right: ParameterNode) -> bool:
         return left.name == right.name
-
-    def comp_variable(
-        self, left: ComponentVariableNode, right: ComponentVariableNode
-    ) -> bool:
-        return left.name == right.name and left.component_id == right.component_id
-
-    def comp_parameter(
-        self, left: ComponentParameterNode, right: ComponentParameterNode
-    ) -> bool:
-        return left.name == right.name and left.component_id == right.component_id
 
     def time_shift(self, left: TimeShiftNode, right: TimeShiftNode) -> bool:
         return self.visit(left.time_shift, right.time_shift) and self.visit(
