@@ -17,7 +17,8 @@ This file tests the model of CO2 quota. The models are parsed from a YAML model 
 import math
 
 from gems.model.library import Library
-from gems.simulation import OutputValues, TimeBlock, build_problem
+from gems.simulation import TimeBlock, build_problem
+from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
 
 
@@ -36,11 +37,11 @@ def test_quota_co2(
     QuotaCO2
 
     Test of a generation of energy and co2 with a quota to limit the emission"""
-    gen_model = lib_dict_sc["basic"].models["generator_with_co2"]
-    node_model = lib_dict["basic"].models["node"]
-    quota_co2_model = lib_dict_sc["basic"].models["quota_co2"]
-    demand_model = lib_dict["basic"].models["demand"]
-    link_model = lib_dict_sc["basic"].models["link"]
+    gen_model = lib_dict_sc["basic"].models["basic.generator_with_co2"]
+    node_model = lib_dict["basic"].models["basic.node"]
+    quota_co2_model = lib_dict_sc["basic"].models["basic.quota_co2"]
+    demand_model = lib_dict["basic"].models["basic.demand"]
+    link_model = lib_dict_sc["basic"].models["basic.link"]
 
     n1 = Node(model=node_model, id="N1")
     n2 = Node(model=node_model, id="N2")
@@ -84,13 +85,16 @@ def test_quota_co2(
     problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
-    output = OutputValues(problem)
-    oil1_p = output.component("Oil1").var("p").value
-    coal1_p = output.component("Coal1").var("p").value
-    l12_flow = output.component("L12").var("flow").value
-
     assert problem.termination_condition == "optimal"
     assert math.isclose(problem.objective_value, 5500)
-    assert math.isclose(oil1_p, 50)  # type: ignore
-    assert math.isclose(coal1_p, 50)  # type: ignore
-    assert math.isclose(l12_flow, -50)  # type: ignore
+
+    df = SimulationTableBuilder().build(problem)
+    assert math.isclose(
+        df[(df["component"] == "Oil1") & (df["output"] == "p")]["value"].iloc[0], 50
+    )
+    assert math.isclose(
+        df[(df["component"] == "Coal1") & (df["output"] == "p")]["value"].iloc[0], 50
+    )
+    assert math.isclose(
+        df[(df["component"] == "L12") & (df["output"] == "flow")]["value"].iloc[0], -50
+    )

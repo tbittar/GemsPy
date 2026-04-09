@@ -39,20 +39,6 @@ def _make_structure_provider(model: "Model") -> IndexingStructureProvider:
         def get_variable_structure(self, name: str) -> IndexingStructure:
             return model.variables[name].structure
 
-        def get_component_parameter_structure(
-            self, component_id: str, name: str
-        ) -> IndexingStructure:
-            raise NotImplementedError(
-                "Cannot have parameters associated to components in models."
-            )
-
-        def get_component_variable_structure(
-            self, component_id: str, name: str
-        ) -> IndexingStructure:
-            raise NotImplementedError(
-                "Cannot have variables associated to components in models."
-            )
-
     return Provider()
 
 
@@ -103,8 +89,6 @@ class Model:
     parameters: Dict[str, Parameter] = field(default_factory=dict)
     variables: Dict[str, Variable] = field(default_factory=dict)
     objective_contributions: Optional[Dict[str, ExpressionNode]] = None
-    objective_operational_contribution: Optional[ExpressionNode] = None
-    objective_investment_contribution: Optional[ExpressionNode] = None
     ports: Dict[str, ModelPort] = field(default_factory=dict)
     port_fields_definitions: Dict[PortFieldId, PortFieldDefinition] = field(
         default_factory=dict
@@ -112,15 +96,6 @@ class Model:
     extra_outputs: Optional[Dict[str, ExpressionNode]] = None
 
     def __post_init__(self) -> None:
-        if self.objective_operational_contribution:
-            _is_objective_contribution_valid(
-                self, self.objective_operational_contribution
-            )
-
-        if self.objective_investment_contribution:
-            _is_objective_contribution_valid(
-                self, self.objective_investment_contribution
-            )
         # Validate each contribution if present
         if self.objective_contributions:
             for expr in self.objective_contributions.values():
@@ -157,8 +132,6 @@ def model(
     parameters: Optional[Iterable[Parameter]] = None,
     variables: Optional[Iterable[Variable]] = None,
     objective_contributions: Optional[Dict[str, ExpressionNode]] = None,
-    objective_operational_contribution: Optional[ExpressionNode] = None,
-    objective_investment_contribution: Optional[ExpressionNode] = None,
     inter_block_dyn: bool = False,
     ports: Optional[Iterable[ModelPort]] = None,
     port_fields_definitions: Optional[Iterable[PortFieldDefinition]] = None,
@@ -186,8 +159,6 @@ def model(
         parameters={p.name: p for p in parameters} if parameters else {},
         variables={v.name: v for v in variables} if variables else {},
         objective_contributions=objective_contributions,
-        objective_investment_contribution=objective_investment_contribution,
-        objective_operational_contribution=objective_operational_contribution,
         inter_block_dyn=inter_block_dyn,
         ports=existing_port_names,
         port_fields_definitions=(

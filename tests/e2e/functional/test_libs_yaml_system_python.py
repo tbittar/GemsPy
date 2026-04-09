@@ -34,12 +34,7 @@ import pandas as pd
 import pytest
 
 from gems.model.library import Library
-from gems.simulation import (
-    BlockBorderManagement,
-    OutputValues,
-    TimeBlock,
-    build_problem,
-)
+from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study import (
     ConstantData,
     DataBase,
@@ -64,9 +59,9 @@ def test_basic_balance(lib_dict: dict[str, Library]) -> None:
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", ConstantData(30))
 
-    node_model = lib_dict["basic"].models["node"]
-    demand_model = lib_dict["basic"].models["demand"]
-    production_model = lib_dict["basic"].models["production"]
+    node_model = lib_dict["basic"].models["basic.node"]
+    demand_model = lib_dict["basic"].models["basic.demand"]
+    production_model = lib_dict["basic"].models["basic.production"]
 
     node = Node(model=node_model, id="N")
     demand = create_component(
@@ -106,10 +101,10 @@ def test_link(lib_dict: dict[str, Library]) -> None:
 
     database.add_data("L", "f_max", ConstantData(150))
 
-    node_model = lib_dict["basic"].models["node"]
-    demand_model = lib_dict["basic"].models["demand"]
-    production_model = lib_dict["basic"].models["production"]
-    link_model = lib_dict["basic"].models["link"]
+    node_model = lib_dict["basic"].models["basic.node"]
+    demand_model = lib_dict["basic"].models["basic.demand"]
+    production_model = lib_dict["basic"].models["basic.production"]
+    link_model = lib_dict["basic"].models["basic.link"]
 
     node1 = Node(model=node_model, id="1")
     node2 = Node(model=node_model, id="2")
@@ -160,9 +155,9 @@ def test_stacking_generation(lib_dict: dict[str, Library]) -> None:
     database.add_data("G2", "p_max", ConstantData(100))
     database.add_data("G2", "cost", ConstantData(50))
 
-    node_model = lib_dict["basic"].models["node"]
-    demand_model = lib_dict["basic"].models["demand"]
-    production_model = lib_dict["basic"].models["production"]
+    node_model = lib_dict["basic"].models["basic.node"]
+    demand_model = lib_dict["basic"].models["basic.demand"]
+    production_model = lib_dict["basic"].models["basic.production"]
 
     node1 = Node(model=node_model, id="1")
 
@@ -210,10 +205,10 @@ def test_spillage(lib_dict: dict[str, Library]) -> None:
     database.add_data("G1", "p_min", ConstantData(200))
     database.add_data("G1", "cost", ConstantData(30))
 
-    node_model = lib_dict["basic"].models["node"]
-    demand_model = lib_dict["basic"].models["demand"]
-    production_with_min_model = lib_dict["basic"].models["production_with_min"]
-    spillage_model = lib_dict["basic"].models["spillage"]
+    node_model = lib_dict["basic"].models["basic.node"]
+    demand_model = lib_dict["basic"].models["basic.demand"]
+    production_with_min_model = lib_dict["basic"].models["basic.production_with_min"]
+    spillage_model = lib_dict["basic"].models["basic.spillage"]
 
     node = Node(model=node_model, id="1")
     spillage = create_component(model=spillage_model, id="S")
@@ -287,11 +282,11 @@ def test_min_up_down_times(lib_dict: dict[str, Library]) -> None:
     time_block = TimeBlock(1, [0, 1, 2])
     scenarios = 1
 
-    node_model = lib_dict["basic"].models["node"]
-    demand_model = lib_dict["basic"].models["demand"]
-    spillage_model = lib_dict["basic"].models["spillage"]
-    unsuplied_model = lib_dict["basic"].models["unsuplied"]
-    thermal_cluster = lib_dict["basic"].models["thermal_cluster"]
+    node_model = lib_dict["basic"].models["basic.node"]
+    demand_model = lib_dict["basic"].models["basic.demand"]
+    spillage_model = lib_dict["basic"].models["basic.spillage"]
+    unsuplied_model = lib_dict["basic"].models["basic.unsuplied"]
+    thermal_cluster = lib_dict["basic"].models["basic.thermal_cluster"]
 
     node = Node(model=node_model, id="1")
     demand = create_component(model=demand_model, id="D")
@@ -324,8 +319,6 @@ def test_min_up_down_times(lib_dict: dict[str, Library]) -> None:
     )
     problem.solve(solver_name="highs")
 
-    print(OutputValues(problem).component("G").var("nb_units_on").value)
-
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(72000, abs=0.01)
 
@@ -357,9 +350,9 @@ def test_changing_demand(lib_dict: dict[str, Library]) -> None:
     time_block = TimeBlock(1, [0, 1, 2])
     scenarios = 1
 
-    node_model = lib_dict["basic"].models["node"]
-    demand_model = lib_dict["basic"].models["demand"]
-    production_model = lib_dict["basic"].models["production"]
+    node_model = lib_dict["basic"].models["basic.node"]
+    demand_model = lib_dict["basic"].models["basic.demand"]
+    production_model = lib_dict["basic"].models["basic.production"]
 
     node = Node(model=node_model, id="1")
     demand = create_component(model=demand_model, id="D")
@@ -436,11 +429,11 @@ def test_min_up_down_times_2(lib_dict: dict[str, Library]) -> None:
     time_block = TimeBlock(1, [0, 1, 2])
     scenarios = 1
 
-    node_model = lib_dict["basic"].models["node"]
-    demand_model = lib_dict["basic"].models["demand"]
-    spillage_model = lib_dict["basic"].models["spillage"]
-    unsuplied_model = lib_dict["basic"].models["unsuplied"]
-    thermal_cluster = lib_dict["basic"].models["thermal_cluster"]
+    node_model = lib_dict["basic"].models["basic.node"]
+    demand_model = lib_dict["basic"].models["basic.demand"]
+    spillage_model = lib_dict["basic"].models["basic.spillage"]
+    unsuplied_model = lib_dict["basic"].models["basic.unsuplied"]
+    thermal_cluster = lib_dict["basic"].models["basic.thermal_cluster"]
 
     node = Node(model=node_model, id="1")
     demand = create_component(model=demand_model, id="D")
@@ -472,8 +465,6 @@ def test_min_up_down_times_2(lib_dict: dict[str, Library]) -> None:
         border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
-
-    print(OutputValues(problem).component("G").var("nb_units_on").value)
 
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(61000)

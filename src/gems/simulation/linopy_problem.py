@@ -47,37 +47,24 @@ from gems.simulation.linopy_linearize import (
     VectorizedLinopyBuilder,
     _linopy_add,
 )
-from gems.simulation.strategy import (
-    MergedProblemStrategy,
-    ModelSelectionStrategy,
-    RiskManagementStrategy,
-    UniformRisk,
-)
 from gems.simulation.time_block import TimeBlock
-from gems.study.data import (
-    ConstantData,
-    DataBase,
-    ScenarioSeriesData,
-    TimeScenarioSeriesData,
-    TimeSeriesData,
-    TreeData,
-)
-from gems.study.network import Component, Network, PortsConnection
+from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
+from gems.study.network import Component, Network
 
 
 def build_port_arrays(
     model: Model,
     components: List[Component],
-    models: Dict[int, Model],
-    model_components: Dict[int, List[Component]],
+    models: Dict[str, Model],
+    model_components: Dict[str, List[Component]],
     network: "Network",
-    make_builder: Callable[[int, Model], Any],
+    make_builder: Callable[[str, Model], Any],
 ) -> Dict[PortFieldId, Any]:
     """Build port arrays for all ports of *model*.
 
     For each PortFieldId (port_name, field_name):
     - If *model* defines the field (master): evaluate the definition with
-      ``make_builder(id(model), model)``.
+      ``make_builder(model.id, model)``.
     - Otherwise (slave): sum contributions from connected master components
       via incidence matrices.
 
@@ -88,13 +75,13 @@ def build_port_arrays(
     components :
         Components of this model.
     models :
-        All models keyed by ``id(model)``.
+        All models keyed by ``model.id``.
     model_components :
-        Components grouped by ``id(model)``.
+        Components grouped by ``model.id``.
     network :
         The network, used for connection lookup.
     make_builder :
-        Factory ``(model_key: int, model: Model) -> builder``.
+        Factory ``(model_key: str, model: Model) -> builder``.
         Called with an empty port_arrays context for master-field evaluation.
     """
     comp_ids = [c.id for c in components]
@@ -107,7 +94,7 @@ def build_port_arrays(
             pf_id = PortFieldId(port_name, field_name)
 
             if pf_id in model.port_fields_definitions:
-                builder = make_builder(id(model), model)
+                builder = make_builder(model.id, model)
                 defn = model.port_fields_definitions[pf_id].definition
                 port_arrays[pf_id] = visit(defn, builder)
             else:
@@ -130,19 +117,19 @@ def _build_slave_port_array(
     n_components: int,
     port_name: str,
     field_name: str,
-    models: Dict[int, Model],
-    model_components: Dict[int, List[Component]],
+    models: Dict[str, Model],
+    model_components: Dict[str, List[Component]],
     network: "Network",
-    make_builder: Callable[[int, Model], Any],
+    make_builder: Callable[[str, Model], Any],
 ) -> Any:
     """Build a slave port array by summing contributions from connected masters.
 
-    Groups connections by (id(master_model), master_port_field_id), builds an
+    Groups connections by (master_model.id, master_port_field_id), builds an
     incidence matrix A[i, j] for each group, and accumulates
     ``sum_j A[i,j] * expr_master[j]`` into the result.
     """
     per_master: Dict[
-        Tuple[int, PortFieldId], List[Tuple[int, Component]]
+        Tuple[str, PortFieldId], List[Tuple[int, Component]]
     ] = defaultdict(list)
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
@@ -160,7 +147,7 @@ def _build_slave_port_array(
                 continue
             master_comp = master_ref.component
             master_pf_id = PortFieldId(master_ref.port_id, field_name)
-            per_master[(id(master_comp.model), master_pf_id)].append((i, master_comp))
+            per_master[(master_comp.model.id, master_pf_id)].append((i, master_comp))
 
     if not per_master:
         return xr.DataArray(0.0)
@@ -222,12 +209,10 @@ class LinopyOptimizationProblem:
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
-        linopy_vars: Dict[Tuple[int, str], linopy.Variable],
-        build_strategy: ModelSelectionStrategy,
-        decision_tree_node: str,
-        param_arrays: Dict[Tuple[int, str], xr.DataArray],
-        model_components: Dict[int, List[Component]],
-        models: Dict[int, Model],
+        linopy_vars: Dict[Tuple[str, str], linopy.Variable],
+        param_arrays: Dict[Tuple[str, str], xr.DataArray],
+        model_components: Dict[str, List[Component]],
+        models: Dict[str, Model],
         objective_constant: float = 0.0,
     ) -> None:
         self.name = name
@@ -237,8 +222,6 @@ class LinopyOptimizationProblem:
         self.block = block
         self.scenarios = scenarios
         self._linopy_vars = linopy_vars
-        self._build_strategy = build_strategy
-        self._decision_tree_node = decision_tree_node
         self.param_arrays = param_arrays
         self.model_components = model_components
         self.models = models
@@ -294,18 +277,12 @@ class _LinopyProblemBuilder:
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
-        build_strategy: ModelSelectionStrategy,
-        risk_strategy: RiskManagementStrategy,
-        decision_tree_node: str,
     ) -> None:
         self.name = name
         self.network = network
         self.database = database
         self.block = block
         self.scenarios = scenarios
-        self.build_strategy = build_strategy
-        self.risk_strategy = risk_strategy
-        self.decision_tree_node = decision_tree_node
 
         self.block_length = len(block.timesteps)
         self.time_coord = list(range(self.block_length))
@@ -313,28 +290,17 @@ class _LinopyProblemBuilder:
 
         # Populated during build
         self.linopy_model = linopy.Model()
-        # Keys use id(model) (int) so two distinct Model objects with the same .id
-        # string are never confused (e.g. GENERATOR_MODEL vs thermal_candidate both
-        # having model.id == "GEN").
-        self.linopy_vars: Dict[Tuple[int, str], linopy.Variable] = {}
-        self.param_arrays: Dict[Tuple[int, str], xr.DataArray] = {}
-        self.port_arrays: Dict[int, Dict[PortFieldId, LinopyExpression]] = {}
+        self.linopy_vars: Dict[Tuple[str, str], linopy.Variable] = {}
+        self.param_arrays: Dict[Tuple[str, str], xr.DataArray] = {}
+        self.port_arrays: Dict[str, Dict[PortFieldId, LinopyExpression]] = {}
 
-        # Group components by model object identity.
-        # model_var_prefix gives each unique Model object a distinct linopy name prefix
-        # so two models with the same .id string (e.g. "GEN") don't collide.
-        self.model_components: Dict[int, List[Component]] = defaultdict(list)
-        self.models: Dict[int, Model] = {}
-        self.model_var_prefix: Dict[int, str] = {}
-        _id_usage: Dict[str, int] = defaultdict(int)
+        # Group components by model.id.
+        self.model_components: Dict[str, List[Component]] = defaultdict(list)
+        self.models: Dict[str, Model] = {}
         for component in network.all_components:
             m = component.model
-            mk = id(m)
+            mk = m.id
             if mk not in self.models:
-                count = _id_usage[m.id]
-                _id_usage[m.id] += 1
-                suffix = f"_{count}" if count > 0 else ""
-                self.model_var_prefix[mk] = (m.id + suffix).replace("-", "_")
                 self.models[mk] = m
             self.model_components[mk].append(component)
 
@@ -390,8 +356,6 @@ class _LinopyProblemBuilder:
             block=self.block,
             scenarios=self.scenarios,
             linopy_vars=self.linopy_vars,
-            build_strategy=self.build_strategy,
-            decision_tree_node=self.decision_tree_node,
             param_arrays=self.param_arrays,
             model_components=dict(self.model_components),
             models=self.models,
@@ -444,9 +408,7 @@ class _LinopyProblemBuilder:
                 if isinstance(param_data, ConstantData):
                     data[i] = param_data.value  # broadcasts into remaining dims
                 elif isinstance(param_data, TimeSeriesData):
-                    v = param_data.get_value(
-                        abs_timesteps, None, self.decision_tree_node
-                    )
+                    v = param_data.get_value(abs_timesteps, None)
                     if use_time and use_scenario:
                         data[i, :, :] = v[:, np.newaxis]  # broadcast T across S
                     elif use_time:
@@ -455,7 +417,7 @@ class _LinopyProblemBuilder:
                         data[i] = v  # constant in time
                 elif isinstance(param_data, ScenarioSeriesData):
                     for s in range(S):
-                        v = param_data.get_value(None, s, self.decision_tree_node)  # type: ignore[assignment]
+                        v = param_data.get_value(None, s)  # type: ignore[assignment]
                         if use_time and use_scenario:
                             data[i, :, s] = v
                         elif use_scenario:
@@ -466,7 +428,7 @@ class _LinopyProblemBuilder:
                     # TimeScenarioSeriesData, TreeData, or other
                     for s in range(S):
                         v = param_data.get_value(  # type: ignore[assignment]
-                            abs_timesteps, s, self.decision_tree_node
+                            abs_timesteps, s
                         )
                         if use_time and use_scenario:
                             data[i, :, s] = v
@@ -478,7 +440,7 @@ class _LinopyProblemBuilder:
                             data[i] = v  # take any single value
 
             arr = xr.DataArray(data, dims=dims, coords=coords)
-            self.param_arrays[(id(model), param.name)] = arr
+            self.param_arrays[(model.id, param.name)] = arr
 
     # ------------------------------------------------------------------
     # Phase 2 — Variables
@@ -489,7 +451,7 @@ class _LinopyProblemBuilder:
     ) -> None:
         comp_ids = [c.id for c in components]
 
-        for var in self.build_strategy.get_variables(model):
+        for var in model.variables.values():
             # Build coords for this variable
             coords: Dict[str, object] = {"component": comp_ids}
             dims = ["component"]
@@ -516,8 +478,7 @@ class _LinopyProblemBuilder:
 
             # Build a minimal builder for bound expressions (no variables needed)
             bound_builder = VectorizedLinopyBuilder(
-                model_key=id(model),
-                model_name=model.id,
+                model_id=model.id,
                 linopy_vars={},
                 param_arrays=self.param_arrays,
                 port_arrays={},
@@ -556,7 +517,7 @@ class _LinopyProblemBuilder:
                         f"for variable {comp_id}.{var.name}"
                     )
 
-            prefix = self.model_var_prefix[id(model)]
+            prefix = model.id.replace("-", "_")
             name = f"{prefix}__{var.name}"
             binary = var.data_type == ValueType.BOOLEAN
             integer = var.data_type == ValueType.INTEGER
@@ -569,7 +530,7 @@ class _LinopyProblemBuilder:
                 binary=binary,
                 integer=integer,
             )
-            self.linopy_vars[(id(model), var.name)] = lv
+            self.linopy_vars[(model.id, var.name)] = lv
 
     # ------------------------------------------------------------------
     # Phase 3 — Port arrays
@@ -578,7 +539,7 @@ class _LinopyProblemBuilder:
     def _build_port_arrays_for_model(
         self, model: Model, components: List[Component]
     ) -> None:
-        self.port_arrays[id(model)] = build_port_arrays(
+        self.port_arrays[model.id] = build_port_arrays(
             model,
             components,
             self.models,
@@ -599,8 +560,8 @@ class _LinopyProblemBuilder:
         """Add all constraints for *model* to the linopy model."""
         builder = self._make_builder(model, port_arrays=port_arrays_for_model)
 
-        prefix = self.model_var_prefix[id(model)]
-        for constraint in self.build_strategy.get_constraints(model):
+        prefix = model.id.replace("-", "_")
+        for constraint in model.get_all_constraints():
             lhs = visit(constraint.expression, builder)
 
             # Sanitize constraint name for LP format (spaces → underscores)
@@ -641,14 +602,7 @@ class _LinopyProblemBuilder:
         if model.objective_contributions:
             for expr in model.objective_contributions.values():
                 if expr is not None:
-                    modified = self.risk_strategy(expr)
-                    obj_term = visit(modified, builder)
-                    total_obj = _accumulate(total_obj, obj_term)
-        else:
-            for obj_expr in self.build_strategy.get_objectives(model):
-                if obj_expr is not None:
-                    modified = self.risk_strategy(obj_expr)
-                    obj_term = visit(modified, builder)
+                    obj_term = visit(expr, builder)
                     total_obj = _accumulate(total_obj, obj_term)
 
         return total_obj
@@ -687,8 +641,7 @@ class _LinopyProblemBuilder:
         port_arrays: Dict[PortFieldId, LinopyExpression],
     ) -> VectorizedLinopyBuilder:
         return VectorizedLinopyBuilder(
-            model_key=id(model),
-            model_name=model.id,
+            model_id=model.id,
             linopy_vars=self.linopy_vars,
             param_arrays=self.param_arrays,
             port_arrays=port_arrays,
@@ -710,9 +663,6 @@ def build_problem(
     *,
     problem_name: str = "optimization_problem",
     border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
-    build_strategy: ModelSelectionStrategy = MergedProblemStrategy(),
-    risk_strategy: RiskManagementStrategy = UniformRisk(),
-    decision_tree_node: str = "",
 ) -> LinopyOptimizationProblem:
     """
     Build and return a LinopyOptimizationProblem for the given time block.
@@ -731,12 +681,6 @@ def build_problem(
         Label for the linopy model.
     border_management:
         How to handle time steps at block borders (only CYCLE is implemented).
-    build_strategy:
-        Selects which variables and constraints to include.
-    risk_strategy:
-        Modifies objective expressions for risk management.
-    decision_tree_node:
-        Node identifier when operating within a decision tree.
     """
     if border_management != BlockBorderManagement.CYCLE:
         raise NotImplementedError(
@@ -752,8 +696,5 @@ def build_problem(
         database=database,
         block=block,
         scenarios=scenarios,
-        build_strategy=build_strategy,
-        risk_strategy=risk_strategy,
-        decision_tree_node=decision_tree_node,
     )
     return builder.build()

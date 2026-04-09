@@ -1,14 +1,13 @@
 # Copyright (c) 2024, RTE (https://www.rte-france.com)
 # SPDX-License-Identifier: MPL-2.0
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from gems.simulation.output_values import OutputModel, OutputValues
-from gems.simulation.output_values_base import OutputVariable
 from gems.simulation.simulation_table import (
     SimulationColumns,
     SimulationTableBuilder,
@@ -23,56 +22,63 @@ class FakeBlock:
     id: int = 1
 
 
-@dataclass(frozen=True)
-class FakeProblem:
-    """Fake problem that binds block and objective value."""
+@dataclass
+class FakeLinopyVar:
+    """Minimal linopy variable stub exposing name and component coords."""
 
-    block: FakeBlock = FakeBlock()
+    name: str
+    coords: dict  # {"component": xr.DataArray}
+
+
+@dataclass
+class FakeModel:
+    """Fake model with no extra outputs."""
+
+    extra_outputs: dict = field(default_factory=dict)
+
+
+@dataclass
+class FakeLinopyModel:
+    """Fake linopy model exposing a solution dataset."""
+
+    solution: dict  # lv.name -> xr.DataArray
+
+
+@dataclass
+class FakeProblem:
+    """Fake LinopyOptimizationProblem with the attributes used by SimulationTableBuilder."""
+
+    block: FakeBlock = field(default_factory=FakeBlock)
     block_length: int = 3
     objective_value: float = 42.0
-
-
-class FakeOutputValues(OutputValues):
-    """OutputValues backed by pre-built OutputModel instances."""
-
-    def __init__(
-        self,
-        problem: FakeProblem,
-        models: dict,
-        comp_to_model_key: dict,
-    ) -> None:
-        self.problem = problem  # type: ignore[assignment]
-        self._models = models
-        self._comp_to_model_key = comp_to_model_key
+    linopy_model: Optional[FakeLinopyModel] = None
+    _linopy_vars: dict = field(default_factory=dict)
+    models: dict = field(default_factory=dict)
+    model_components: dict = field(default_factory=dict)
 
 
 def test_simulation_table_builder_manual(tmp_path):
     """Test SimulationTableBuilder and SimulationTableWriter with fake data."""
-    problem = FakeProblem()
-
-    var = OutputVariable("p")
-    var._data = xr.DataArray(
+    sol_da = xr.DataArray(
         np.array([[[10.0], [20.0]]]),
         dims=["component", "time", "scenario"],
         coords={"component": ["compA"], "time": [0, 1], "scenario": [0]},
     )
-    var._basis_status = xr.DataArray(
-        np.array([[["BASIC"], ["NONBASIC"]]], dtype=object),
-        dims=["component", "time", "scenario"],
-        coords={"component": ["compA"], "time": [0, 1], "scenario": [0]},
+
+    fake_var = FakeLinopyVar(
+        name="test_model__p",
+        coords={"component": xr.DataArray(["compA"])},
     )
 
-    model_out = OutputModel("test_model")
-    model_out._variables["p"] = var
-
-    output_values = FakeOutputValues(
-        problem=problem,
-        models={0: model_out},
-        comp_to_model_key={"compA": 0},
+    problem = FakeProblem(
+        linopy_model=FakeLinopyModel(solution={"test_model__p": sol_da}),
+        _linopy_vars={(0, "p"): fake_var},
+        models={0: FakeModel()},
+        model_components={},
     )
 
     builder = SimulationTableBuilder(simulation_id="test")
-    df = builder.build(output_values)  # type: ignore
+    df = builder.build(problem)  # type: ignore
 
     expected_rows = [
         {
@@ -83,7 +89,7 @@ def test_simulation_table_builder_manual(tmp_path):
             SimulationColumns.BLOCK_TIME_INDEX: 0,
             SimulationColumns.SCENARIO_INDEX: 0,
             SimulationColumns.VALUE: 10.0,
-            SimulationColumns.BASIS_STATUS: "BASIC",
+            SimulationColumns.BASIS_STATUS: None,
         },
         {
             SimulationColumns.BLOCK: 1,
@@ -93,7 +99,7 @@ def test_simulation_table_builder_manual(tmp_path):
             SimulationColumns.BLOCK_TIME_INDEX: 1,
             SimulationColumns.SCENARIO_INDEX: 0,
             SimulationColumns.VALUE: 20.0,
-            SimulationColumns.BASIS_STATUS: "NONBASIC",
+            SimulationColumns.BASIS_STATUS: None,
         },
         {
             SimulationColumns.BLOCK: 1,

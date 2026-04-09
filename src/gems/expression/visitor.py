@@ -23,8 +23,6 @@ from gems.expression.expression import (
     AllTimeSumNode,
     CeilNode,
     ComparisonNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     DivisionNode,
     ExpressionNode,
     FloorNode,
@@ -36,8 +34,6 @@ from gems.expression.expression import (
     ParameterNode,
     PortFieldAggregatorNode,
     PortFieldNode,
-    ProblemParameterNode,
-    ProblemVariableNode,
     ScenarioOperatorNode,
     TimeEvalNode,
     TimeShiftNode,
@@ -87,22 +83,6 @@ class ExpressionVisitor(ABC, Generic[T]):
 
     @abstractmethod
     def parameter(self, node: ParameterNode) -> T:
-        ...
-
-    @abstractmethod
-    def comp_parameter(self, node: ComponentParameterNode) -> T:
-        ...
-
-    @abstractmethod
-    def comp_variable(self, node: ComponentVariableNode) -> T:
-        ...
-
-    @abstractmethod
-    def pb_parameter(self, node: ProblemParameterNode) -> T:
-        ...
-
-    @abstractmethod
-    def pb_variable(self, node: ProblemVariableNode) -> T:
         ...
 
     @abstractmethod
@@ -162,14 +142,6 @@ def visit(root: ExpressionNode, visitor: ExpressionVisitor[T]) -> T:
         return visitor.variable(root)
     elif isinstance(root, ParameterNode):
         return visitor.parameter(root)
-    elif isinstance(root, ComponentParameterNode):
-        return visitor.comp_parameter(root)
-    elif isinstance(root, ComponentVariableNode):
-        return visitor.comp_variable(root)
-    elif isinstance(root, ProblemParameterNode):
-        return visitor.pb_parameter(root)
-    elif isinstance(root, ProblemVariableNode):
-        return visitor.pb_variable(root)
     elif isinstance(root, AdditionNode):
         return visitor.addition(root)
     elif isinstance(root, MultiplicationNode):

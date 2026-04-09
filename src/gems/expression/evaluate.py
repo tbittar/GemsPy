@@ -18,15 +18,11 @@ from typing import Dict
 from gems.expression.expression import (
     AllTimeSumNode,
     CeilNode,
-    ComponentParameterNode,
-    ComponentVariableNode,
     FloorNode,
     MaxNode,
     MinNode,
     PortFieldAggregatorNode,
     PortFieldNode,
-    ProblemParameterNode,
-    ProblemVariableNode,
     TimeEvalNode,
     TimeShiftNode,
     TimeSumNode,
@@ -58,14 +54,6 @@ class ValueProvider(ABC):
     def get_parameter_value(self, name: str) -> float:
         ...
 
-    @abstractmethod
-    def get_component_variable_value(self, component_id: str, name: str) -> float:
-        ...
-
-    @abstractmethod
-    def get_component_parameter_value(self, component_id: str, name: str) -> float:
-        ...
-
 
 @dataclass(frozen=True)
 class EvaluationContext(ValueProvider):
@@ -82,12 +70,6 @@ class EvaluationContext(ValueProvider):
 
     def get_parameter_value(self, name: str) -> float:
         return self.parameters[name]
-
-    def get_component_variable_value(self, component_id: str, name: str) -> float:
-        raise NotImplementedError()
-
-    def get_component_parameter_value(self, component_id: str, name: str) -> float:
-        raise NotImplementedError()
 
 
 @dataclass(frozen=True)
@@ -110,18 +92,6 @@ class EvaluationVisitor(ExpressionVisitorOperations[float]):
 
     def parameter(self, node: ParameterNode) -> float:
         return self.context.get_parameter_value(node.name)
-
-    def comp_parameter(self, node: ComponentParameterNode) -> float:
-        return self.context.get_component_parameter_value(node.component_id, node.name)
-
-    def comp_variable(self, node: ComponentVariableNode) -> float:
-        return self.context.get_component_variable_value(node.component_id, node.name)
-
-    def pb_parameter(self, node: ProblemParameterNode) -> float:
-        raise ValueError("Should not reach here.")
-
-    def pb_variable(self, node: ProblemVariableNode) -> float:
-        raise ValueError("Should not reach here.")
 
     def time_shift(self, node: TimeShiftNode) -> float:
         raise NotImplementedError()

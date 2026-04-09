@@ -12,7 +12,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Mapping, Optional, List, Union
+from typing import Dict, List, Mapping, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -53,7 +53,7 @@ class Scenarization:
 class AbstractDataStructure(ABC):
     @abstractmethod
     def get_value(
-        self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
+        self, timestep: Optional[List[int]], scenario: Optional[int]
     ) -> Union[float, np.ndarray]:
         raise NotImplementedError()
 
@@ -71,7 +71,7 @@ class ConstantData(AbstractDataStructure):
     value: float
 
     def get_value(
-        self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
+        self, timestep: Optional[List[int]], scenario: Optional[int]
     ) -> float:
         return self.value
 
@@ -93,7 +93,7 @@ class TimeSeriesData(AbstractDataStructure):
     time_series: pd.Series
 
     def get_value(
-        self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
+        self, timestep: Optional[List[int]], scenario: Optional[int]
     ) -> np.ndarray:
         if timestep is None:
             raise KeyError("Time series data requires a time index.")
@@ -118,7 +118,7 @@ class ScenarioSeriesData(AbstractDataStructure):
     scenarization: Optional[Scenarization] = None
 
     def get_value(
-        self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
+        self, timestep: Optional[List[int]], scenario: Optional[int]
     ) -> float:
         if scenario is None:
             raise KeyError("Scenario series data requires a scenario index.")
@@ -199,7 +199,7 @@ class TimeScenarioSeriesData(AbstractDataStructure):
     scenarization: Optional[Scenarization] = None
 
     def get_value(
-        self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
+        self, timestep: Optional[List[int]], scenario: Optional[int]
     ) -> np.ndarray:
         if timestep is None:
             raise KeyError("Time scenario data requires a time index.")
@@ -214,22 +214,6 @@ class TimeScenarioSeriesData(AbstractDataStructure):
             raise ValueError("Invalid data type for TimeScenarioSeriesData")
 
         return time and scenario
-
-
-@dataclass(frozen=True)
-class TreeData(AbstractDataStructure):
-    data: Mapping[str, AbstractDataStructure]
-
-    def get_value(
-        self, timestep: Optional[List[int]], scenario: Optional[int], node_id: str = ""
-    ) -> Union[float, np.ndarray]:
-        return self.data[node_id].get_value(timestep, scenario)
-
-    def check_requirement(self, time: bool, scenario: bool) -> bool:
-        return all(
-            node_data.check_requirement(time, scenario)
-            for node_data in self.data.values()
-        )
 
 
 @dataclass(frozen=True)

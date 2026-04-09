@@ -42,7 +42,7 @@ ELECTRICAL_NODE_MODEL = model(
 )
 
 ELECTRICAL_GENERATOR_MODEL = model(
-    id="GEN",
+    id="ELECTRICAL_GEN",
     parameters=[
         float_parameter("p_max", CONSTANT),
         float_parameter("cost", CONSTANT),
@@ -57,9 +57,9 @@ ELECTRICAL_GENERATOR_MODEL = model(
             definition=var("generation"),
         )
     ],
-    objective_operational_contribution=(param("cost") * var("generation"))
-    .time_sum()
-    .expec(),
+    objective_contributions={
+        "operational": (param("cost") * var("generation")).time_sum().expec()
+    },
 )
 
 H2_PORT = PortType(id="h2_port", fields=[PortField("flow")])
