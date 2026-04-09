@@ -29,6 +29,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import xarray as xr
 
+from gems.expression.evaluate import ValueProvider
 from gems.expression.expression import (
     AdditionNode,
     AllTimeSumNode,
@@ -61,9 +62,8 @@ from gems.simulation.linopy_linearize import (
     _time_shift,
     _time_sum,
 )
-from gems.study.network import Component, Network
-from gems.expression.evaluate import ValueProvider
 from gems.study.data import ComponentParameterIndex, TimeScenarioIndex
+from gems.study.network import Component, Network
 
 
 @dataclass
@@ -119,15 +119,13 @@ class VectorizedExtraOutputBuilder(ExpressionVisitor[xr.DataArray]):
 
     Parameters
     ----------
-    model_key:
-        Python id() of the Model object whose AST is being visited.
-    model_name:
-        Human-readable model identifier (used in error messages).
+    model_id:
+        The model.id string of the Model object whose AST is being visited.
     param_arrays:
-        Mapping from (model_key, param_name) to a DataArray of parameter values,
+        Mapping from (model_id, param_name) to a DataArray of parameter values,
         with dims in {component, time, scenario} (or a subset).
     var_solution_arrays:
-        Mapping from (model_key, var_name) to a DataArray of solution values,
+        Mapping from (model_id, var_name) to a DataArray of solution values,
         with dims in {component, time, scenario} (or a subset).
     port_arrays:
         Pre-computed xr.DataArray for each PortFieldId of this model.
@@ -138,10 +136,9 @@ class VectorizedExtraOutputBuilder(ExpressionVisitor[xr.DataArray]):
         Number of scenarios.
     """
 
-    model_key: int
-    model_name: str
-    param_arrays: Dict[Tuple[int, str], xr.DataArray]
-    var_solution_arrays: Dict[Tuple[int, str], xr.DataArray]
+    model_id: str
+    param_arrays: Dict[Tuple[str, str], xr.DataArray]
+    var_solution_arrays: Dict[Tuple[str, str], xr.DataArray]
     port_arrays: Dict[PortFieldId, xr.DataArray]
     block_length: int
     scenarios_count: int
@@ -154,19 +151,19 @@ class VectorizedExtraOutputBuilder(ExpressionVisitor[xr.DataArray]):
         return xr.DataArray(node.value)
 
     def variable(self, node: VariableNode) -> xr.DataArray:
-        key = (self.model_key, node.name)
+        key = (self.model_id, node.name)
         if key not in self.var_solution_arrays:
             raise KeyError(
                 f"Variable {node.name!r} not found in solution for model "
-                f"{self.model_name!r}."
+                f"{self.model_id!r}."
             )
         return self.var_solution_arrays[key]
 
     def parameter(self, node: ParameterNode) -> xr.DataArray:
-        key = (self.model_key, node.name)
+        key = (self.model_id, node.name)
         if key not in self.param_arrays:
             raise KeyError(
-                f"Parameter {node.name!r} not found for model {self.model_name!r}."
+                f"Parameter {node.name!r} not found for model {self.model_id!r}."
             )
         return self.param_arrays[key]
 
@@ -239,7 +236,7 @@ class VectorizedExtraOutputBuilder(ExpressionVisitor[xr.DataArray]):
         if key not in self.port_arrays:
             raise KeyError(
                 f"No port array found for {node.port_name}.{node.field_name} "
-                f"in model {self.model_name!r}."
+                f"in model {self.model_id!r}."
             )
         return self.port_arrays[key]
 

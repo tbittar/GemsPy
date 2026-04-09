@@ -55,16 +55,16 @@ from gems.study.network import Component, Network
 def build_port_arrays(
     model: Model,
     components: List[Component],
-    models: Dict[int, Model],
-    model_components: Dict[int, List[Component]],
+    models: Dict[str, Model],
+    model_components: Dict[str, List[Component]],
     network: "Network",
-    make_builder: Callable[[int, Model], Any],
+    make_builder: Callable[[str, Model], Any],
 ) -> Dict[PortFieldId, Any]:
     """Build port arrays for all ports of *model*.
 
     For each PortFieldId (port_name, field_name):
     - If *model* defines the field (master): evaluate the definition with
-      ``make_builder(id(model), model)``.
+      ``make_builder(model.id, model)``.
     - Otherwise (slave): sum contributions from connected master components
       via incidence matrices.
 
@@ -75,13 +75,13 @@ def build_port_arrays(
     components :
         Components of this model.
     models :
-        All models keyed by ``id(model)``.
+        All models keyed by ``model.id``.
     model_components :
-        Components grouped by ``id(model)``.
+        Components grouped by ``model.id``.
     network :
         The network, used for connection lookup.
     make_builder :
-        Factory ``(model_key: int, model: Model) -> builder``.
+        Factory ``(model_key: str, model: Model) -> builder``.
         Called with an empty port_arrays context for master-field evaluation.
     """
     comp_ids = [c.id for c in components]
@@ -94,7 +94,7 @@ def build_port_arrays(
             pf_id = PortFieldId(port_name, field_name)
 
             if pf_id in model.port_fields_definitions:
-                builder = make_builder(id(model), model)
+                builder = make_builder(model.id, model)
                 defn = model.port_fields_definitions[pf_id].definition
                 port_arrays[pf_id] = visit(defn, builder)
             else:
@@ -117,19 +117,19 @@ def _build_slave_port_array(
     n_components: int,
     port_name: str,
     field_name: str,
-    models: Dict[int, Model],
-    model_components: Dict[int, List[Component]],
+    models: Dict[str, Model],
+    model_components: Dict[str, List[Component]],
     network: "Network",
-    make_builder: Callable[[int, Model], Any],
+    make_builder: Callable[[str, Model], Any],
 ) -> Any:
     """Build a slave port array by summing contributions from connected masters.
 
-    Groups connections by (id(master_model), master_port_field_id), builds an
+    Groups connections by (master_model.id, master_port_field_id), builds an
     incidence matrix A[i, j] for each group, and accumulates
     ``sum_j A[i,j] * expr_master[j]`` into the result.
     """
     per_master: Dict[
-        Tuple[int, PortFieldId], List[Tuple[int, Component]]
+        Tuple[str, PortFieldId], List[Tuple[int, Component]]
     ] = defaultdict(list)
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
@@ -147,7 +147,7 @@ def _build_slave_port_array(
                 continue
             master_comp = master_ref.component
             master_pf_id = PortFieldId(master_ref.port_id, field_name)
-            per_master[(id(master_comp.model), master_pf_id)].append((i, master_comp))
+            per_master[(master_comp.model.id, master_pf_id)].append((i, master_comp))
 
     if not per_master:
         return xr.DataArray(0.0)
@@ -209,10 +209,10 @@ class LinopyOptimizationProblem:
         database: DataBase,
         block: TimeBlock,
         scenarios: int,
-        linopy_vars: Dict[Tuple[int, str], linopy.Variable],
-        param_arrays: Dict[Tuple[int, str], xr.DataArray],
-        model_components: Dict[int, List[Component]],
-        models: Dict[int, Model],
+        linopy_vars: Dict[Tuple[str, str], linopy.Variable],
+        param_arrays: Dict[Tuple[str, str], xr.DataArray],
+        model_components: Dict[str, List[Component]],
+        models: Dict[str, Model],
         objective_constant: float = 0.0,
     ) -> None:
         self.name = name
@@ -290,19 +290,16 @@ class _LinopyProblemBuilder:
 
         # Populated during build
         self.linopy_model = linopy.Model()
-        # Keys use id(model) (int) so two distinct Model objects with the same .id
-        # string are never confused (e.g. GENERATOR_MODEL vs thermal_candidate both
-        # having model.id == "GEN").
-        self.linopy_vars: Dict[Tuple[int, str], linopy.Variable] = {}
-        self.param_arrays: Dict[Tuple[int, str], xr.DataArray] = {}
-        self.port_arrays: Dict[int, Dict[PortFieldId, LinopyExpression]] = {}
+        self.linopy_vars: Dict[Tuple[str, str], linopy.Variable] = {}
+        self.param_arrays: Dict[Tuple[str, str], xr.DataArray] = {}
+        self.port_arrays: Dict[str, Dict[PortFieldId, LinopyExpression]] = {}
 
-        # Group components by model object identity.
-        self.model_components: Dict[int, List[Component]] = defaultdict(list)
-        self.models: Dict[int, Model] = {}
+        # Group components by model.id.
+        self.model_components: Dict[str, List[Component]] = defaultdict(list)
+        self.models: Dict[str, Model] = {}
         for component in network.all_components:
             m = component.model
-            mk = id(m)
+            mk = m.id
             if mk not in self.models:
                 self.models[mk] = m
             self.model_components[mk].append(component)
@@ -443,7 +440,7 @@ class _LinopyProblemBuilder:
                                 data[i] = v  # take any single value
 
             arr = xr.DataArray(data, dims=dims, coords=coords)
-            self.param_arrays[(id(model), param.name)] = arr
+            self.param_arrays[(model.id, param.name)] = arr
 
     # ------------------------------------------------------------------
     # Phase 2 — Variables
@@ -481,8 +478,7 @@ class _LinopyProblemBuilder:
 
             # Build a minimal builder for bound expressions (no variables needed)
             bound_builder = VectorizedLinopyBuilder(
-                model_key=id(model),
-                model_name=model.id,
+                model_id=model.id,
                 linopy_vars={},
                 param_arrays=self.param_arrays,
                 port_arrays={},
@@ -534,7 +530,7 @@ class _LinopyProblemBuilder:
                 binary=binary,
                 integer=integer,
             )
-            self.linopy_vars[(id(model), var.name)] = lv
+            self.linopy_vars[(model.id, var.name)] = lv
 
     # ------------------------------------------------------------------
     # Phase 3 — Port arrays
@@ -543,7 +539,7 @@ class _LinopyProblemBuilder:
     def _build_port_arrays_for_model(
         self, model: Model, components: List[Component]
     ) -> None:
-        self.port_arrays[id(model)] = build_port_arrays(
+        self.port_arrays[model.id] = build_port_arrays(
             model,
             components,
             self.models,
@@ -645,8 +641,7 @@ class _LinopyProblemBuilder:
         port_arrays: Dict[PortFieldId, LinopyExpression],
     ) -> VectorizedLinopyBuilder:
         return VectorizedLinopyBuilder(
-            model_key=id(model),
-            model_name=model.id,
+            model_id=model.id,
             linopy_vars=self.linopy_vars,
             param_arrays=self.param_arrays,
             port_arrays=port_arrays,

@@ -280,12 +280,8 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
 
     Parameters
     ----------
-    model_key:
-        Python id() of the Model object whose AST is being visited.
-        Using id() (not model.id string) ensures two distinct Model objects
-        with the same .id string (e.g. two "GEN" models) are never confused.
-    model_name:
-        Human-readable model identifier (model.id) used only for error messages.
+    model_id:
+        The model.id string of the Model object whose AST is being visited.
     linopy_vars:
         Mapping from (model_key, var_name) to the corresponding linopy Variable,
         with dims at least [component] and optionally [time, scenario].
@@ -302,10 +298,9 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
         Number of scenarios.
     """
 
-    model_key: int
-    model_name: str
-    linopy_vars: Dict[Tuple[int, str], linopy.Variable]
-    param_arrays: Dict[Tuple[int, str], xr.DataArray]
+    model_id: str
+    linopy_vars: Dict[Tuple[str, str], linopy.Variable]
+    param_arrays: Dict[Tuple[str, str], xr.DataArray]
     port_arrays: Dict[PortFieldId, LinopyExpression]
     block_length: int
     scenarios_count: int
@@ -318,19 +313,19 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
         return xr.DataArray(node.value)
 
     def variable(self, node: VariableNode) -> linopy.Variable:
-        key = (self.model_key, node.name)
+        key = (self.model_id, node.name)
         if key not in self.linopy_vars:
             raise KeyError(
-                f"Variable {node.name!r} not found for model {self.model_name!r}. "
+                f"Variable {node.name!r} not found for model {self.model_id!r}. "
                 "Ensure all linopy variables are created before building constraints."
             )
         return self.linopy_vars[key]
 
     def parameter(self, node: ParameterNode) -> xr.DataArray:
-        key = (self.model_key, node.name)
+        key = (self.model_id, node.name)
         if key not in self.param_arrays:
             raise KeyError(
-                f"Parameter {node.name!r} not found for model {self.model_name!r}. "
+                f"Parameter {node.name!r} not found for model {self.model_id!r}. "
                 "Ensure all parameter arrays are built before visiting constraints."
             )
         return self.param_arrays[key]
@@ -413,7 +408,7 @@ class VectorizedLinopyBuilder(ExpressionVisitor[LinopyExpression]):
         if key not in self.port_arrays:
             raise KeyError(
                 f"No port array found for {node.port_name}.{node.field_name} "
-                f"in model {self.model_name!r}. "
+                f"in model {self.model_id!r}. "
                 "Port arrays must be pre-computed before building constraints."
             )
         return self.port_arrays[key]
