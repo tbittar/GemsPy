@@ -1,0 +1,2 @@
+                  master                  continuous_generator_candidate        0
+ problem-1-1--optim-nb-1                  continuous_generator_candidate        3

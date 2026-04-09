@@ -153,7 +153,13 @@ def build_port_arrays(
             if pf_id in model.port_fields_definitions:
                 builder = make_builder(model.id, model)
                 defn = model.port_fields_definitions[pf_id].definition
-                port_arrays[pf_id] = visit(defn, builder)
+                try:
+                    port_arrays[pf_id] = visit(defn, builder)
+                except KeyError:
+                    # A variable referenced in the port definition is not
+                    # available in the current problem (e.g. a subproblem-only
+                    # variable when building the master). Treat as zero.
+                    port_arrays[pf_id] = xr.DataArray(0.0)
             else:
                 port_arrays[pf_id] = _build_slave_port_array(
                     comp_ids,
@@ -230,7 +236,13 @@ def _build_slave_port_array(
         master_model = models[master_mk]
         defn = master_model.port_fields_definitions[master_pf_id].definition
         master_builder = make_builder(master_mk, master_model)
-        expr_master = visit(defn, master_builder)
+        try:
+            expr_master = visit(defn, master_builder)
+        except KeyError:
+            # The connected model has no variables in the current problem
+            # (e.g. a subproblem-only model when building the master).
+            # Its port contribution is treated as zero.
+            continue
 
         expr_master_r = expr_master.rename({"component": "component_master"})  # type: ignore[union-attr]
         contribution = (A * expr_master_r).sum("component_master")  # type: ignore[operator]
@@ -615,6 +627,15 @@ class _LinopyProblemBuilder:
     def _build_port_arrays_for_model(
         self, model: Model, components: List[Component]
     ) -> None:
+        # If this model has no variables in the current problem (e.g. a
+        # subproblem-only model when building the master), its port
+        # contributions are zero — skip building port arrays for it.
+        has_vars = any(
+            (model.id, var_name) in self.linopy_vars for var_name in model.variables
+        )
+        if not has_vars and model.variables:
+            self.port_arrays[model.id] = {}
+            return
         self.port_arrays[model.id] = build_port_arrays(
             model,
             components,
