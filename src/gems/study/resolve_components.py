@@ -20,11 +20,11 @@ from gems.study import (
     Component,
     ConstantData,
     DataBase,
-    System,
     Node,
     PortRef,
     PortsConnection,
     Scenarization,
+    System,
 )
 from gems.study.data import (
     AbstractDataStructure,

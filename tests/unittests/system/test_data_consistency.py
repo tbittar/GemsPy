@@ -29,11 +29,11 @@ from gems.model.port import PortFieldDefinition, PortFieldId
 from gems.study import (
     ConstantData,
     DataBase,
-    System,
     Node,
     PortRef,
     ScenarioIndex,
     ScenarioSeriesData,
+    System,
     TimeIndex,
     TimeScenarioSeriesData,
     TimeSeriesData,

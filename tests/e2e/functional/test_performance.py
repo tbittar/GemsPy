@@ -20,7 +20,7 @@ from gems.expression.expression import ExpressionNode, literal, param, var
 from gems.expression.indexing_structure import IndexingStructure
 from gems.model import float_parameter, float_variable, model
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
 from gems.study.data import TimeScenarioSeriesData
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,

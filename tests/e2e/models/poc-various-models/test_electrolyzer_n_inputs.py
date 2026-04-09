@@ -23,7 +23,7 @@ from libs.standard_sc import (
 
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
 
 """
 This file tests various modellings for an electrolyser with multiple inputs. The models are created in Python directly.

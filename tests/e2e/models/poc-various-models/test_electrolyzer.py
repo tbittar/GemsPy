@@ -25,7 +25,7 @@ from gems.model import (
 )
 from gems.model.port import PortFieldDefinition, PortFieldId
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
 
 ELECTRICAL_PORT = PortType(id="electrical_port", fields=[PortField("flow")])
 

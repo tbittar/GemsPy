@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 from gems.simulation import TimeBlock, build_problem
-from gems.study import ConstantData, DataBase, System, Node, PortRef, create_component
+from gems.study import ConstantData, DataBase, Node, PortRef, System, create_component
 from gems.study.data import TimeScenarioSeriesData
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,
