@@ -146,9 +146,7 @@ LAGGED_STORAGE_MODEL = model(
         Constraint(
             name="Level equation",
             expression=(
-                var("level")
-                - var("level").shift(-param("lag"))
-                + var("withdrawal")
+                var("level") - var("level").shift(-param("lag")) + var("withdrawal")
                 == param("inflows")
             ),
         )
@@ -354,9 +352,7 @@ def test_three_components_distinct_lags_orbit_spillage() -> None:
     horizon = 6
     inflows = 5.0
 
-    database = _base_database(
-        _make_demand_series([30.0, 0.0, 0.0, 30.0, 0.0, 0.0])
-    )
+    database = _base_database(_make_demand_series([30.0, 0.0, 0.0, 30.0, 0.0, 0.0]))
     for lag, sid in [(1, "STS1"), (2, "STS2"), (3, "STS3")]:
         _add_storage(database, sid, lag=lag, inflows=inflows, p_max=15.0)
 
@@ -423,9 +419,7 @@ def test_two_components_different_lags_yaml(
 
     lib_dict = resolve_library([input_library])
     network_components = resolve_system(input_system, lib_dict)
-    consistency_check(
-        network_components.components, lib_dict["time_shift_test"].models
-    )
+    consistency_check(network_components.components, lib_dict["time_shift_test"].models)
 
     database = build_data_base(input_system, timeseries_dir=_series_dir)
     network = build_network(network_components)
