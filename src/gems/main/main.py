@@ -32,12 +32,10 @@ from gems.simulation import (
     build_problem,
     dump_couplings,
 )
-from gems.study import DataBase
+from gems.study import DataBase, System
 from gems.study.parsing import parse_cli, parse_yaml_components
 from gems.study.resolve_components import (
-    System,
     build_data_base,
-    build_network,
     consistency_check,
     resolve_system,
 )
@@ -92,7 +90,7 @@ def main_cli() -> None:
     for lib in lib_dict.values():
         models.update(lib.models)
 
-    consistency_check(study.components, models)
+    consistency_check(study, models)
 
     try:
         database = input_database(
@@ -104,8 +102,6 @@ def main_cli() -> None:
             "An error occurred while importing time series."
         )
 
-    network = build_network(study)
-
     timeblock = TimeBlock(1, list(range(parsed_args.duration)))
     scenario = parsed_args.nb_scenarios
 
@@ -113,11 +109,11 @@ def main_cli() -> None:
     optim_config = load_optim_config(parsed_args.components_path)
 
     if optim_config is not None:
-        validate_optim_config(optim_config, network)
+        validate_optim_config(optim_config, study)
 
         try:
             decomposed = build_decomposed_problems(
-                network, database, timeblock, scenario, optim_config
+                study, database, timeblock, scenario, optim_config
             )
         except IndexError as e:
             raise IndexError(
@@ -142,7 +138,7 @@ def main_cli() -> None:
     else:
         # No optim-config.yml — original unchanged behaviour
         try:
-            problem = build_problem(network, database, timeblock, scenario)
+            problem = build_problem(study, database, timeblock, scenario)
 
         except IndexError as e:
             raise IndexError(

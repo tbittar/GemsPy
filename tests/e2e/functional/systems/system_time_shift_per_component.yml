@@ -33,11 +33,9 @@
 system:
   model-libraries: time_shift_test
 
-  nodes:
+  components:
     - id: N
       model: time_shift_test.node
-
-  components:
     - id: D
       model: time_shift_test.demand
       parameters:

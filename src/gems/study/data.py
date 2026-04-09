@@ -17,7 +17,7 @@ from typing import Dict, List, Mapping, Optional, Union
 import numpy as np
 import pandas as pd
 
-from gems.study.network import Network
+from gems.study.network import System
 
 
 @dataclass(frozen=True)
@@ -251,8 +251,8 @@ class DataBase:
         else:
             raise KeyError(f"Index {index} not found.")
 
-    def requirements_consistency(self, network: Network) -> None:
-        for component in network.components:
+    def requirements_consistency(self, system: System) -> None:
+        for component in system.components:
             for param in component.model.parameters.values():
                 data_structure = self.get_data(component.id, param.name)
 

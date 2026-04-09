@@ -11,13 +11,12 @@
 # This file is part of the Antares project.
 
 """
-The network module defines the data model for an instance of network,
-including nodes, links, and components (model instantations).
+The system module defines the data model for an instance of a system,
+including components and connections.
 """
 
-import itertools
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, Iterable, List, cast
+from typing import Any, Dict, Iterable, List
 
 from gems.model import PortField, PortType
 from gems.model.model import Model
@@ -43,19 +42,6 @@ class Component:
 
 def create_component(model: Model, id: str) -> Component:
     return Component(model=model, id=id)
-
-
-@dataclass(frozen=True)
-class Node(Component):
-    """
-    A node in the network.
-    """
-
-    pass
-
-
-def create_node(model: Model, id: str) -> Node:
-    return Node(model=model, id=id)
 
 
 @dataclass(frozen=True)
@@ -121,25 +107,20 @@ class PortsConnection:
 
 
 @dataclass
-class Network:
+class System:
     """
-    Network model: simply nodes, links, and components.
+    A system model consisting of components and their connections.
     """
 
     id: str
-    _nodes: Dict[str, Node] = field(init=False, default_factory=dict)
     _components: Dict[str, Component] = field(init=False, default_factory=dict)
     _connections: List[PortsConnection] = field(init=False, default_factory=list)
-
-    def _check_node_exists(self, node_id: str) -> None:
-        if node_id not in self._nodes:
-            raise ValueError(f"Node {node_id} does not exist in the network.")
 
     def _check_model_id_unique(self, model: Model) -> None:
         for existing in self.all_components:
             if existing.model is not model and existing.model.id == model.id:
                 raise ValueError(
-                    f"Model id '{model.id}' is already used by a different model object in this network."
+                    f"Model id '{model.id}' is already used by a different model object in this system."
                 )
 
     def add_component(self, component: Component) -> None:
@@ -148,33 +129,15 @@ class Network:
         self._components[component.id] = component
 
     def get_component(self, component_id: str) -> Component:
-        """
-        Returns the component (possibly a node) corresponding to this ID.
-        """
-        res = self._components.get(component_id, None)
-        return res if res else self._nodes[component_id]
+        return self._components[component_id]
 
     @property
     def components(self) -> Iterable[Component]:
         return self._components.values()
 
-    def add_node(self, node: Node) -> None:
-        self._check_model_id_unique(node.model)
-        self._nodes[node.id] = node
-
-    def get_node(self, node_id: str) -> Node:
-        return self._nodes[node_id]
-
-    @property
-    def nodes(self) -> Iterable[Node]:
-        return self._nodes.values()
-
     @property
     def all_components(self) -> Iterable[Component]:
-        """
-        An iterable over both nodes and components.
-        """
-        return itertools.chain(self.nodes, self.components)
+        return self._components.values()
 
     def connect(self, port1: PortRef, port2: PortRef) -> None:
         ports_connection = PortsConnection(port1, port2)
@@ -188,13 +151,10 @@ class Network:
         return self._connections[idx]
 
     def is_empty(self) -> bool:
-        return (not self._nodes) and (not self._components) and (not self._connections)
+        return (not self._components) and (not self._connections)
 
-    def replicate(self, /, **changes: Any) -> "Network":
-        replica = replace(self, **changes)
-
-        for node in self.nodes:
-            replica.add_node(cast(Node, node.replicate()))
+    def replicate(self, /, **changes: Any) -> "System":
+        replica: System = replace(self, **changes)
 
         for component in self.components:
             replica.add_component(component.replicate())

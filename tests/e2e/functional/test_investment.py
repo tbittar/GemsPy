@@ -36,9 +36,8 @@ from gems.study import (
     Component,
     ConstantData,
     DataBase,
-    Network,
-    Node,
     PortRef,
+    System,
     TimeScenarioSeriesData,
     create_component,
 )
@@ -205,19 +204,19 @@ def test_generation_xpansion_single_time_step_single_scenario(
     database.add_data("CAND", "invest_cost", ConstantData(490))
     database.add_data("CAND", "max_invest", ConstantData(1000))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="N")
-    network = Network("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(generator)
-    network.add_component(candidate)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(generator, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
+    node = Component(model=NODE_BALANCE_MODEL, id="N")
+    system = System("test")
+    system.add_component(node)
+    system.add_component(demand)
+    system.add_component(generator)
+    system.add_component(candidate)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(generator, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
 
     scenarios = 1
     problem = build_problem(
-        network,
+        system,
         database,
         TimeBlock(1, [0]),
         scenarios,
@@ -279,22 +278,22 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
     database.add_data("DISCRETE", "invest_cost", ConstantData(200))
     database.add_data("DISCRETE", "p_max_per_unit", ConstantData(10))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="N")
-    network = Network("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(generator)
-    network.add_component(candidate)
-    network.add_component(cluster_candidate)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(generator, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(
+    node = Component(model=NODE_BALANCE_MODEL, id="N")
+    system = System("test")
+    system.add_component(node)
+    system.add_component(demand)
+    system.add_component(generator)
+    system.add_component(candidate)
+    system.add_component(cluster_candidate)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(generator, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(
         PortRef(cluster_candidate, "balance_port"), PortRef(node, "balance_port")
     )
     scenarios = 1
 
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
 
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
@@ -369,17 +368,17 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
     database.add_data("CAND", "invest_cost", ConstantData(490))
     database.add_data("CAND", "max_invest", ConstantData(1000))
 
-    node = Node(model=NODE_BALANCE_MODEL, id="N")
-    network = Network("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(generator)
-    network.add_component(candidate)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(generator, "balance_port"), PortRef(node, "balance_port"))
-    network.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
+    node = Component(model=NODE_BALANCE_MODEL, id="N")
+    system = System("test")
+    system.add_component(node)
+    system.add_component(demand)
+    system.add_component(generator)
+    system.add_component(candidate)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(generator, "balance_port"), PortRef(node, "balance_port"))
+    system.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
 
-    problem = build_problem(network, database, time_block, scenarios)
+    problem = build_problem(system, database, time_block, scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     # assert problem.solver.NumVariables() == 2 * scenarios * horizon + 1

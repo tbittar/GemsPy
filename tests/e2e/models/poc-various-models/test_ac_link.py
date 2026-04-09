@@ -19,7 +19,14 @@ from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.study import ConstantData, DataBase, Network, Node, PortRef, create_component
+from gems.study import (
+    Component,
+    ConstantData,
+    DataBase,
+    PortRef,
+    System,
+    create_component,
+)
 
 
 @pytest.fixture
@@ -39,7 +46,7 @@ def ac_lib(libs_dir: Path, std_lib: Library) -> dict[str, Library]:
 
 def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
     """
-    The network only has one AC node where a generator and a demand are connected.
+    The system only has one AC node where a generator and a demand are connected.
 
     There is actually no AC link connected to it, we just check that
     generation matches demand on this node:
@@ -55,7 +62,7 @@ def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
     database.add_data("G", "p_max", ConstantData(100))
     database.add_data("G", "cost", ConstantData(30))
 
-    node = Node(model=ac_node_model, id="N")
+    node = Component(model=ac_node_model, id="N")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -66,15 +73,15 @@ def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
         id="G",
     )
 
-    network = Network("test")
-    network.add_node(node)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node, "injections"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node, "injections"))
+    system = System("test")
+    system.add_component(node)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node, "injections"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node, "injections"))
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3000, abs=0.01)
@@ -82,7 +89,7 @@ def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
 
 def test_ac_network(ac_lib: dict[str, Library]) -> None:
     """
-    The network only has 2 AC nodes connected by 1 AC link.
+    The system only has 2 AC nodes connected by 1 AC link.
 
     Node 1 carries the demand of 100 MW,
     node 2 carries the generator with a cost of 35 per MWh.
@@ -101,8 +108,8 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
 
     database.add_data("L", "reactance", ConstantData(1))
 
-    node1 = Node(model=ac_node_model, id="1")
-    node2 = Node(model=ac_node_model, id="2")
+    node1 = Component(model=ac_node_model, id="1")
+    node2 = Component(model=ac_node_model, id="2")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -118,19 +125,19 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
         id="L",
     )
 
-    network = Network("test")
-    network.add_node(node1)
-    network.add_node(node2)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.add_component(link)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node1, "injections"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node2, "injections"))
-    network.connect(PortRef(link, "port1"), PortRef(node1, "links"))
-    network.connect(PortRef(link, "port2"), PortRef(node2, "links"))
+    system = System("test")
+    system.add_component(node1)
+    system.add_component(node2)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.add_component(link)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node1, "injections"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node2, "injections"))
+    system.connect(PortRef(link, "port1"), PortRef(node1, "links"))
+    system.connect(PortRef(link, "port2"), PortRef(node2, "links"))
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3500, abs=0.01)
@@ -143,7 +150,7 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
 
 def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
     """
-    The network has 2 AC nodes connected by 2 parallel links,
+    The system has 2 AC nodes connected by 2 parallel links,
     where reactance is 1 for line L1, and 2 for line L2.
     We expect flow to be te twice bigger on L1 than on L2.
 
@@ -165,8 +172,8 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
     database.add_data("L1", "reactance", ConstantData(1))
     database.add_data("L2", "reactance", ConstantData(2))
 
-    node1 = Node(model=ac_node_model, id="1")
-    node2 = Node(model=ac_node_model, id="2")
+    node1 = Component(model=ac_node_model, id="1")
+    node2 = Component(model=ac_node_model, id="2")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -184,22 +191,22 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
         id="L2",
     )
 
-    network = Network("test")
-    network.add_node(node1)
-    network.add_node(node2)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.add_component(link1)
-    network.add_component(link2)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node1, "injections"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node2, "injections"))
-    network.connect(PortRef(link1, "port1"), PortRef(node1, "links"))
-    network.connect(PortRef(link1, "port2"), PortRef(node2, "links"))
-    network.connect(PortRef(link2, "port1"), PortRef(node1, "links"))
-    network.connect(PortRef(link2, "port2"), PortRef(node2, "links"))
+    system = System("test")
+    system.add_component(node1)
+    system.add_component(node2)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.add_component(link1)
+    system.add_component(link2)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node1, "injections"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node2, "injections"))
+    system.connect(PortRef(link1, "port1"), PortRef(node1, "links"))
+    system.connect(PortRef(link1, "port2"), PortRef(node2, "links"))
+    system.connect(PortRef(link2, "port1"), PortRef(node1, "links"))
+    system.connect(PortRef(link2, "port2"), PortRef(node2, "links"))
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3500, abs=0.01)
@@ -242,8 +249,8 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
     database.add_data("T", "flow_limit", ConstantData(50))
     database.add_data("T", "phase_shift_cost", ConstantData(1))
 
-    node1 = Node(model=ac_node_model, id="1")
-    node2 = Node(model=ac_node_model, id="2")
+    node1 = Component(model=ac_node_model, id="1")
+    node2 = Component(model=ac_node_model, id="2")
     demand = create_component(
         model=DEMAND_MODEL,
         id="D",
@@ -261,22 +268,22 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
         id="T",
     )
 
-    network = Network("test")
-    network.add_node(node1)
-    network.add_node(node2)
-    network.add_component(demand)
-    network.add_component(gen)
-    network.add_component(link1)
-    network.add_component(link2)
-    network.connect(PortRef(demand, "balance_port"), PortRef(node1, "injections"))
-    network.connect(PortRef(gen, "balance_port"), PortRef(node2, "injections"))
-    network.connect(PortRef(link1, "port1"), PortRef(node1, "links"))
-    network.connect(PortRef(link1, "port2"), PortRef(node2, "links"))
-    network.connect(PortRef(link2, "port1"), PortRef(node1, "links"))
-    network.connect(PortRef(link2, "port2"), PortRef(node2, "links"))
+    system = System("test")
+    system.add_component(node1)
+    system.add_component(node2)
+    system.add_component(demand)
+    system.add_component(gen)
+    system.add_component(link1)
+    system.add_component(link2)
+    system.connect(PortRef(demand, "balance_port"), PortRef(node1, "injections"))
+    system.connect(PortRef(gen, "balance_port"), PortRef(node2, "injections"))
+    system.connect(PortRef(link1, "port1"), PortRef(node1, "links"))
+    system.connect(PortRef(link1, "port2"), PortRef(node2, "links"))
+    system.connect(PortRef(link2, "port1"), PortRef(node1, "links"))
+    system.connect(PortRef(link2, "port2"), PortRef(node2, "links"))
 
     scenarios = 1
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3550, abs=0.01)

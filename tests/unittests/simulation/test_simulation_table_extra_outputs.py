@@ -22,7 +22,7 @@ def test_extra_output_with_sum_connections() -> None:
     from gems.model.port import PortField, PortFieldDefinition, PortFieldId, PortType
     from gems.model.variable import float_variable
     from gems.simulation import TimeBlock, build_problem
-    from gems.study import DataBase, Network, Node, PortRef, create_component
+    from gems.study import Component, DataBase, PortRef, System, create_component
 
     BALANCE_PORT_TYPE = PortType(id="balance", fields=[PortField("flow")])
 
@@ -53,16 +53,16 @@ def test_extra_output_with_sum_connections() -> None:
     database = DataBase()
 
     gen_comp = create_component(model=GEN_MODEL, id="gen_1")
-    node_comp = Node(model=NODE_MODEL, id="node_1")
+    node_comp = Component(model=NODE_MODEL, id="node_1")
 
-    network = Network("test_sum_connections")
-    network.add_component(gen_comp)
-    network.add_node(node_comp)
-    network.connect(
+    system = System("test_sum_connections")
+    system.add_component(gen_comp)
+    system.add_component(node_comp)
+    system.connect(
         PortRef(gen_comp, "balance_port"), PortRef(node_comp, "balance_port")
     )
 
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios=1)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios=1)
     problem.solve(solver_name="highs")
 
     df = SimulationTableBuilder().build(problem)
@@ -88,7 +88,7 @@ def test_extra_output_nonlinear() -> None:
     from gems.model.model import model
     from gems.model.variable import float_variable
     from gems.simulation import TimeBlock, build_problem
-    from gems.study import DataBase, Network, create_component
+    from gems.study import DataBase, System, create_component
 
     SIMPLE_MODEL = model(
         id="SIMPLE_NL",
@@ -99,10 +99,10 @@ def test_extra_output_nonlinear() -> None:
     database = DataBase()
     comp = create_component(model=SIMPLE_MODEL, id="comp_1")
 
-    network = Network("test_nonlinear")
-    network.add_component(comp)
+    system = System("test_nonlinear")
+    system.add_component(comp)
 
-    problem = build_problem(network, database, TimeBlock(1, [0]), scenarios=1)
+    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios=1)
     problem.solve(solver_name="highs")
 
     df = SimulationTableBuilder().build(problem)

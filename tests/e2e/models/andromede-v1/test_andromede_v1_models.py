@@ -22,7 +22,7 @@ from gems.model.resolve_library import resolve_library
 from gems.simulation import build_problem
 from gems.simulation.time_block import TimeBlock
 from gems.study.parsing import parse_yaml_components
-from gems.study.resolve_components import build_data_base, build_network, resolve_system
+from gems.study.resolve_components import build_data_base, resolve_system
 
 
 @pytest.fixture
@@ -126,11 +126,10 @@ def test_model_behaviour(
     result_lib = resolve_library(input_libraries)
     components_input = resolve_system(input_component, result_lib)
     database = build_data_base(input_component, Path(series_dir))
-    network = build_network(components_input)
     reference_values = pd.read_csv(results_dir / optim_result_file, header=None).values
     for k in range(batch):
         problem = build_problem(
-            network,
+            components_input,
             database,
             TimeBlock(1, [i for i in range(k * timespan, (k + 1) * timespan)]),
             scenarios,

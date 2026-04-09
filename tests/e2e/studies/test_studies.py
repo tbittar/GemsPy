@@ -34,7 +34,6 @@ import pytest
 from gems.main.main import _write_structure_txt, input_database, input_libs, input_study
 from gems.optim_config.parsing import load_optim_config, validate_optim_config
 from gems.simulation import TimeBlock, build_decomposed_problems
-from gems.study.resolve_components import build_network
 
 STUDIES_DIR = Path(__file__).parent
 STUDY_IDS = ["13_1", "13_2"]
@@ -52,23 +51,20 @@ def test_study_mps_matches_expected(study_id: str, tmp_path: Path) -> None:
 
     # --- Load system and database ---
     system_path = input_dir / "system.yml"
-    study = input_study(system_path, lib_dict)
+    system = input_study(system_path, lib_dict)
     database = input_database(system_path, timeseries_path=None)
-
-    # --- Build network ---
-    network = build_network(study)
 
     # --- Load and validate optim-config ---
     config_path = input_dir / "optim-config.yml"
     optim_config = load_optim_config(config_path)
     assert optim_config is not None, f"optim-config.yml not found in {input_dir}"
-    validate_optim_config(optim_config, network)
+    validate_optim_config(optim_config, system)
 
     # --- Build decomposed problems (1 timestep, 1 scenario) ---
     time_block = TimeBlock(1, [0])
     scenarios = 1
     decomposed = build_decomposed_problems(
-        network, database, time_block, scenarios, optim_config
+        system, database, time_block, scenarios, optim_config
     )
 
     # --- Write MPS files ---
