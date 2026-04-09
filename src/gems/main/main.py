@@ -89,7 +89,9 @@ def _master_rows(
     if labels is None:
         return []
     return [
-        _structure_row("master", comp_id, int(labels.sel(component=comp_id).item()))
+        _structure_row(
+            decomposed.master.name, comp_id, int(labels.sel(component=comp_id).item())
+        )
     ]
 
 
@@ -98,7 +100,6 @@ def _subproblem_rows(
     model_id: str,
     var_name: str,
     comp_id: str,
-    block_id: int,
     scenarios: int,
 ) -> List[str]:
     labels = decomposed.subproblem.get_variable_labels(model_id, var_name)
@@ -106,15 +107,14 @@ def _subproblem_rows(
         return []
     sid = int(labels.sel(component=comp_id).item())
     return [
-        _structure_row(f"problem-{block_id}-{s}--optim-nb-1", comp_id, sid)
-        for s in range(1, scenarios + 1)
+        _structure_row(decomposed.subproblem.name, comp_id, sid)
+        for _ in range(1, scenarios + 1)
     ]
 
 
 def _write_structure_txt(
     decomposed: DecomposedProblems,
     optim_config: OptimConfig,
-    block_id: int,
     scenarios: int,
     output_dir: Path,
 ) -> None:
@@ -136,9 +136,7 @@ def _write_structure_txt(
             for comp in components:
                 lines.extend(_master_rows(decomposed, mc.id, var_cfg.id, comp.id))
                 lines.extend(
-                    _subproblem_rows(
-                        decomposed, mc.id, var_cfg.id, comp.id, block_id, scenarios
-                    )
+                    _subproblem_rows(decomposed, mc.id, var_cfg.id, comp.id, scenarios)
                 )
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -193,7 +191,6 @@ def main_cli() -> None:
                 _write_structure_txt(
                     decomposed,
                     optim_config,
-                    timeblock.id,
                     scenario,
                     output_dir=parsed_args.components_path.parent,
                 )

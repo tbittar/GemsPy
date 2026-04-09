@@ -79,7 +79,6 @@ def test_study_mps_matches_expected(study_id: str, tmp_path: Path) -> None:
     _write_structure_txt(
         decomposed,
         optim_config,
-        block_id=time_block.id,
         scenarios=scenarios,
         output_dir=tmp_path,
     )
