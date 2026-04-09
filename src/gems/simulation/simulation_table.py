@@ -39,7 +39,7 @@ class OutputView:
         if time_index is None and scenario_index is None:
             return self._df
         if time_index is not None and scenario_index is not None:
-            return float(self._df.loc[time_index, scenario_index])
+            return float(cast(Any, self._df.loc[time_index, scenario_index]))
         if time_index is not None:
             return self._df.loc[time_index]  # Series over scenarios
         return self._df[scenario_index]  # Series over time
