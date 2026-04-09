@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -57,7 +58,7 @@ class FakeProblem:
     model_components: dict = field(default_factory=dict)
 
 
-def test_simulation_table_builder_manual(tmp_path):
+def test_simulation_table_builder_manual(tmp_path: Path) -> None:
     """Test SimulationTableBuilder and SimulationTableWriter with fake data."""
     sol_da = xr.DataArray(
         np.array([[[10.0], [20.0]]]),
