@@ -46,15 +46,6 @@ from gems.simulation.vectorized_builder import (
     _linopy_add,
 )
 
-# Backward-compatible re-export.
-LinopyExpression = VectorizedExpr
-
-__all__ = [
-    "LinopyExpression",
-    "VectorizedExpr",
-    "VectorizedLinopyBuilder",
-    "_linopy_add",
-]
 
 
 @dataclass(kw_only=True)

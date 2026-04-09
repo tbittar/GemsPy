@@ -48,7 +48,6 @@ from gems.simulation.linopy_linearize import (
     _linopy_add,
 )
 
-LinopyExpression = VectorizedExpr  # backward-compatible local alias
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
 from gems.study.network import Component, Network
@@ -294,7 +293,7 @@ class _LinopyProblemBuilder:
         self.linopy_model = linopy.Model()
         self.linopy_vars: Dict[Tuple[str, str], linopy.Variable] = {}
         self.param_arrays: Dict[Tuple[str, str], xr.DataArray] = {}
-        self.port_arrays: Dict[str, Dict[PortFieldId, LinopyExpression]] = {}
+        self.port_arrays: Dict[str, Dict[PortFieldId, VectorizedExpr]] = {}
 
         # Group components by model.id.
         self.model_components: Dict[str, List[Component]] = defaultdict(list)
@@ -320,7 +319,7 @@ class _LinopyProblemBuilder:
             self._build_port_arrays_for_model(self.models[mk], components)
 
         # Phase 4: constraints + objectives
-        total_obj: Optional[LinopyExpression] = None
+        total_obj: Optional[VectorizedExpr] = None
         for mk in self.model_components.keys():
             model = self.models[mk]
             port_arrays_for_model = self.port_arrays.get(mk, {})
@@ -557,7 +556,7 @@ class _LinopyProblemBuilder:
     def _create_constraints_for_model(
         self,
         model: Model,
-        port_arrays_for_model: Dict[PortFieldId, LinopyExpression],
+        port_arrays_for_model: Dict[PortFieldId, VectorizedExpr],
     ) -> None:
         """Add all constraints for *model* to the linopy model."""
         builder = self._make_builder(model, port_arrays=port_arrays_for_model)
@@ -586,17 +585,17 @@ class _LinopyProblemBuilder:
     def _add_objectives_for_model(
         self,
         model: Model,
-        port_arrays_for_model: Dict[PortFieldId, LinopyExpression],
-        total_obj: Optional[LinopyExpression],
-    ) -> Optional[LinopyExpression]:
+        port_arrays_for_model: Dict[PortFieldId, VectorizedExpr],
+        total_obj: Optional[VectorizedExpr],
+    ) -> Optional[VectorizedExpr]:
         """Accumulate objective contributions from *model*."""
         builder = self._make_builder(model, port_arrays=port_arrays_for_model)
 
         def _accumulate(
-            acc: Optional[LinopyExpression], contribution: LinopyExpression
-        ) -> LinopyExpression:
+            acc: Optional[VectorizedExpr], contribution: VectorizedExpr
+        ) -> VectorizedExpr:
             if isinstance(contribution, xr.DataArray):
-                summed: LinopyExpression = float(contribution.sum().item())  # type: ignore[assignment]
+                summed: VectorizedExpr = float(contribution.sum().item())  # type: ignore[assignment]
             else:
                 summed = contribution.sum()  # type: ignore[union-attr]
             return summed if acc is None else _linopy_add(acc, summed)
@@ -640,7 +639,7 @@ class _LinopyProblemBuilder:
     def _make_builder(
         self,
         model: Model,
-        port_arrays: Dict[PortFieldId, LinopyExpression],
+        port_arrays: Dict[PortFieldId, VectorizedExpr],
     ) -> VectorizedLinopyBuilder:
         return VectorizedLinopyBuilder(
             model_id=model.id,

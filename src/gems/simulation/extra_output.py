@@ -80,7 +80,7 @@ class ExtraOutput:
 
 
 @dataclass(kw_only=True)
-class VectorizedExtraOutputBuilder(VectorizedBuilderBase):
+class VectorizedExtraOutputBuilder(VectorizedBuilderBase[xr.DataArray]):
     """
     Evaluates a model-level extra output expression as a vectorized xr.DataArray.
 
