@@ -37,7 +37,9 @@ def setup_data(pypsa_dir: Path) -> Tuple[Network, DataBase]:
     return network, database
 
 
-def build_pypsa_problem(network: Network, database: DataBase, time_horizon: int) -> float:
+def build_pypsa_problem(
+    network: Network, database: DataBase, time_horizon: int
+) -> float:
     scenarios = 1
     time_block = TimeBlock(1, list(range(time_horizon)))
     start = time.time()
