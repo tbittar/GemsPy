@@ -43,12 +43,10 @@ from .visitor import ExpressionVisitor, T, visit
 
 class IndexingStructureProvider(ABC):
     @abstractmethod
-    def get_parameter_structure(self, name: str) -> IndexingStructure:
-        ...
+    def get_parameter_structure(self, name: str) -> IndexingStructure: ...
 
     @abstractmethod
-    def get_variable_structure(self, name: str) -> IndexingStructure:
-        ...
+    def get_variable_structure(self, name: str) -> IndexingStructure: ...
 
 
 @dataclass(frozen=True)
