@@ -77,8 +77,8 @@ def load_optim_config(components_path: Path) -> Optional[OptimConfig]:
     if not config_path.exists():
         return None
     try:
-        with config_path.open() as f:
-            return OptimConfig.model_validate(safe_load(f))
+        with config_path.open() as config_file:
+            return OptimConfig.model_validate(safe_load(config_file))
     except ValidationError as e:
         raise ValueError(f"Invalid {OPTIM_CONFIG_FILENAME}: {e}")
 
@@ -95,8 +95,8 @@ def _collect_variable_names(expr: ExpressionNode) -> Set[str]:
         return {expr.name}
     if isinstance(expr, (AdditionNode, MaxNode, MinNode)):
         result: Set[str] = set()
-        for op in expr.operands:
-            result |= _collect_variable_names(op)
+        for operand in expr.operands:
+            result |= _collect_variable_names(operand)
         return result
     if isinstance(expr, UnaryOperatorNode):
         return _collect_variable_names(expr.operand)
@@ -106,81 +106,103 @@ def _collect_variable_names(expr: ExpressionNode) -> Set[str]:
 
 
 def _check_id_existence(
-    d: ModelDecompositionConfig, model: "Model", mc_id: str, errors: List[str]
+    decomposition: ModelDecompositionConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
 ) -> None:
-    for v in d.variables:
-        if v.id not in model.variables:
-            errors.append(f"Variable '{v.id}' not found in model '{mc_id}'")
-    for c in d.constraints:
-        if c.id not in model.constraints and c.id not in model.binding_constraints:
-            errors.append(f"Constraint '{c.id}' not found in model '{mc_id}'")
-    obj_keys = set(model.objective_contributions or {})
-    for o in d.objective_contributions:
-        if o.id not in obj_keys:
+    for variable_config in decomposition.variables:
+        if variable_config.id not in model.variables:
             errors.append(
-                f"Objective-contribution '{o.id}' not found in model '{mc_id}'"
+                f"Variable '{variable_config.id}' not found in model '{model_config_id}'"
+            )
+    for constraint_config in decomposition.constraints:
+        if (
+            constraint_config.id not in model.constraints
+            and constraint_config.id not in model.binding_constraints
+        ):
+            errors.append(
+                f"Constraint '{constraint_config.id}' not found in model '{model_config_id}'"
+            )
+    obj_keys = set(model.objective_contributions or {})
+    for obj_config in decomposition.objective_contributions:
+        if obj_config.id not in obj_keys:
+            errors.append(
+                f"Objective-contribution '{obj_config.id}' not found in model '{model_config_id}'"
             )
 
 
 def _check_master_variables_not_time_dependent(
-    d: ModelDecompositionConfig, model: "Model", mc_id: str, errors: List[str]
+    decomposition: ModelDecompositionConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
 ) -> None:
     """Variables assigned to master or master-and-subproblems must not depend on time."""
-    for v in d.variables:
-        if v.location in _MASTER_LOCS and v.id in model.variables:
-            if model.variables[v.id].structure.time:
+    for variable_config in decomposition.variables:
+        if (
+            variable_config.location in _MASTER_LOCS
+            and variable_config.id in model.variables
+        ):
+            if model.variables[variable_config.id].structure.time:
                 errors.append(
-                    f"Variable '{v.id}' in model '{mc_id}' is time-dependent "
-                    f"but is assigned to '{v.location.value}'; "
+                    f"Variable '{variable_config.id}' in model '{model_config_id}' is time-dependent "
+                    f"but is assigned to '{variable_config.location.value}'; "
                     "master variables must not depend on time"
                 )
 
 
 def _check_master_constraints_use_master_variables(
-    d: ModelDecompositionConfig, model: "Model", mc_id: str, errors: List[str]
+    decomposition: ModelDecompositionConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
 ) -> None:
     """Constraints in master must only reference variables in master or master-and-subproblems."""
     master_var_ids = {
-        v.id
-        for v in d.variables
-        if v.location in _MASTER_LOCS and v.id in model.variables
+        variable_config.id
+        for variable_config in decomposition.variables
+        if variable_config.location in _MASTER_LOCS
+        and variable_config.id in model.variables
     }
-    for c in d.constraints:
-        if c.location != ElementLocation.MASTER:
-            continue
-        constraint = model.constraints.get(c.id) or model.binding_constraints.get(c.id)
-        if constraint is None:
-            continue
-        for name in sorted(
-            _collect_variable_names(constraint.expression) - master_var_ids
-        ):
-            errors.append(
-                f"Constraint '{c.id}' in model '{mc_id}' references variable '{name}' "
-                "which is not assigned to master or master-and-subproblems"
-            )
+    for constraint_config in decomposition.constraints:
+        if constraint_config.location == ElementLocation.MASTER:
+            constraint = model.constraints.get(
+                constraint_config.id
+            ) or model.binding_constraints.get(constraint_config.id)
+            if constraint is not None:
+                for var_name in sorted(
+                    _collect_variable_names(constraint.expression) - master_var_ids
+                ):
+                    errors.append(
+                        f"Constraint '{constraint_config.id}' in model '{model_config_id}' references variable '{var_name}' "
+                        "which is not assigned to master or master-and-subproblems"
+                    )
 
 
 def _check_master_objectives_use_master_variables(
-    d: ModelDecompositionConfig, model: "Model", mc_id: str, errors: List[str]
+    decomposition: ModelDecompositionConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
 ) -> None:
     """Objective contributions in master must only reference variables in master or master-and-subproblems."""
     master_var_ids = {
-        v.id
-        for v in d.variables
-        if v.location in _MASTER_LOCS and v.id in model.variables
+        variable_config.id
+        for variable_config in decomposition.variables
+        if variable_config.location in _MASTER_LOCS
+        and variable_config.id in model.variables
     }
     obj_contribs = model.objective_contributions or {}
-    for o in d.objective_contributions:
-        if o.location != ElementLocation.MASTER:
-            continue
-        expr = obj_contribs.get(o.id)
-        if expr is None:
-            continue
-        for name in sorted(_collect_variable_names(expr) - master_var_ids):
-            errors.append(
-                f"Objective contribution '{o.id}' in model '{mc_id}' references variable '{name}' "
-                "which is not assigned to master or master-and-subproblems"
-            )
+    for obj_config in decomposition.objective_contributions:
+        if obj_config.location == ElementLocation.MASTER:
+            expr = obj_contribs.get(obj_config.id)
+            if expr is not None:
+                for var_name in sorted(_collect_variable_names(expr) - master_var_ids):
+                    errors.append(
+                        f"Objective contribution '{obj_config.id}' in model '{model_config_id}' references variable '{var_name}' "
+                        "which is not assigned to master or master-and-subproblems"
+                    )
 
 
 def validate_optim_config(config: OptimConfig, network: "Network") -> None:
@@ -194,18 +216,22 @@ def validate_optim_config(config: OptimConfig, network: "Network") -> None:
     models_in_network = {c.model.id: c.model for c in network.all_components}
     errors: List[str] = []
 
-    for mc in config.models:
-        model = models_in_network.get(mc.id)
+    for model_config in config.models:
+        model = models_in_network.get(model_config.id)
         if model is None:
-            errors.append(f"Model '{mc.id}' not found in network")
-            continue
-        if mc.model_decomposition is None:
-            continue
-        d = mc.model_decomposition
-        _check_id_existence(d, model, mc.id, errors)
-        _check_master_variables_not_time_dependent(d, model, mc.id, errors)
-        _check_master_constraints_use_master_variables(d, model, mc.id, errors)
-        _check_master_objectives_use_master_variables(d, model, mc.id, errors)
+            errors.append(f"Model '{model_config.id}' not found in network")
+        elif model_config.model_decomposition is not None:
+            decomposition = model_config.model_decomposition
+            _check_id_existence(decomposition, model, model_config.id, errors)
+            _check_master_variables_not_time_dependent(
+                decomposition, model, model_config.id, errors
+            )
+            _check_master_constraints_use_master_variables(
+                decomposition, model, model_config.id, errors
+            )
+            _check_master_objectives_use_master_variables(
+                decomposition, model, model_config.id, errors
+            )
 
     if errors:
         raise ValueError(
