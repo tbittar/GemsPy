@@ -47,7 +47,7 @@ def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
      - cost = 30
      --> objective = 30 * 100 = 3000
     """
-    ac_node_model = ac_lib["ac"].models["ac-node"]
+    ac_node_model = ac_lib["ac"].models["ac.ac-node"]
 
     database = DataBase()
     database.add_data("D", "demand", ConstantData(100))
@@ -90,8 +90,8 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
     We check that final cost matches the demand: 100 * 35 = 3500,
     and that flow on the line is -100 MW.
     """
-    ac_node_model = ac_lib["ac"].models["ac-node"]
-    ac_link_model = ac_lib["ac"].models["ac-link"]
+    ac_node_model = ac_lib["ac"].models["ac.ac-node"]
+    ac_link_model = ac_lib["ac"].models["ac.ac-link"]
 
     database = DataBase()
     database.add_data("D", "demand", ConstantData(100))
@@ -153,8 +153,8 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
     We check that final cost matches the demand: 100 * 35 = 3500,
     and that flow on L1 is -66. MW while flow on L2 is only -33.3 MW.
     """
-    ac_node_model = ac_lib["ac"].models["ac-node"]
-    ac_link_model = ac_lib["ac"].models["ac-link"]
+    ac_node_model = ac_lib["ac"].models["ac.ac-node"]
+    ac_link_model = ac_lib["ac"].models["ac.ac-link"]
 
     database = DataBase()
     database.add_data("D", "demand", ConstantData(100))
@@ -226,9 +226,9 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
 
     Objective value is 3500 (for generation) + 50 (for phase shift).
     """
-    ac_node_model = ac_lib["ac"].models["ac-node"]
-    ac_link_model = ac_lib["ac"].models["ac-link-with-limit"]
-    pst_model = ac_lib["ac"].models["ac-link-with-pst"]
+    ac_node_model = ac_lib["ac"].models["ac.ac-node"]
+    ac_link_model = ac_lib["ac"].models["ac.ac-link-with-limit"]
+    pst_model = ac_lib["ac"].models["ac.ac-link-with-pst"]
 
     database = DataBase()
     database.add_data("D", "demand", ConstantData(100))
