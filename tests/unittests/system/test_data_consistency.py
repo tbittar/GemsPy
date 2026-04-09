@@ -88,9 +88,9 @@ def mock_generator_with_fixed_scenario_time_varying_param() -> Model:
                 name="Max generation", expression=var("generation") <= param("p_max")
             )
         ],
-        objective_operational_contribution=(param("cost") * var("generation"))
-        .time_sum()
-        .expec(),
+        objective_contributions={
+            "operational": (param("cost") * var("generation")).time_sum().expec()
+        },
     )
     return fixed_scenario_time_varying_param_generator
 
@@ -116,9 +116,9 @@ def mock_generator_with_scenario_varying_fixed_time_param() -> Model:
                 name="Max generation", expression=var("generation") <= param("p_max")
             )
         ],
-        objective_operational_contribution=(param("cost") * var("generation"))
-        .time_sum()
-        .expec(),
+        objective_contributions={
+            "operational": (param("cost") * var("generation")).time_sum().expec()
+        },
     )
     return scenario_varying_fixed_time_generator
 

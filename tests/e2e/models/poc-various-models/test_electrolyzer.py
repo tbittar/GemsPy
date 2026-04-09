@@ -57,9 +57,9 @@ ELECTRICAL_GENERATOR_MODEL = model(
             definition=var("generation"),
         )
     ],
-    objective_operational_contribution=(param("cost") * var("generation"))
-    .time_sum()
-    .expec(),
+    objective_contributions={
+        "operational": (param("cost") * var("generation")).time_sum().expec()
+    },
 )
 
 H2_PORT = PortType(id="h2_port", fields=[PortField("flow")])

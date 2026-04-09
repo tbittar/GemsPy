@@ -616,14 +616,6 @@ class _LinopyProblemBuilder:
                 if expr is not None:
                     obj_term = visit(expr, builder)
                     total_obj = _accumulate(total_obj, obj_term)
-        else:
-            for obj_expr in [
-                model.objective_operational_contribution,
-                model.objective_investment_contribution,
-            ]:
-                if obj_expr is not None:
-                    obj_term = visit(obj_expr, builder)
-                    total_obj = _accumulate(total_obj, obj_term)
 
         return total_obj
 

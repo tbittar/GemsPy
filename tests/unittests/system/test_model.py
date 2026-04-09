@@ -12,13 +12,7 @@
 
 import pytest
 
-from gems.expression.expression import (
-    ExpressionNode,
-    literal,
-    param,
-    port_field,
-    var,
-)
+from gems.expression.expression import ExpressionNode, literal, param, port_field, var
 from gems.model import Constraint, float_variable, model
 from gems.model.port import port_field_def
 
@@ -185,7 +179,7 @@ def test_instantiating_a_model_with_non_linear_scenario_operator_in_the_objectiv
         _ = model(
             id="model_with_non_linear_op",
             variables=[float_variable("generation")],
-            objective_operational_contribution=var("generation").variance(),
+            objective_contributions={"operational": var("generation").variance()},
         )
     assert str(exc.value) == "Objective contribution must be a linear expression."
 
