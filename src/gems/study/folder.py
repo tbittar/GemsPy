@@ -8,6 +8,7 @@ A study is defined by a directory containing:
 """
 import time
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -19,17 +20,16 @@ from gems.optim_config import load_optim_config
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.linopy_problem import LinopyOptimizationProblem
 from gems.study.data import DataBase
-from gems.study.network import Network
+from gems.study.network import System
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
-    build_network,
     consistency_check,
     resolve_system,
 )
 
 
-def load_study(study_dir: Path) -> tuple[Network, DataBase]:
+def load_study(study_dir: Path) -> tuple[System, DataBase]:
     """
     Loads a study from a given directory.
 
@@ -43,7 +43,7 @@ def load_study(study_dir: Path) -> tuple[Network, DataBase]:
     Returns:
         A tuple containing the simulation network and the database.
     """
-    study_file = study_dir / "input" / "system.yml"
+    system_file = study_dir / "input" / "system.yml"
     lib_folder = study_dir / "input" / "model-libraries"
     series_dir = study_dir / "input" / "data-series"
     config_file = study_dir / "input" / "optim-config.yml"
@@ -60,22 +60,24 @@ def load_study(study_dir: Path) -> tuple[Network, DataBase]:
         with lib_file.open() as lib:
             input_libraries.append(parse_yaml_library(lib))
 
-    with study_file.open() as c:
+    with system_file.open() as c:
         input_study = parse_yaml_components(c)
     lib_dict = resolve_library(input_libraries)
-    network_components = resolve_system(input_study, lib_dict)
+    system = resolve_system(input_study, lib_dict)
     model_dict: dict[str, Model] = {}
     for library in lib_dict.values():
         model_dict |= library.models
-    consistency_check(network_components.components, model_dict)
+    consistency_check(system, model_dict)
 
     database = build_data_base(input_study, series_dir)
-    network = build_network(network_components)
-    return network, database
+    return system, database
 
 
 def run_study(
-    study_dir: Path, scenarios: int, time_block: TimeBlock
+    study_dir: Path,
+    scenarios: int,
+    time_block: TimeBlock,
+    export_simulation_table: Optional[bool] = False,
 ) -> LinopyOptimizationProblem:
     """
     Runs a simulation study.
@@ -86,6 +88,7 @@ def run_study(
         study_dir: The path to the study directory.
         scenarios: The number of scenarios to run.
         time_block: The time block for the simulation.
+        export_simulation_table: Whether to export a simulation table CSV file.
 
     Returns:
         The solved simulation problem.
@@ -94,5 +97,16 @@ def run_study(
     network, database = load_study(study_dir)
     problem = build_problem(network, database, time_block, scenarios)
     problem.solve()
+    if export_simulation_table:
+        from gems.simulation.simulation_table import SimulationTableBuilder
+
+        builder = SimulationTableBuilder(simulation_id=study_dir.stem)
+        df = builder.build(problem)
+        output_file = (
+            study_dir
+            / "output"
+            / f"{study_dir.stem}_simulation_table_{time.time()}.csv"
+        )
+        df.to_csv(output_file, index=False)
 
     return problem
