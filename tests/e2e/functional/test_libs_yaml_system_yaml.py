@@ -141,7 +141,7 @@ def test_short_term_storage_base_with_yaml(
 
 
 def test_varying_down_time(
-    setup_test: Callable[[], Tuple[Network, DataBase]],
+    setup_test: Callable[[], Tuple[System, DataBase]],
 ) -> None:
     """
     Two thermal clusters with different min-down-times actually start and stop,
