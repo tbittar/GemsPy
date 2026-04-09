@@ -205,9 +205,9 @@ def test_variable_bound() -> None:
                 definition=var("generation"),
             )
         ],
-        objective_operational_contribution=(param("cost") * var("generation"))
-        .time_sum()
-        .expec(),
+        objective_contributions={
+            "operational": (param("cost") * var("generation")).time_sum().expec()
+        },
     )
 
     network = create_one_node_network(generator_model)
