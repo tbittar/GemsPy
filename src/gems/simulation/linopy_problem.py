@@ -448,7 +448,7 @@ class _LinopyProblemBuilder:
                         abs_timesteps, None, self.decision_tree_node
                     )
                     if use_time and use_scenario:
-                        data[i, :, :] = v
+                        data[i, :, :] = v[:, np.newaxis]  # broadcast T across S
                     elif use_time:
                         data[i, :] = v
                     else:
