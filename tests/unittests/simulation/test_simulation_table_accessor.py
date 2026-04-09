@@ -18,7 +18,6 @@ from gems.simulation.simulation_table import (
     SimulationTableBuilder,
 )
 
-
 # ---------------------------------------------------------------------------
 # Minimal stubs (reused from test_simulation_table_mock.py)
 # ---------------------------------------------------------------------------
