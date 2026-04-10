@@ -115,9 +115,15 @@ def test_simulation_table_builder_manual(tmp_path: Path) -> None:
     ]
     expected_df = pd.DataFrame(expected_rows)
 
+    def _to_object_dtype(frame: pd.DataFrame) -> pd.DataFrame:
+        """Cast every column to numpy object dtype, normalising all nulls to None."""
+        return pd.DataFrame(
+            {col: frame[col].to_numpy(dtype=object, na_value=None) for col in frame.columns}
+        )
+
     pd.testing.assert_frame_equal(
-        df.data.reset_index(drop=True),
-        expected_df,
+        _to_object_dtype(df.data.reset_index(drop=True)),
+        _to_object_dtype(expected_df),
         check_dtype=False,
     )
 
@@ -133,3 +139,9 @@ def test_simulation_table_builder_manual(tmp_path: Path) -> None:
     assert first_line == expected_header, "CSV header does not match expected columns"
 
     csv_path.unlink()
+
+    parquet_path = writer.write_parquet(tmp_path, simulation_id="test", optim_nb=1)
+    assert parquet_path.exists(), "Parquet file was not created"
+    loaded = pd.read_parquet(parquet_path)
+    assert list(loaded.columns) == [col.value for col in SimulationColumns]
+    parquet_path.unlink()
