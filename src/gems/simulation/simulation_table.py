@@ -269,7 +269,9 @@ class SimulationTableBuilder:
                     result_da = result_da.sel(component=present)
 
                 dfs.append(
-                    self._da_to_df(result_da, out_id, block, abs_offset, basis_status=None)
+                    self._da_to_df(
+                        result_da, out_id, block, abs_offset, basis_status=None
+                    )
                 )
 
         return dfs
@@ -339,7 +341,9 @@ class SimulationTableBuilder:
                     str(c) if c is not None else None for c in np.array(comp_vals)[ci]
                 ],
                 SimulationColumns.OUTPUT.value: output_name,
-                SimulationColumns.ABSOLUTE_TIME_INDEX.value: (abs_offset + ti) if has_time else None,
+                SimulationColumns.ABSOLUTE_TIME_INDEX.value: (abs_offset + ti)
+                if has_time
+                else None,
                 SimulationColumns.BLOCK_TIME_INDEX.value: ti if has_time else None,
                 SimulationColumns.SCENARIO_INDEX.value: si if has_scenario else None,
                 SimulationColumns.VALUE.value: da.values.ravel().astype(float),

@@ -118,7 +118,10 @@ def test_simulation_table_builder_manual(tmp_path: Path) -> None:
     def _to_object_dtype(frame: pd.DataFrame) -> pd.DataFrame:
         """Cast every column to numpy object dtype, normalising all nulls to None."""
         return pd.DataFrame(
-            {col: frame[col].to_numpy(dtype=object, na_value=None) for col in frame.columns}
+            {
+                col: frame[col].to_numpy(dtype=object, na_value=None)
+                for col in frame.columns
+            }
         )
 
     pd.testing.assert_frame_equal(
@@ -165,7 +168,7 @@ def _make_problem_with_da(da: xr.DataArray, var_name: str = "p") -> "FakeProblem
 def test_time_independent_output_has_none_time_indices() -> None:
     """A var with no time dim produces None for both time index columns."""
     da = xr.DataArray(
-        np.array([[5.0, 6.0]]),          # shape [component=1, scenario=2]
+        np.array([[5.0, 6.0]]),  # shape [component=1, scenario=2]
         dims=["component", "scenario"],
         coords={"component": ["compA"], "scenario": [0, 1]},
     )
@@ -198,7 +201,7 @@ def test_scenario_independent_output_has_none_scenario_index() -> None:
 def test_scalar_output_has_none_time_and_scenario_indices() -> None:
     """A var with no time and no scenario dim produces None for all index columns."""
     da = xr.DataArray(
-        np.array([99.0]),                # shape [component=1]
+        np.array([99.0]),  # shape [component=1]
         dims=["component"],
         coords={"component": ["compA"]},
     )

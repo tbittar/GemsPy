@@ -98,7 +98,10 @@ def run_study(
     problem = build_problem(system, database, time_block, scenarios)
     problem.solve()
     if export_simulation_table:
-        from gems.simulation.simulation_table import SimulationTableBuilder, SimulationTableWriter
+        from gems.simulation.simulation_table import (
+            SimulationTableBuilder,
+            SimulationTableWriter,
+        )
 
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         builder = SimulationTableBuilder(simulation_id=study_dir.stem)
