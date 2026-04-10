@@ -7,7 +7,7 @@
 
 ~~~ python
 
-network = build_network(components_input)
+network = build_network(system_input)
 
 problem = build_problem(
     network,

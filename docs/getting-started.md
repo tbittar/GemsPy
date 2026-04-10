@@ -174,7 +174,7 @@ with open("system.yml") as lib_file:
     input_libraries = [parse_yaml_library(lib_file)]
 
 result_lib = resolve_library(input_libraries)
-components_input = resolve_system(input_system, result_lib)
+system_input = resolve_system(input_system, result_lib)
 database = build_data_base(input_system, Path(series_dir))
 ~~~
 
@@ -182,7 +182,7 @@ database = build_data_base(input_system, Path(series_dir))
 
 ~~~ python
 
-network = build_network(components_input)
+network = build_network(system_input)
 
 problem = build_problem(
     network,

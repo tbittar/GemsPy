@@ -58,13 +58,13 @@ def test_basic_balance_using_yaml(
     input_system: InputSystem, input_library: InputLibrary
 ) -> None:
     result_lib = resolve_library([input_library])
-    components_input = resolve_system(input_system, result_lib)
-    consistency_check(components_input, result_lib["basic"].models)
+    system_input = resolve_system(input_system, result_lib)
+    consistency_check(system_input, result_lib["basic"].models)
 
     database = build_data_base(input_system, None)
 
     scenarios = 1
-    problem = build_problem(components_input, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(system_input, database, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
