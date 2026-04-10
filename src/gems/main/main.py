@@ -33,12 +33,14 @@ from gems.simulation import (
     dump_couplings,
 )
 from gems.study import Study
+from gems.study.data import DataBase
 from gems.study.parsing import parse_cli, parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
     consistency_check,
     resolve_system,
 )
+from gems.study.system import System
 
 
 class AntaresTimeSeriesImportError(Exception):
@@ -62,12 +64,12 @@ def input_libs(yaml_lib_paths: List[Path]) -> dict[str, Library]:
     return resolve_library(yaml_libraries)
 
 
-def input_database(study_path: Path, timeseries_path: Optional[Path]):
+def input_database(study_path: Path, timeseries_path: Optional[Path]) -> DataBase:
     with study_path.open() as comp:
         return build_data_base(parse_yaml_components(comp), timeseries_path)
 
 
-def input_system(study_path: Path, librairies: dict[str, Library]):
+def input_system(study_path: Path, librairies: dict[str, Library]) -> System:
     with study_path.open() as comp:
         return resolve_system(parse_yaml_components(comp), librairies)
 

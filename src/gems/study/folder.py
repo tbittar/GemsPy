@@ -20,12 +20,12 @@ from gems.optim_config import load_optim_config
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.optimization import OptimizationProblem
 from gems.study.parsing import parse_yaml_components
-from gems.study.study import Study
 from gems.study.resolve_components import (
     build_data_base,
     consistency_check,
     resolve_system,
 )
+from gems.study.study import Study
 
 
 def load_study(study_dir: Path) -> Study:
