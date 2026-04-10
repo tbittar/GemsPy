@@ -17,7 +17,7 @@ import pytest
 from gems.model.library import Library
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.study.network import Component, System
+from gems.study.system import Component, System
 
 
 @pytest.fixture(scope="session")

@@ -50,7 +50,7 @@ from gems.simulation.linopy_linearize import (
 )
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
-from gems.study.network import Component, System
+from gems.study.system import Component, System
 
 if TYPE_CHECKING:
     from gems.optim_config.parsing import ElementLocation, OptimConfig
