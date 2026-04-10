@@ -40,10 +40,11 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     TimeScenarioSeriesData,
     create_component,
-    Study,)
+)
 
 # TODO : Use fixtures for models and components used several times to simplify this test file
 

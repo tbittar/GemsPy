@@ -21,9 +21,10 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     create_component,
-    Study,)
+)
 from gems.study.data import TimeScenarioSeriesData
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,

@@ -33,12 +33,13 @@ from gems.study import (
     PortRef,
     ScenarioIndex,
     ScenarioSeriesData,
+    Study,
     System,
     TimeIndex,
     TimeScenarioSeriesData,
     TimeSeriesData,
     create_component,
-    Study,)
+)
 from gems.study.data import load_ts_from_file
 from tests.unittests.system.libs.standard import (
     BALANCE_PORT_TYPE,

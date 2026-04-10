@@ -24,9 +24,10 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     create_component,
-    Study,)
+)
 
 
 @pytest.fixture

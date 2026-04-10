@@ -20,9 +20,10 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     create_component,
-    Study,)
+)
 
 """
 This file tests various modellings for an electrolyser with multiple inputs. The models are read from a YAML model file.

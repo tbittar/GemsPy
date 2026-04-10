@@ -93,10 +93,11 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     TimeScenarioSeriesData,
     create_component,
-    Study,)
+)
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,

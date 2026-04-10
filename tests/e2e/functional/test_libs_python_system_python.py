@@ -47,11 +47,12 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     TimeScenarioIndex,
     TimeScenarioSeriesData,
     create_component,
-    Study,)
+)
 from tests.e2e.functional.libs.standard import (
     BALANCE_PORT_TYPE,
     DEMAND_MODEL,

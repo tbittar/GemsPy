@@ -31,7 +31,12 @@ from pathlib import Path
 
 import pytest
 
-from gems.main.main import _write_structure_txt, input_database, input_libs, input_system
+from gems.main.main import (
+    _write_structure_txt,
+    input_database,
+    input_libs,
+    input_system,
+)
 from gems.optim_config.parsing import load_optim_config, validate_optim_config
 from gems.simulation import TimeBlock, build_decomposed_problems
 from gems.study import Study

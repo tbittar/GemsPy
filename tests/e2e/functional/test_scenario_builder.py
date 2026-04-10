@@ -19,8 +19,8 @@ from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import build_problem
 from gems.simulation.time_block import TimeBlock
-from gems.study.data import DataBase
 from gems.study import Study
+from gems.study.data import DataBase
 from gems.study.parsing import parse_scenario_builder, parse_yaml_components
 from gems.study.resolve_components import (
     build_scenarized_data_base,

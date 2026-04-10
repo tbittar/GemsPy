@@ -15,10 +15,11 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     TimeScenarioSeriesData,
     create_component,
-    Study,)
+)
 
 
 def generate_data(

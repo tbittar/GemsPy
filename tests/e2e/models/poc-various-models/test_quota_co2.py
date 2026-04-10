@@ -26,9 +26,10 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     create_component,
-    Study,)
+)
 
 
 def test_quota_co2() -> None:

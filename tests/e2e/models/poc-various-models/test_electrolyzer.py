@@ -30,9 +30,10 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     create_component,
-    Study,)
+)
 
 ELECTRICAL_PORT = PortType(id="electrical_port", fields=[PortField("flow")])
 

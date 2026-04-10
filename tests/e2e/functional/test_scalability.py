@@ -9,10 +9,11 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     TimeScenarioSeriesData,
     create_component,
-    Study,)
+)
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,
     GENERATOR_MODEL_WITH_STORAGE,

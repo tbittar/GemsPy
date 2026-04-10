@@ -20,9 +20,9 @@ import pytest
 from gems.model.parsing import InputLibrary, parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import build_problem
-from gems.study import Study
 from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.simulation.time_block import TimeBlock
+from gems.study import Study
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import build_data_base, resolve_system
 
