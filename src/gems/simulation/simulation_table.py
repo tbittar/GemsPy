@@ -175,7 +175,7 @@ class SimulationTableBuilder:
             absolute_time_offset = (block - 1) * block_size
 
         dfs: list[pd.DataFrame] = []
-        dfs += self._collect_solver_outputs(problem, block, absolute_time_offset)
+        dfs += self._collect_vars_outputs(problem, block, absolute_time_offset)
         dfs += self._collect_extra_outputs(problem, block, absolute_time_offset)
         dfs.append(self._collect_objective_value(problem, block))
 
@@ -185,7 +185,7 @@ class SimulationTableBuilder:
     # Solver outputs
     # -------------------------------------------------------------------------
 
-    def _collect_solver_outputs(
+    def _collect_vars_outputs(
         self,
         problem: OptimizationProblem,
         block: int,
