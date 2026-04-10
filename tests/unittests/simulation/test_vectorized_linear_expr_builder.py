@@ -320,7 +320,9 @@ def test_addition_three_operands_variable_da_da(
 # ---------------------------------------------------------------------------
 
 
-def test_multiplication_scalar_times_variable(builder: VectorizedLinearExprBuilder) -> None:
+def test_multiplication_scalar_times_variable(
+    builder: VectorizedLinearExprBuilder,
+) -> None:
     result = visit(literal(2) * var("x"), builder)
     assert isinstance(result, linopy.LinearExpression)
 
@@ -421,7 +423,9 @@ def test_maximum_with_variable_raises(builder: VectorizedLinearExprBuilder) -> N
         visit(maximum(var("x"), literal(5)), builder)
 
 
-def test_maximum_variable_first_also_raises(builder: VectorizedLinearExprBuilder) -> None:
+def test_maximum_variable_first_also_raises(
+    builder: VectorizedLinearExprBuilder,
+) -> None:
     with pytest.raises(NotImplementedError):
         visit(maximum(literal(5), var("x")), builder)
 
