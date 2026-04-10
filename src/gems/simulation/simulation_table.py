@@ -308,12 +308,20 @@ class SimulationTableBuilder:
         abs_offset: int,
         basis_status: Optional[str],
     ) -> pd.DataFrame:
-        """Vectorize a [component?, time?, scenario?] DataArray into a DataFrame."""
+        """Vectorize a [component?, time?, scenario?] DataArray into a DataFrame.
+
+        Index columns (absolute-time-index, block-time-index, scenario-index) are
+        set to None for dimensions that are absent from the original DataArray,
+        signalling that the output is independent of that dimension.
+        """
+        has_time = "time" in da.dims
+        has_scenario = "scenario" in da.dims
+
         if "component" not in da.dims:
             da = da.expand_dims(component=[None])
-        if "time" not in da.dims:
+        if not has_time:
             da = da.expand_dims(time=[0])
-        if "scenario" not in da.dims:
+        if not has_scenario:
             da = da.expand_dims(scenario=[0])
 
         da = da.transpose("component", "time", "scenario")
@@ -331,9 +339,9 @@ class SimulationTableBuilder:
                     str(c) if c is not None else None for c in np.array(comp_vals)[ci]
                 ],
                 SimulationColumns.OUTPUT.value: output_name,
-                SimulationColumns.ABSOLUTE_TIME_INDEX.value: abs_offset + ti,
-                SimulationColumns.BLOCK_TIME_INDEX.value: ti,
-                SimulationColumns.SCENARIO_INDEX.value: si,
+                SimulationColumns.ABSOLUTE_TIME_INDEX.value: (abs_offset + ti) if has_time else None,
+                SimulationColumns.BLOCK_TIME_INDEX.value: ti if has_time else None,
+                SimulationColumns.SCENARIO_INDEX.value: si if has_scenario else None,
                 SimulationColumns.VALUE.value: da.values.ravel().astype(float),
                 SimulationColumns.BASIS_STATUS.value: basis_status,
             }
