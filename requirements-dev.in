@@ -1,4 +1,5 @@
 -r requirements.txt
+pyarrow
 pytest~=7.0.0
 mypy~=1.7.1
 black~=23.7.0

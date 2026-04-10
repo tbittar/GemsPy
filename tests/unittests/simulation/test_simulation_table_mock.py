@@ -7,6 +7,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
 
 from gems.simulation.simulation_table import (
@@ -143,6 +144,7 @@ def test_simulation_table_builder_manual(tmp_path: Path) -> None:
 
     csv_path.unlink()
 
+    pytest.importorskip("pyarrow")
     parquet_path = writer.write_parquet(tmp_path, simulation_id="test", optim_nb=1)
     assert parquet_path.exists(), "Parquet file was not created"
     loaded = pd.read_parquet(parquet_path)

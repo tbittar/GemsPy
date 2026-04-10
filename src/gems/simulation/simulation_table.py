@@ -65,7 +65,12 @@ class ComponentView:
         col_scenario = SimulationColumns.SCENARIO_INDEX.value
         col_value = SimulationColumns.VALUE.value
 
-        filtered = self._df[self._df[col_output] == output_id]
+        filtered = self._df[self._df[col_output] == output_id].copy()
+        # Dimension-independent outputs store None for the missing index.
+        # Fill with 0 so the pivot is always well-formed and the accessor
+        # API (value(time_index=t, scenario_index=s)) keeps working.
+        filtered[col_time] = filtered[col_time].fillna(0)
+        filtered[col_scenario] = filtered[col_scenario].fillna(0)
         pivot = filtered.pivot_table(
             index=col_time,
             columns=col_scenario,

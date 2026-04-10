@@ -150,6 +150,7 @@ def test_to_dataset_includes_objective_value_scalar() -> None:
 
 
 def test_write_parquet_creates_file(tmp_path: Path) -> None:
+    pytest.importorskip("pyarrow")
     st = SimulationTableBuilder().build(_make_problem())  # type: ignore[arg-type]
     writer = SimulationTableWriter(st)
     path = writer.write_parquet(tmp_path, simulation_id="test", optim_nb=1)
@@ -165,6 +166,7 @@ def _to_object_dtype(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def test_write_parquet_content_matches_original(tmp_path: Path) -> None:
+    pytest.importorskip("pyarrow")
     st = SimulationTableBuilder().build(_make_problem())  # type: ignore[arg-type]
     writer = SimulationTableWriter(st)
     path = writer.write_parquet(tmp_path, simulation_id="test", optim_nb=1)

@@ -184,6 +184,8 @@ pandas==2.2.3
     #   xarray
 pandas-stubs==2.2.3.250308
     # via -r requirements-dev.in
+pyarrow==19.0.0
+    # via -r requirements-dev.in
 partd==1.4.2
     # via
     #   -r requirements.txt

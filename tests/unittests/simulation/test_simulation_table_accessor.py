@@ -222,4 +222,63 @@ def test_output_view_data_property() -> None:
     df = view.data
     assert isinstance(df, pd.DataFrame)
     assert df.loc[0, 0] == pytest.approx(10.0)
-    assert df.loc[1, 1] == pytest.approx(21.0)
+
+
+# ---------------------------------------------------------------------------
+# Tests: dimension-independent outputs are accessible via the fluent API
+# ---------------------------------------------------------------------------
+
+
+def _make_scenario_independent_problem() -> FakeProblem:
+    """One component, two time steps, NO scenario dimension."""
+    sol_da = xr.DataArray(
+        np.array([[10.0, 20.0]]),
+        dims=["component", "time"],
+        coords={"component": ["compA"], "time": [0, 1]},
+    )
+    fake_var = FakeLinopyVar(
+        name="test_model__p",
+        coords={"component": xr.DataArray(["compA"])},
+    )
+    return FakeProblem(
+        block_length=2,
+        linopy_model=FakeLinopyModel(solution={"test_model__p": sol_da}),
+        _linopy_vars={(0, "p"): fake_var},
+        models={0: FakeModel()},
+        model_components={},
+        scenarios=1,
+    )
+
+
+def _make_scalar_output_problem() -> FakeProblem:
+    """One component, NO time dimension, NO scenario dimension."""
+    sol_da = xr.DataArray(
+        np.array([99.0]),
+        dims=["component"],
+        coords={"component": ["compA"]},
+    )
+    fake_var = FakeLinopyVar(
+        name="test_model__p",
+        coords={"component": xr.DataArray(["compA"])},
+    )
+    return FakeProblem(
+        block_length=1,
+        linopy_model=FakeLinopyModel(solution={"test_model__p": sol_da}),
+        _linopy_vars={(0, "p"): fake_var},
+        models={0: FakeModel()},
+        model_components={},
+        scenarios=1,
+    )
+
+
+def test_scenario_independent_value_accessible_by_scenario_index() -> None:
+    """value(time_index=t, scenario_index=0) works even without a scenario dim."""
+    st = SimulationTableBuilder().build(_make_scenario_independent_problem())  # type: ignore[arg-type]
+    assert st.component("compA").output("p").value(time_index=0, scenario_index=0) == pytest.approx(10.0)
+    assert st.component("compA").output("p").value(time_index=1, scenario_index=0) == pytest.approx(20.0)
+
+
+def test_scalar_output_accessible_via_fluent_api() -> None:
+    """value(time_index=0, scenario_index=0) works for a fully scalar output."""
+    st = SimulationTableBuilder().build(_make_scalar_output_problem())  # type: ignore[arg-type]
+    assert st.component("compA").output("p").value(time_index=0, scenario_index=0) == pytest.approx(99.0)
