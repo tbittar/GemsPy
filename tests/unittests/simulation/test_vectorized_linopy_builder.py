@@ -74,7 +74,9 @@ def param_da() -> xr.DataArray:
 
 
 @pytest.fixture
-def builder(comp_time_var: linopy.Variable, param_da: xr.DataArray) -> VectorizedLinopyBuilder:
+def builder(
+    comp_time_var: linopy.Variable, param_da: xr.DataArray
+) -> VectorizedLinopyBuilder:
     """Builder pre-loaded with one variable and one parameter, block=3, scenarios=2."""
     return VectorizedLinopyBuilder(
         model_id="m",
@@ -177,13 +179,17 @@ def test_literal_negative(builder: VectorizedLinopyBuilder) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_parameter_found(builder: VectorizedLinopyBuilder, param_da: xr.DataArray) -> None:
+def test_parameter_found(
+    builder: VectorizedLinopyBuilder, param_da: xr.DataArray
+) -> None:
     result = visit(param("p"), builder)
     assert isinstance(result, xr.DataArray)
     xr.testing.assert_equal(result, param_da)
 
 
-def test_parameter_missing_raises_key_error(empty_builder: VectorizedLinopyBuilder) -> None:
+def test_parameter_missing_raises_key_error(
+    empty_builder: VectorizedLinopyBuilder,
+) -> None:
     with pytest.raises(KeyError, match="MISSING"):
         visit(param("MISSING"), empty_builder)
 
@@ -207,7 +213,9 @@ def test_parameter_wrong_model_id_raises(param_da: xr.DataArray) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_variable_found(builder: VectorizedLinopyBuilder, comp_time_var: linopy.Variable) -> None:
+def test_variable_found(
+    builder: VectorizedLinopyBuilder, comp_time_var: linopy.Variable
+) -> None:
     result = visit(var("x"), builder)
     assert isinstance(result, linopy.Variable)
 
@@ -219,7 +227,9 @@ def test_variable_returns_correct_dims(
     assert set(result.dims) == {"component", "time"}
 
 
-def test_variable_missing_raises_key_error(empty_builder: VectorizedLinopyBuilder) -> None:
+def test_variable_missing_raises_key_error(
+    empty_builder: VectorizedLinopyBuilder,
+) -> None:
     with pytest.raises(KeyError, match="GHOST"):
         visit(var("GHOST"), empty_builder)
 
@@ -284,7 +294,9 @@ def test_addition_variable_plus_da(builder: VectorizedLinopyBuilder) -> None:
     assert isinstance(result, linopy.LinearExpression)
 
 
-def test_addition_three_operands_da_da_variable(builder: VectorizedLinopyBuilder) -> None:
+def test_addition_three_operands_da_da_variable(
+    builder: VectorizedLinopyBuilder,
+) -> None:
     """literal(1) + literal(2) + var("x"): last linopy operand still works."""
     result = visit(literal(1) + literal(2) + var("x"), builder)
     assert isinstance(result, linopy.LinearExpression)
@@ -295,7 +307,9 @@ def test_addition_variable_plus_variable(builder: VectorizedLinopyBuilder) -> No
     assert isinstance(result, linopy.LinearExpression)
 
 
-def test_addition_three_operands_variable_da_da(builder: VectorizedLinopyBuilder) -> None:
+def test_addition_three_operands_variable_da_da(
+    builder: VectorizedLinopyBuilder,
+) -> None:
     """var("x") + literal(1) + literal(2): first is linopy, rest are DataArray."""
     result = visit(var("x") + literal(1) + literal(2), builder)
     assert isinstance(result, linopy.LinearExpression)
@@ -467,7 +481,9 @@ def test_time_shift_by_one_cycles(empty_builder: VectorizedLinopyBuilder) -> Non
     xr.testing.assert_allclose(result, expected)
 
 
-def test_time_shift_by_negative_one_cycles(empty_builder: VectorizedLinopyBuilder) -> None:
+def test_time_shift_by_negative_one_cycles(
+    empty_builder: VectorizedLinopyBuilder,
+) -> None:
     """Shift by -1: [1,2,3] → [3,1,2]."""
     da = _scalar_time_da([1.0, 2.0, 3.0])
     b = VectorizedLinopyBuilder(
@@ -697,7 +713,8 @@ def test_expectation_without_scenario_dim_is_noop() -> None:
 def test_variance_scenario_operator_raises_at_node_construction() -> None:
     """'Variance' is a recognized operator name but raises ValueError on construction
     because the ScenarioOperatorNode validates names at __post_init__... actually,
-    'Variance' IS in the valid list. The builder raises NotImplementedError at visit time."""
+    'Variance' IS in the valid list. The builder raises NotImplementedError at visit time.
+    """
     scalar = xr.DataArray(1.0)
     b = VectorizedLinopyBuilder(
         model_id="m",
@@ -735,7 +752,9 @@ def test_port_field_found() -> None:
     assert float(result) == pytest.approx(99.0)
 
 
-def test_port_field_missing_raises_key_error(empty_builder: VectorizedLinopyBuilder) -> None:
+def test_port_field_missing_raises_key_error(
+    empty_builder: VectorizedLinopyBuilder,
+) -> None:
     from gems.expression.expression import port_field
 
     with pytest.raises(KeyError):
@@ -765,7 +784,9 @@ def test_port_sum_with_connection_returns_expression() -> None:
     assert float(result) == pytest.approx(7.0)
 
 
-def test_port_sum_no_connection_returns_zero(empty_builder: VectorizedLinopyBuilder) -> None:
+def test_port_sum_no_connection_returns_zero(
+    empty_builder: VectorizedLinopyBuilder,
+) -> None:
     """PortFieldAggregatorNode with no matching port returns DataArray(0.0)."""
     from gems.expression.expression import port_field
 
