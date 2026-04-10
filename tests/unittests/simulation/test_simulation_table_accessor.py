@@ -274,11 +274,17 @@ def _make_scalar_output_problem() -> FakeProblem:
 def test_scenario_independent_value_accessible_by_scenario_index() -> None:
     """value(time_index=t, scenario_index=0) works even without a scenario dim."""
     st = SimulationTableBuilder().build(_make_scenario_independent_problem())  # type: ignore[arg-type]
-    assert st.component("compA").output("p").value(time_index=0, scenario_index=0) == pytest.approx(10.0)
-    assert st.component("compA").output("p").value(time_index=1, scenario_index=0) == pytest.approx(20.0)
+    assert st.component("compA").output("p").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(10.0)
+    assert st.component("compA").output("p").value(
+        time_index=1, scenario_index=0
+    ) == pytest.approx(20.0)
 
 
 def test_scalar_output_accessible_via_fluent_api() -> None:
     """value(time_index=0, scenario_index=0) works for a fully scalar output."""
     st = SimulationTableBuilder().build(_make_scalar_output_problem())  # type: ignore[arg-type]
-    assert st.component("compA").output("p").value(time_index=0, scenario_index=0) == pytest.approx(99.0)
+    assert st.component("compA").output("p").value(
+        time_index=0, scenario_index=0
+    ) == pytest.approx(99.0)
