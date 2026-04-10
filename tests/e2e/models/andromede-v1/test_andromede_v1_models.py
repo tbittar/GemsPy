@@ -124,12 +124,12 @@ def test_model_behaviour(
     with open(systems_dir / system_file) as compo_file:
         input_component = parse_yaml_components(compo_file)
     result_lib = resolve_library(input_libraries)
-    components_input = resolve_system(input_component, result_lib)
+    system_input = resolve_system(input_component, result_lib)
     database = build_data_base(input_component, Path(series_dir))
     reference_values = pd.read_csv(results_dir / optim_result_file, header=None).values
     for k in range(batch):
         problem = build_problem(
-            components_input,
+            system_input,
             database,
             TimeBlock(1, [i for i in range(k * timespan, (k + 1) * timespan)]),
             scenarios,

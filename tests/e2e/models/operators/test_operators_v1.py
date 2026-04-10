@@ -104,7 +104,7 @@ def test_model_behaviour(
         input_component = parse_yaml_components(compo_file)
 
     result_lib = resolve_library(input_libraries)
-    components_input = resolve_system(input_component, result_lib)
+    system_input = resolve_system(input_component, result_lib)
     database = build_data_base(input_component, Path(series_dir))
     df_ref = pd.read_csv(results_dir / optim_result_file)
     expected_objective = df_ref[df_ref["output"] == "OBJECTIVE_VALUE"]["value"].iloc[0]
@@ -118,7 +118,7 @@ def test_model_behaviour(
 
     for _ in range(0, batch):
         problem = build_problem(
-            components_input,
+            system_input,
             database,
             TimeBlock(1, timesteps),
             scenarios,
