@@ -108,6 +108,6 @@ def run_study(
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         output_file = output_dir / f"{study_dir.stem}_simulation_table_{timestamp}.csv"
 
-        df.to_csv(output_file, index=False)
+        df.data.to_csv(output_file, index=False)
 
     return problem
