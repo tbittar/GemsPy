@@ -19,7 +19,6 @@ from gems.simulation.simulation_table import (
     SimulationTableWriter,
 )
 
-
 # ---------------------------------------------------------------------------
 # Minimal stubs (shared with other simulation table tests)
 # ---------------------------------------------------------------------------
