@@ -19,9 +19,8 @@ from gems.model.resolve_library import resolve_library
 from gems.optim_config import load_optim_config
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.optimization import OptimizationProblem
-from gems.study.data import DataBase
-from gems.study.system import System
 from gems.study.parsing import parse_yaml_components
+from gems.study.study import Study
 from gems.study.resolve_components import (
     build_data_base,
     consistency_check,
@@ -29,7 +28,7 @@ from gems.study.resolve_components import (
 )
 
 
-def load_study(study_dir: Path) -> tuple[System, DataBase]:
+def load_study(study_dir: Path) -> Study:
     """
     Loads a study from a given directory.
 
@@ -41,7 +40,7 @@ def load_study(study_dir: Path) -> tuple[System, DataBase]:
         study_dir: The path to the study directory.
 
     Returns:
-        A tuple containing the simulation system and the database.
+        A Study container holding the resolved system and database.
     """
     system_file = study_dir / "input" / "system.yml"
     lib_folder = study_dir / "input" / "model-libraries"
@@ -70,7 +69,7 @@ def load_study(study_dir: Path) -> tuple[System, DataBase]:
     consistency_check(system, model_dict)
 
     database = build_data_base(input_study, series_dir)
-    return system, database
+    return Study(system=system, database=database)
 
 
 def run_study(
@@ -94,8 +93,8 @@ def run_study(
         The solved simulation problem.
     """
 
-    system, database = load_study(study_dir)
-    problem = build_problem(system, database, time_block, scenarios)
+    study = load_study(study_dir)
+    problem = build_problem(study, time_block, scenarios)
     problem.solve()
     if export_simulation_table:
         from gems.simulation.simulation_table import SimulationTableBuilder

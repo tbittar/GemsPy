@@ -22,7 +22,7 @@ def test_extra_output_with_sum_connections() -> None:
     from gems.model.port import PortField, PortFieldDefinition, PortFieldId, PortType
     from gems.model.variable import float_variable
     from gems.simulation import TimeBlock, build_problem
-    from gems.study import Component, DataBase, PortRef, System, create_component
+    from gems.study import Component, DataBase, PortRef, Study, System, create_component
 
     BALANCE_PORT_TYPE = PortType(id="balance", fields=[PortField("flow")])
 
@@ -62,7 +62,7 @@ def test_extra_output_with_sum_connections() -> None:
         PortRef(gen_comp, "balance_port"), PortRef(node_comp, "balance_port")
     )
 
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios=1)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios=1)
     problem.solve(solver_name="highs")
 
     df = SimulationTableBuilder().build(problem)
@@ -90,7 +90,7 @@ def test_extra_output_nonlinear() -> None:
     from gems.model.model import model
     from gems.model.variable import float_variable
     from gems.simulation import TimeBlock, build_problem
-    from gems.study import DataBase, System, create_component
+    from gems.study import DataBase, Study, System, create_component
 
     SIMPLE_MODEL = model(
         id="SIMPLE_NL",
@@ -104,7 +104,7 @@ def test_extra_output_nonlinear() -> None:
     system = System("test_nonlinear")
     system.add_component(comp)
 
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios=1)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios=1)
     problem.solve(solver_name="highs")
 
     df = SimulationTableBuilder().build(problem)

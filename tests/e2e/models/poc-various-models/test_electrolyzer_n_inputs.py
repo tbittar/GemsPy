@@ -30,7 +30,7 @@ from gems.study import (
     PortRef,
     System,
     create_component,
-)
+    Study,)
 
 """
 This file tests various modellings for an electrolyser with multiple inputs. The models are created in Python directly.
@@ -124,7 +124,7 @@ def test_electrolyzer_n_inputs_1() -> None:
     system.connect(PortRef(gaz_prod, "balance_port"), PortRef(gaz_node, "balance_port"))
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -213,7 +213,7 @@ def test_electrolyzer_n_inputs_2() -> None:
     system.connect(PortRef(gaz_prod, "balance_port"), PortRef(gaz_node, "balance_port"))
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -311,7 +311,7 @@ def test_electrolyzer_n_inputs_3() -> None:
     system.connect(PortRef(gaz_prod, "balance_port"), PortRef(gaz_node, "balance_port"))
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -400,7 +400,7 @@ def test_electrolyzer_n_inputs_4() -> None:
     system.connect(PortRef(gaz_prod, "balance_port"), PortRef(gaz_node, "balance_port"))
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
 

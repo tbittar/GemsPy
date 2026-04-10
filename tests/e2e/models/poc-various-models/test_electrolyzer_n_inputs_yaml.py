@@ -22,7 +22,7 @@ from gems.study import (
     PortRef,
     System,
     create_component,
-)
+    Study,)
 
 """
 This file tests various modellings for an electrolyser with multiple inputs. The models are read from a YAML model file.
@@ -132,7 +132,7 @@ def test_electrolyzer_n_inputs_1(
     )
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -234,7 +234,7 @@ def test_electrolyzer_n_inputs_2(
     )
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -348,7 +348,7 @@ def test_electrolyzer_n_inputs_3(
     )
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -452,7 +452,7 @@ def test_electrolyzer_n_inputs_4(
     )
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
 

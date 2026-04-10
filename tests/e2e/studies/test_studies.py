@@ -31,9 +31,10 @@ from pathlib import Path
 
 import pytest
 
-from gems.main.main import _write_structure_txt, input_database, input_libs, input_study
+from gems.main.main import _write_structure_txt, input_database, input_libs, input_system
 from gems.optim_config.parsing import load_optim_config, validate_optim_config
 from gems.simulation import TimeBlock, build_decomposed_problems
+from gems.study import Study
 
 STUDIES_DIR = Path(__file__).parent
 STUDY_IDS = ["13_1", "13_2"]
@@ -51,7 +52,7 @@ def test_study_mps_matches_expected(study_id: str, tmp_path: Path) -> None:
 
     # --- Load system and database ---
     system_path = input_dir / "system.yml"
-    system = input_study(system_path, lib_dict)
+    system = input_system(system_path, lib_dict)
     database = input_database(system_path, timeseries_path=None)
 
     # --- Load and validate optim-config ---
@@ -64,7 +65,7 @@ def test_study_mps_matches_expected(study_id: str, tmp_path: Path) -> None:
     time_block = TimeBlock(1, [0])
     scenarios = 1
     decomposed = build_decomposed_problems(
-        system, database, time_block, scenarios, optim_config
+        Study(system, database), time_block, scenarios, optim_config
     )
 
     # --- Write MPS files ---

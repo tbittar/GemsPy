@@ -28,7 +28,7 @@ from gems.study import (
     PortRef,
     System,
     create_component,
-)
+    Study,)
 
 
 def test_quota_co2() -> None:
@@ -83,7 +83,7 @@ def test_quota_co2() -> None:
     database.add_data("QuotaCO2", "quota", ConstantData(150))
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"

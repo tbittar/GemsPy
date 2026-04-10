@@ -32,7 +32,7 @@ from gems.simulation import (
     build_problem,
     dump_couplings,
 )
-from gems.study import DataBase, System
+from gems.study import Study
 from gems.study.parsing import parse_cli, parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
@@ -62,12 +62,12 @@ def input_libs(yaml_lib_paths: List[Path]) -> dict[str, Library]:
     return resolve_library(yaml_libraries)
 
 
-def input_database(study_path: Path, timeseries_path: Optional[Path]) -> DataBase:
+def input_database(study_path: Path, timeseries_path: Optional[Path]):
     with study_path.open() as comp:
         return build_data_base(parse_yaml_components(comp), timeseries_path)
 
 
-def input_study(study_path: Path, librairies: dict[str, Library]) -> System:
+def input_system(study_path: Path, librairies: dict[str, Library]):
     with study_path.open() as comp:
         return resolve_system(parse_yaml_components(comp), librairies)
 
@@ -84,13 +84,13 @@ def main_cli() -> None:
     parsed_args = parse_cli()
 
     lib_dict = input_libs(parsed_args.models_path)
-    study = input_study(parsed_args.components_path, lib_dict)
+    system = input_system(parsed_args.components_path, lib_dict)
 
     models = {}
     for lib in lib_dict.values():
         models.update(lib.models)
 
-    consistency_check(study, models)
+    consistency_check(system, models)
 
     try:
         database = input_database(
@@ -105,15 +105,17 @@ def main_cli() -> None:
     timeblock = TimeBlock(1, list(range(parsed_args.duration)))
     scenario = parsed_args.nb_scenarios
 
+    study = Study(system=system, database=database)
+
     # Load optional optim-config.yml
     optim_config = load_optim_config(parsed_args.components_path)
 
     if optim_config is not None:
-        validate_optim_config(optim_config, study)
+        validate_optim_config(optim_config, system)
 
         try:
             decomposed = build_decomposed_problems(
-                study, database, timeblock, scenario, optim_config
+                study, timeblock, scenario, optim_config
             )
         except IndexError as e:
             raise IndexError(
@@ -138,7 +140,7 @@ def main_cli() -> None:
     else:
         # No optim-config.yml — original unchanged behaviour
         try:
-            problem = build_problem(study, database, timeblock, scenario)
+            problem = build_problem(study, timeblock, scenario)
 
         except IndexError as e:
             raise IndexError(

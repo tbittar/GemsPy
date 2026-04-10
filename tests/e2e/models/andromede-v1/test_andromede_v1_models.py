@@ -20,6 +20,7 @@ import pytest
 from gems.model.parsing import InputLibrary, parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import build_problem
+from gems.study import Study
 from gems.simulation.time_block import TimeBlock
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import build_data_base, resolve_system
@@ -129,8 +130,7 @@ def test_model_behaviour(
     reference_values = pd.read_csv(results_dir / optim_result_file, header=None).values
     for k in range(batch):
         problem = build_problem(
-            system_input,
-            database,
+            Study(system_input, database),
             TimeBlock(1, [i for i in range(k * timespan, (k + 1) * timespan)]),
             scenarios,
         )

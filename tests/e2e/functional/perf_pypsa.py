@@ -8,6 +8,7 @@ import pandas as pd
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import TimeBlock, build_problem
+from gems.study import Study
 from gems.study.data import DataBase
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
@@ -39,7 +40,7 @@ def build_pypsa_problem(system: System, database: DataBase, time_horizon: int) -
     scenarios = 1
     time_block = TimeBlock(1, list(range(time_horizon)))
     start = time.time()
-    problem = build_problem(system, database, time_block, scenarios)
+    problem = build_problem(Study(system, database), time_block, scenarios)
     end = time.time()
     print(f"Time elapsed for horizon {time_horizon}: {end - start:.4f}")
     return end - start

@@ -96,7 +96,7 @@ from gems.study import (
     System,
     TimeScenarioSeriesData,
     create_component,
-)
+    Study,)
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
@@ -240,8 +240,7 @@ def test_single_lag2_forced_odd_spillage() -> None:
 
     system = _build_system("STS")
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         TimeBlock(1, list(range(horizon))),
         scenarios=1,
         border_management=BlockBorderManagement.CYCLE,
@@ -295,8 +294,7 @@ def test_two_components_different_lags_asymmetric_demand() -> None:
 
     system = _build_system("STS1", "STS2")
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         TimeBlock(1, list(range(horizon))),
         scenarios=1,
         border_management=BlockBorderManagement.CYCLE,
@@ -357,8 +355,7 @@ def test_three_components_distinct_lags_orbit_spillage() -> None:
 
     system = _build_system("STS1", "STS2", "STS3")
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         TimeBlock(1, list(range(horizon))),
         scenarios=1,
         border_management=BlockBorderManagement.CYCLE,
@@ -423,8 +420,7 @@ def test_two_components_different_lags_yaml(
     database = build_data_base(input_system, timeseries_dir=_series_dir)
 
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         TimeBlock(1, list(range(4))),
         scenarios=1,
         border_management=BlockBorderManagement.CYCLE,

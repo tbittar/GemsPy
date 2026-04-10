@@ -50,6 +50,7 @@ from gems.simulation.linearize import (
 )
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
+from gems.study.study import Study
 from gems.study.system import Component, System
 
 if TYPE_CHECKING:
@@ -757,8 +758,7 @@ class _OptimizationProblemBuilder:
 
 
 def build_problem(
-    system: System,
-    database: DataBase,
+    study: Study,
     block: TimeBlock,
     scenarios: int,
     *,
@@ -770,10 +770,9 @@ def build_problem(
 
     Parameters
     ----------
-    system:
-        System of components and connections.
-    database:
-        Parameter data for all components.
+    study:
+        Container holding both the System (components and connections) and
+        the DataBase (parameter values for those components).
     block:
         The time block to optimize.
     scenarios:
@@ -789,12 +788,12 @@ def build_problem(
             "Only BlockBorderManagement.CYCLE is supported."
         )
 
-    database.requirements_consistency(system)
+    study.check_consistency()
 
     builder = _OptimizationProblemBuilder(
         name=problem_name,
-        system=system,
-        database=database,
+        system=study.system,
+        database=study.database,
         block=block,
         scenarios=scenarios,
     )
@@ -826,8 +825,7 @@ class DecomposedProblems:
 
 
 def build_decomposed_problems(
-    system: System,
-    database: DataBase,
+    study: Study,
     block: TimeBlock,
     scenarios: int,
     optim_config: "OptimConfig",
@@ -846,7 +844,10 @@ def build_decomposed_problems(
 
     Parameters
     ----------
-    system, database, block, scenarios:
+    study:
+        Container holding both the System and the DataBase.
+        Same semantics as :func:`build_problem`.
+    block, scenarios:
         Same semantics as :func:`build_problem`.
     optim_config:
         Parsed ``OptimConfig`` from an ``optim-config.yml`` file.
@@ -864,7 +865,7 @@ def build_decomposed_problems(
             "Only BlockBorderManagement.CYCLE is supported."
         )
 
-    database.requirements_consistency(system)
+    study.check_consistency()
 
     master_locs: Set["ElementLocation"] = {
         ElementLocation.MASTER,
@@ -877,8 +878,8 @@ def build_decomposed_problems(
 
     subproblem = _OptimizationProblemBuilder(
         name=subproblem_name,
-        system=system,
-        database=database,
+        system=study.system,
+        database=study.database,
         block=block,
         scenarios=scenarios,
         location_filter=DecompositionFilter(optim_config, sub_locs),
@@ -888,8 +889,8 @@ def build_decomposed_problems(
     if _has_any_master_element(optim_config):
         master = _OptimizationProblemBuilder(
             name=master_name,
-            system=system,
-            database=database,
+            system=study.system,
+            database=study.database,
             block=block,
             scenarios=scenarios,
             location_filter=DecompositionFilter(optim_config, master_locs),

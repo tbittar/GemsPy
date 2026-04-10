@@ -20,6 +20,7 @@ from gems.model.resolve_library import resolve_library
 from gems.simulation import build_problem
 from gems.simulation.time_block import TimeBlock
 from gems.study.data import DataBase
+from gems.study import Study
 from gems.study.parsing import parse_scenario_builder, parse_yaml_components
 from gems.study.resolve_components import (
     build_scenarized_data_base,
@@ -61,7 +62,7 @@ def test_system_with_scenarization(
     consistency_check(components, lib_dict["basic"].models)
 
     timeblock = TimeBlock(1, list(range(2)))
-    problem = build_problem(components, database, timeblock, 3)
+    problem = build_problem(Study(components, database), timeblock, 3)
 
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"

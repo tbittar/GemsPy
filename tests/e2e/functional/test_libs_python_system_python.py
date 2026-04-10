@@ -51,7 +51,7 @@ from gems.study import (
     TimeScenarioIndex,
     TimeScenarioSeriesData,
     create_component,
-)
+    Study,)
 from tests.e2e.functional.libs.standard import (
     BALANCE_PORT_TYPE,
     DEMAND_MODEL,
@@ -93,7 +93,7 @@ def test_basic_balance() -> None:
     system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
@@ -141,7 +141,7 @@ def test_timeseries() -> None:
     time_block = TimeBlock(1, [0, 1])
     scenarios = 1
 
-    problem = build_problem(system, database, time_block, scenarios)
+    problem = build_problem(Study(system, database), time_block, scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 100 * 30 + 50 * 30
@@ -212,20 +212,20 @@ def test_variable_bound() -> None:
 
     system = create_one_node_network(generator_model)
     database = create_simple_database(max_generation=200)
-    problem = build_problem(system, database, TimeBlock(1, [0]), 1)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), 1)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
 
     system = create_one_node_network(generator_model)
     database = create_simple_database(max_generation=80)
-    problem = build_problem(system, database, TimeBlock(1, [0]), 1)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), 1)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "infeasible"  # Infeasible
 
     system = create_one_node_network(generator_model)
     database = create_simple_database(max_generation=0)  # Equal upper and lower bounds
-    problem = build_problem(system, database, TimeBlock(1, [0]), 1)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), 1)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "infeasible"
 
@@ -235,7 +235,7 @@ def test_variable_bound() -> None:
         ValueError,
         match=r"Upper bound \(-10\) must be strictly greater than lower bound \(0\) for variable G.generation",
     ):
-        problem = build_problem(system, database, TimeBlock(1, [0]), 1)
+        problem = build_problem(Study(system, database), TimeBlock(1, [0]), 1)
 
 
 def generate_data(
@@ -296,8 +296,7 @@ def short_term_storage_base(efficiency: float, horizon: int) -> None:
     system.connect(PortRef(unsupplied, "balance_port"), PortRef(node, "balance_port"))
 
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         time_blocks[0],
         scenarios,
         border_management=BlockBorderManagement.CYCLE,

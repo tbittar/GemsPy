@@ -40,7 +40,7 @@ from gems.study import (
     System,
     TimeScenarioSeriesData,
     create_component,
-)
+    Study,)
 from tests.e2e.functional.libs.standard import (
     BALANCE_PORT_TYPE,
     CONSTANT,
@@ -216,8 +216,7 @@ def test_generation_xpansion_single_time_step_single_scenario(
 
     scenarios = 1
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         TimeBlock(1, [0]),
         scenarios,
     )
@@ -293,7 +292,7 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
     )
     scenarios = 1
 
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
 
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
@@ -378,7 +377,7 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
     system.connect(PortRef(generator, "balance_port"), PortRef(node, "balance_port"))
     system.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
 
-    problem = build_problem(system, database, time_block, scenarios)
+    problem = build_problem(Study(system, database), time_block, scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     # assert problem.solver.NumVariables() == 2 * scenarios * horizon + 1

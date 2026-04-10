@@ -23,7 +23,7 @@ from gems.study import (
     PortRef,
     System,
     create_component,
-)
+    Study,)
 from gems.study.data import TimeScenarioSeriesData
 from tests.e2e.functional.libs.standard import (
     DEMAND_MODEL,
@@ -132,7 +132,7 @@ def test_stochastic_model_with_HD_for_thermal_startup(
     system.connect(PortRef(peak, "balance_port"), PortRef(node, "balance_port"))
 
     for block in time_blocks:  # TODO : To manage blocks simply for now
-        problem = build_problem(system, database, block, scenarios)
+        problem = build_problem(Study(system, database), block, scenarios)
         problem.solve(solver_name="highs")
         assert (
             problem.termination_condition == "optimal"
@@ -188,7 +188,7 @@ def test_stochastic_model_with_DH_for_thermal_startup(
     system.connect(PortRef(peak, "balance_port"), PortRef(node, "balance_port"))
 
     for block in time_blocks:  # TODO : To manage blocks simply for now
-        problem = build_problem(system, database, block, scenarios)
+        problem = build_problem(Study(system, database), block, scenarios)
         problem.solve(solver_name="highs")
         assert (
             problem.termination_condition == "optimal"

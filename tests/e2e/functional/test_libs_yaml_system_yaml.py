@@ -64,7 +64,7 @@ def test_basic_balance_using_yaml(
     database = build_data_base(input_system, None)
 
     scenarios = 1
-    problem = build_problem(system_input, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system_input, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
@@ -97,7 +97,7 @@ def test_basic_balance_time_only_series(
 ) -> None:
     system, database = setup_test("study_time_only_series.yml")
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0, 1]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0, 1]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 10000
@@ -108,7 +108,7 @@ def test_basic_balance_scenario_only_series(
 ) -> None:
     system, database = setup_test("study_scenario_only_series.yml")
     scenarios = 2
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 0.5 * 5000 + 0.5 * 10000
