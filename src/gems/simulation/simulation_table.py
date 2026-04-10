@@ -4,6 +4,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -64,7 +65,12 @@ class ComponentView:
         col_scenario = SimulationColumns.SCENARIO_INDEX.value
         col_value = SimulationColumns.VALUE.value
 
-        filtered = self._df[self._df[col_output] == output_id]
+        filtered = self._df[self._df[col_output] == output_id].copy()
+        # Dimension-independent outputs store None for the missing index.
+        # Fill with 0 so the pivot is always well-formed and the accessor
+        # API (value(time_index=t, scenario_index=s)) keeps working.
+        filtered[col_time] = filtered[col_time].fillna(0)
+        filtered[col_scenario] = filtered[col_scenario].fillna(0)
         pivot = filtered.pivot_table(
             index=col_time,
             columns=col_scenario,
@@ -111,6 +117,32 @@ class SimulationTable:
         mask = self._df[SimulationColumns.COMPONENT.value] == component_id
         return ComponentView(self._df[mask])
 
+    def to_dataset(self) -> xr.Dataset:
+        """Return simulation results as an xr.Dataset.
+
+        Each output variable becomes a DataArray with dimensions
+        (component, absolute-time-index, scenario-index).
+        Scalar rows without component/time/scenario (e.g. objective-value)
+        are stored as zero-dimensional variables.
+        """
+        df = self._df
+        col_comp = SimulationColumns.COMPONENT.value
+        col_out = SimulationColumns.OUTPUT.value
+        col_time = SimulationColumns.ABSOLUTE_TIME_INDEX.value
+        col_scen = SimulationColumns.SCENARIO_INDEX.value
+        col_val = SimulationColumns.VALUE.value
+
+        main = df.dropna(subset=[col_comp, col_time, col_scen])
+        indexed = main.set_index([col_comp, col_time, col_scen, col_out])[col_val]
+        unstacked = indexed.unstack(col_out)
+        ds = xr.Dataset.from_dataframe(unstacked)
+
+        scalars = df[df[col_comp].isna() & df[col_time].isna()]
+        for _, row in scalars.iterrows():
+            ds[row[col_out]] = xr.DataArray(float(row[col_val]))
+
+        return ds
+
 
 from gems.expression.visitor import visit
 from gems.simulation.extra_output import VectorizedExtraOutputBuilder
@@ -147,29 +179,27 @@ class SimulationTableBuilder:
         if absolute_time_offset is None:
             absolute_time_offset = (block - 1) * block_size
 
-        rows: list[dict[str, Any]] = []
-        rows += self._collect_solver_outputs(problem, block, absolute_time_offset)
-        rows += self._collect_extra_outputs(problem, block, absolute_time_offset)
-        rows.append(self._collect_objective_value(problem, block))
+        dfs: list[pd.DataFrame] = []
+        dfs += self._collect_vars_outputs(problem, block, absolute_time_offset)
+        dfs += self._collect_extra_outputs(problem, block, absolute_time_offset)
+        dfs.append(self._collect_objective_value(problem, block))
 
-        return SimulationTable(
-            pd.DataFrame(rows, columns=[c.value for c in SimulationColumns])
-        )
+        return SimulationTable(pd.concat(dfs, ignore_index=True))
 
     # -------------------------------------------------------------------------
     # Solver outputs
     # -------------------------------------------------------------------------
 
-    def _collect_solver_outputs(
+    def _collect_vars_outputs(
         self,
         problem: OptimizationProblem,
         block: int,
         abs_offset: int,
-    ) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
+    ) -> list[pd.DataFrame]:
+        dfs: list[pd.DataFrame] = []
         solution = problem.linopy_model.solution
         if solution is None:
-            return rows
+            return dfs
 
         for (_, var_name), lv in problem._linopy_vars.items():
             if lv.name not in solution:
@@ -179,11 +209,11 @@ class SimulationTableBuilder:
             own_components = list(lv.coords["component"].values)
             sol_da = sol_da.sel(component=own_components)
 
-            rows += self._da_to_rows(
-                sol_da, var_name, block, abs_offset, basis_status=None
+            dfs.append(
+                self._da_to_df(sol_da, var_name, block, abs_offset, basis_status=None)
             )
 
-        return rows
+        return dfs
 
     # -------------------------------------------------------------------------
     # Extra outputs
@@ -194,8 +224,8 @@ class SimulationTableBuilder:
         problem: OptimizationProblem,
         block: int,
         abs_offset: int,
-    ) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
+    ) -> list[pd.DataFrame]:
+        dfs: list[pd.DataFrame] = []
 
         var_solution_arrays: Dict[Tuple[str, str], xr.DataArray] = {}
         solution = problem.linopy_model.solution
@@ -243,11 +273,13 @@ class SimulationTableBuilder:
                     ]
                     result_da = result_da.sel(component=present)
 
-                rows += self._da_to_rows(
-                    result_da, out_id, block, abs_offset, basis_status=None
+                dfs.append(
+                    self._da_to_df(
+                        result_da, out_id, block, abs_offset, basis_status=None
+                    )
                 )
 
-        return rows
+        return dfs
 
     # -------------------------------------------------------------------------
     # Objective value
@@ -255,61 +287,74 @@ class SimulationTableBuilder:
 
     def _collect_objective_value(
         self, problem: OptimizationProblem, block: int
-    ) -> dict[str, Any]:
-        return {
-            SimulationColumns.BLOCK.value: block,
-            SimulationColumns.COMPONENT.value: None,
-            SimulationColumns.OUTPUT.value: "objective-value",
-            SimulationColumns.ABSOLUTE_TIME_INDEX.value: None,
-            SimulationColumns.BLOCK_TIME_INDEX.value: None,
-            SimulationColumns.SCENARIO_INDEX.value: None,
-            SimulationColumns.VALUE.value: problem.objective_value,
-            SimulationColumns.BASIS_STATUS.value: None,
-        }
+    ) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {
+                    SimulationColumns.BLOCK.value: block,
+                    SimulationColumns.COMPONENT.value: None,
+                    SimulationColumns.OUTPUT.value: "objective-value",
+                    SimulationColumns.ABSOLUTE_TIME_INDEX.value: None,
+                    SimulationColumns.BLOCK_TIME_INDEX.value: None,
+                    SimulationColumns.SCENARIO_INDEX.value: None,
+                    SimulationColumns.VALUE.value: problem.objective_value,
+                    SimulationColumns.BASIS_STATUS.value: None,
+                }
+            ]
+        )
 
     # -------------------------------------------------------------------------
     # Helpers
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def _da_to_rows(
+    def _da_to_df(
         da: xr.DataArray,
         output_name: str,
         block: int,
         abs_offset: int,
         basis_status: Optional[str],
-    ) -> list[dict[str, Any]]:
-        """Flatten a [component?, time?, scenario?] DataArray into table rows."""
-        # Normalize to a uniform [component, time, scenario] shape so that
-        # the iteration below never needs to branch on which dims are present.
+    ) -> pd.DataFrame:
+        """Vectorize a [component?, time?, scenario?] DataArray into a DataFrame.
+
+        Index columns (absolute-time-index, block-time-index, scenario-index) are
+        set to None for dimensions that are absent from the original DataArray,
+        signalling that the output is independent of that dimension.
+        """
+        has_time = "time" in da.dims
+        has_scenario = "scenario" in da.dims
+
         if "component" not in da.dims:
             da = da.expand_dims(component=[None])
-        if "time" not in da.dims:
+        if not has_time:
             da = da.expand_dims(time=[0])
-        if "scenario" not in da.dims:
+        if not has_scenario:
             da = da.expand_dims(scenario=[0])
 
         da = da.transpose("component", "time", "scenario")
         comp_vals: List[Any] = list(da.coords["component"].values)
-        n_time = da.sizes["time"]
-        n_scen = da.sizes["scenario"]
-        arr = da.values  # shape [C, T, S]
+        n_c, n_t, n_s = da.shape
 
-        return [
+        ci = np.repeat(np.arange(n_c), n_t * n_s)
+        ti = np.tile(np.repeat(np.arange(n_t), n_s), n_c)
+        si = np.tile(np.arange(n_s), n_c * n_t)
+
+        return pd.DataFrame(
             {
                 SimulationColumns.BLOCK.value: block,
-                SimulationColumns.COMPONENT.value: str(c) if c is not None else None,
+                SimulationColumns.COMPONENT.value: [
+                    str(c) if c is not None else None for c in np.array(comp_vals)[ci]
+                ],
                 SimulationColumns.OUTPUT.value: output_name,
-                SimulationColumns.ABSOLUTE_TIME_INDEX.value: abs_offset + t,
-                SimulationColumns.BLOCK_TIME_INDEX.value: t,
-                SimulationColumns.SCENARIO_INDEX.value: s,
-                SimulationColumns.VALUE.value: float(arr[ci, t, s]),
+                SimulationColumns.ABSOLUTE_TIME_INDEX.value: (abs_offset + ti)
+                if has_time
+                else None,
+                SimulationColumns.BLOCK_TIME_INDEX.value: ti if has_time else None,
+                SimulationColumns.SCENARIO_INDEX.value: si if has_scenario else None,
+                SimulationColumns.VALUE.value: da.values.ravel().astype(float),
                 SimulationColumns.BASIS_STATUS.value: basis_status,
             }
-            for ci, c in enumerate(comp_vals)
-            for t in range(n_time)
-            for s in range(n_scen)
-        ]
+        )
 
 
 @dataclass
@@ -330,4 +375,32 @@ class SimulationTableWriter:
         filename = f"simulation_table_{simulation_id}_{optim_nb}.csv"
         filepath = output_dir / filename
         self.simulation_table.data.to_csv(filepath, index=False)
+        return filepath
+
+    def write_parquet(
+        self,
+        output_dir: Union[str, Path],
+        simulation_id: str,
+        optim_nb: int,
+    ) -> Path:
+        """Write the simulation table to Parquet."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"simulation_table_{simulation_id}_{optim_nb}.parquet"
+        filepath = output_dir / filename
+        self.simulation_table.data.to_parquet(filepath, index=False)
+        return filepath
+
+    def write_netcdf(
+        self,
+        output_dir: Union[str, Path],
+        simulation_id: str,
+        optim_nb: int,
+    ) -> Path:
+        """Write the simulation table to NetCDF via xr.Dataset."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"simulation_table_{simulation_id}_{optim_nb}.nc"
+        filepath = output_dir / filename
+        self.simulation_table.to_dataset().to_netcdf(filepath)
         return filepath

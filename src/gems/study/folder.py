@@ -98,16 +98,19 @@ def run_study(
     problem = build_problem(system, database, time_block, scenarios)
     problem.solve()
     if export_simulation_table:
-        from gems.simulation.simulation_table import SimulationTableBuilder
-
-        builder = SimulationTableBuilder(simulation_id=study_dir.stem)
-        df = builder.build(problem)
-        output_dir = study_dir / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        from gems.simulation.simulation_table import (
+            SimulationTableBuilder,
+            SimulationTableWriter,
+        )
 
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-        output_file = output_dir / f"{study_dir.stem}_simulation_table_{timestamp}.csv"
-
-        df.data.to_csv(output_file, index=False)
+        builder = SimulationTableBuilder(simulation_id=study_dir.stem)
+        st = builder.build(problem)
+        writer = SimulationTableWriter(st)
+        writer.write_csv(
+            output_dir=study_dir / "output",
+            simulation_id=f"{study_dir.stem}_{timestamp}",
+            optim_nb=problem.block.id,
+        )
 
     return problem
