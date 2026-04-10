@@ -13,7 +13,7 @@
 """
 Vectorized linopy expression builder.
 
-Provides :class:`VectorizedLinopyBuilder`, a concrete subclass of
+Provides :class:`VectorizedLinearExprBuilder`, a concrete subclass of
 :class:`~gems.simulation.vectorized_builder.VectorizedBuilderBase` that
 resolves ``VariableNode`` to a pre-solve ``linopy.Variable`` and overrides
 arithmetic / nonlinear methods with linopy-specific behaviour.
@@ -48,7 +48,7 @@ from gems.simulation.vectorized_builder import (
 
 
 @dataclass(kw_only=True)
-class VectorizedLinopyBuilder(VectorizedBuilderBase[VectorizedExpr]):
+class VectorizedLinearExprBuilder(VectorizedBuilderBase[VectorizedExpr]):
     """
     Builds a linopy LinearExpression from a model-level AST.
 

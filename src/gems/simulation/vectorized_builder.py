@@ -15,7 +15,7 @@ Shared abstract base for vectorized expression builders.
 
 Provides :data:`VectorizedExpr`, :func:`_linopy_add`, and
 :class:`VectorizedBuilderBase`, the abstract parent of both the pre-solve
-(:class:`~gems.simulation.linopy_linearize.VectorizedLinopyBuilder`) and
+(:class:`~gems.simulation.linearize.VectorizedLinearExprBuilder`) and
 post-solve (:class:`~gems.simulation.extra_output.VectorizedExtraOutputBuilder`)
 visitors.
 
@@ -27,7 +27,7 @@ The only axis of variation between the two concrete builders is how a
 
 All 18 other :class:`~gems.expression.visitor.ExpressionVisitor` methods are
 implemented here once, with DataArray-friendly semantics as their default.
-``VectorizedLinopyBuilder`` overrides a small subset to add linopy-specific
+``VectorizedLinearExprBuilder`` overrides a small subset to add linopy-specific
 behaviour (operand-swap in addition, type guards in nonlinear functions).
 """
 
@@ -80,7 +80,7 @@ T_expr = TypeVar("T_expr", bound=VectorizedExpr)
 
 
 # ---------------------------------------------------------------------------
-# Module-level helper — also used by linopy_problem.py
+# Module-level helper — also used by optimization.py
 # ---------------------------------------------------------------------------
 
 
@@ -170,7 +170,7 @@ class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr], Generic[T_expr]):
         """Simple left-to-right addition (DataArray default).
 
         Overridden in
-        :class:`~gems.simulation.linopy_linearize.VectorizedLinopyBuilder`
+        :class:`~gems.simulation.linearize.VectorizedLinearExprBuilder`
         to handle mixed DataArray / linopy-type operands via :func:`_linopy_add`.
         """
         operands = [visit(op, self) for op in node.operands]
@@ -356,7 +356,7 @@ class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr], Generic[T_expr]):
     # ------------------------------------------------------------------ #
     # Math functions (DataArray default — no guard)                         #
     # ------------------------------------------------------------------ #
-    # Overridden in VectorizedLinopyBuilder to raise when operands contain
+    # Overridden in VectorizedLinearExprBuilder to raise when operands contain
     # linopy types: these operations cannot be expressed as linear constraints.
 
     def floor(self, node: FloorNode) -> VectorizedExpr:

@@ -79,7 +79,7 @@ def test_extra_output_nonlinear() -> None:
     Nonlinear extra output (var * var) is correctly evaluated.
 
     VectorizedExtraOutputBuilder allows products of variables since extra
-    outputs are not solver constraints. Equivalent VectorizedLinopyBuilder
+    outputs are not solver constraints. Equivalent VectorizedLinearExprBuilder
     would raise NotImplementedError for the same expression.
 
     Setup: one component with variable a=3 (fixed). Extra output squared = a*a.

@@ -11,11 +11,11 @@
 # This file is part of the Antares project.
 
 from .couplings import CouplingRow, build_couplings, dump_couplings
-from .linopy_problem import (
+from .optimization import (
     BlockBorderManagement,
     DecomposedProblems,
     DecompositionFilter,
-    LinopyOptimizationProblem,
+    OptimizationProblem,
     build_decomposed_problems,
     build_problem,
 )
