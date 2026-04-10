@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from gems.optim_config.parsing import OptimConfig
-    from gems.simulation.linopy_problem import DecomposedProblems
+    from gems.simulation.optimization import DecomposedProblems
 
 
 @dataclass(frozen=True)

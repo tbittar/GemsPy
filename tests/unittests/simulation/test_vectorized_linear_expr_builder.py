@@ -11,7 +11,7 @@
 # This file is part of the Antares project.
 
 """
-Nasty unit tests for VectorizedLinopyBuilder and the _linopy_add helper.
+Nasty unit tests for VectorizedLinearExprBuilder and the _linopy_add helper.
 
 Covers every overridden method, all error paths, boundary conditions, and the
 linopy-specific operand-swap quirk in addition.
@@ -39,7 +39,7 @@ from gems.expression.expression import (
 )
 from gems.expression.visitor import visit
 from gems.model.port import PortFieldId
-from gems.simulation.linopy_linearize import VectorizedLinopyBuilder
+from gems.simulation.linearize import VectorizedLinearExprBuilder
 from gems.simulation.vectorized_builder import VectorizedBuilderBase, _linopy_add
 
 # ---------------------------------------------------------------------------
@@ -76,9 +76,9 @@ def param_da() -> xr.DataArray:
 @pytest.fixture
 def builder(
     comp_time_var: linopy.Variable, param_da: xr.DataArray
-) -> VectorizedLinopyBuilder:
+) -> VectorizedLinearExprBuilder:
     """Builder pre-loaded with one variable and one parameter, block=3, scenarios=2."""
-    return VectorizedLinopyBuilder(
+    return VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={("m", "x"): comp_time_var},
         param_arrays={("m", "p"): param_da},
@@ -89,9 +89,9 @@ def builder(
 
 
 @pytest.fixture
-def empty_builder() -> VectorizedLinopyBuilder:
+def empty_builder() -> VectorizedLinearExprBuilder:
     """Builder with nothing registered — for all KeyError paths."""
-    return VectorizedLinopyBuilder(
+    return VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={},
@@ -157,19 +157,19 @@ def test_linopy_add_variable_plus_variable(
 # ---------------------------------------------------------------------------
 
 
-def test_literal_scalar(builder: VectorizedLinopyBuilder) -> None:
+def test_literal_scalar(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(literal(42.0), builder)
     assert isinstance(result, xr.DataArray)
     assert float(result) == pytest.approx(42.0)
 
 
-def test_literal_zero(builder: VectorizedLinopyBuilder) -> None:
+def test_literal_zero(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(literal(0.0), builder)
     assert isinstance(result, xr.DataArray)
     assert float(result) == pytest.approx(0.0)
 
 
-def test_literal_negative(builder: VectorizedLinopyBuilder) -> None:
+def test_literal_negative(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(literal(-99.5), builder)
     assert float(result) == pytest.approx(-99.5)
 
@@ -180,7 +180,7 @@ def test_literal_negative(builder: VectorizedLinopyBuilder) -> None:
 
 
 def test_parameter_found(
-    builder: VectorizedLinopyBuilder, param_da: xr.DataArray
+    builder: VectorizedLinearExprBuilder, param_da: xr.DataArray
 ) -> None:
     result = visit(param("p"), builder)
     assert isinstance(result, xr.DataArray)
@@ -188,7 +188,7 @@ def test_parameter_found(
 
 
 def test_parameter_missing_raises_key_error(
-    empty_builder: VectorizedLinopyBuilder,
+    empty_builder: VectorizedLinearExprBuilder,
 ) -> None:
     with pytest.raises(KeyError, match="MISSING"):
         visit(param("MISSING"), empty_builder)
@@ -196,7 +196,7 @@ def test_parameter_missing_raises_key_error(
 
 def test_parameter_wrong_model_id_raises(param_da: xr.DataArray) -> None:
     """Params keyed under model 'A', but builder has model_id 'B' — KeyError."""
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="B",
         linopy_vars={},
         param_arrays={("A", "p"): param_da},  # wrong model id
@@ -214,21 +214,21 @@ def test_parameter_wrong_model_id_raises(param_da: xr.DataArray) -> None:
 
 
 def test_variable_found(
-    builder: VectorizedLinopyBuilder, comp_time_var: linopy.Variable
+    builder: VectorizedLinearExprBuilder, comp_time_var: linopy.Variable
 ) -> None:
     result = visit(var("x"), builder)
     assert isinstance(result, linopy.Variable)
 
 
 def test_variable_returns_correct_dims(
-    builder: VectorizedLinopyBuilder, comp_time_var: linopy.Variable
+    builder: VectorizedLinearExprBuilder, comp_time_var: linopy.Variable
 ) -> None:
     result = visit(var("x"), builder)
     assert set(result.dims) == {"component", "time"}
 
 
 def test_variable_missing_raises_key_error(
-    empty_builder: VectorizedLinopyBuilder,
+    empty_builder: VectorizedLinearExprBuilder,
 ) -> None:
     with pytest.raises(KeyError, match="GHOST"):
         visit(var("GHOST"), empty_builder)
@@ -238,7 +238,7 @@ def test_variable_key_includes_model_id(
     comp_time_var: linopy.Variable, param_da: xr.DataArray
 ) -> None:
     """Variable keyed under wrong model id must raise KeyError."""
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={("OTHER_MODEL", "x"): comp_time_var},  # wrong model id
         param_arrays={},
@@ -255,18 +255,18 @@ def test_variable_key_includes_model_id(
 # ---------------------------------------------------------------------------
 
 
-def test_negation_of_literal(builder: VectorizedLinopyBuilder) -> None:
+def test_negation_of_literal(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(-literal(3), builder)
     assert isinstance(result, xr.DataArray)
     assert float(result) == pytest.approx(-3.0)
 
 
-def test_negation_of_variable(builder: VectorizedLinopyBuilder) -> None:
+def test_negation_of_variable(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(-var("x"), builder)
     assert isinstance(result, linopy.LinearExpression)
 
 
-def test_double_negation(builder: VectorizedLinopyBuilder) -> None:
+def test_double_negation(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(-(-literal(5)), builder)
     assert float(result) == pytest.approx(5.0)
 
@@ -276,39 +276,39 @@ def test_double_negation(builder: VectorizedLinopyBuilder) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_addition_two_literals(builder: VectorizedLinopyBuilder) -> None:
+def test_addition_two_literals(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(literal(1) + literal(2), builder)
     assert isinstance(result, xr.DataArray)
     assert float(result) == pytest.approx(3.0)
 
 
-def test_addition_da_plus_variable(builder: VectorizedLinopyBuilder) -> None:
+def test_addition_da_plus_variable(builder: VectorizedLinearExprBuilder) -> None:
     """param("p") + var("x"): DataArray first, linopy second — requires swap."""
     result = visit(param("p") + var("x"), builder)
     assert isinstance(result, linopy.LinearExpression)
 
 
-def test_addition_variable_plus_da(builder: VectorizedLinopyBuilder) -> None:
+def test_addition_variable_plus_da(builder: VectorizedLinearExprBuilder) -> None:
     """var("x") + param("p"): linopy first, DataArray second — no swap needed."""
     result = visit(var("x") + param("p"), builder)
     assert isinstance(result, linopy.LinearExpression)
 
 
 def test_addition_three_operands_da_da_variable(
-    builder: VectorizedLinopyBuilder,
+    builder: VectorizedLinearExprBuilder,
 ) -> None:
     """literal(1) + literal(2) + var("x"): last linopy operand still works."""
     result = visit(literal(1) + literal(2) + var("x"), builder)
     assert isinstance(result, linopy.LinearExpression)
 
 
-def test_addition_variable_plus_variable(builder: VectorizedLinopyBuilder) -> None:
+def test_addition_variable_plus_variable(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(var("x") + var("x"), builder)
     assert isinstance(result, linopy.LinearExpression)
 
 
 def test_addition_three_operands_variable_da_da(
-    builder: VectorizedLinopyBuilder,
+    builder: VectorizedLinearExprBuilder,
 ) -> None:
     """var("x") + literal(1) + literal(2): first is linopy, rest are DataArray."""
     result = visit(var("x") + literal(1) + literal(2), builder)
@@ -320,18 +320,20 @@ def test_addition_three_operands_variable_da_da(
 # ---------------------------------------------------------------------------
 
 
-def test_multiplication_scalar_times_variable(builder: VectorizedLinopyBuilder) -> None:
+def test_multiplication_scalar_times_variable(
+    builder: VectorizedLinearExprBuilder,
+) -> None:
     result = visit(literal(2) * var("x"), builder)
     assert isinstance(result, linopy.LinearExpression)
 
 
-def test_multiplication_two_literals(builder: VectorizedLinopyBuilder) -> None:
+def test_multiplication_two_literals(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(literal(3) * literal(4), builder)
     assert isinstance(result, xr.DataArray)
     assert float(result) == pytest.approx(12.0)
 
 
-def test_division_da_by_da(builder: VectorizedLinopyBuilder) -> None:
+def test_division_da_by_da(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(param("p") / literal(2), builder)
     assert isinstance(result, xr.DataArray)
     expected = xr.DataArray(
@@ -342,7 +344,7 @@ def test_division_da_by_da(builder: VectorizedLinopyBuilder) -> None:
     xr.testing.assert_allclose(result, expected)
 
 
-def test_division_by_zero_produces_inf(builder: VectorizedLinopyBuilder) -> None:
+def test_division_by_zero_produces_inf(builder: VectorizedLinearExprBuilder) -> None:
     """xarray silently produces inf on /0 — document expected behavior."""
     result = visit(literal(5) / literal(0), builder)
     assert not np.isfinite(float(result))
@@ -353,12 +355,12 @@ def test_division_by_zero_produces_inf(builder: VectorizedLinopyBuilder) -> None
 # ---------------------------------------------------------------------------
 
 
-def test_comparison_always_raises(builder: VectorizedLinopyBuilder) -> None:
+def test_comparison_always_raises(builder: VectorizedLinearExprBuilder) -> None:
     with pytest.raises(NotImplementedError, match="ComparisonNode"):
         visit(var("x") <= param("p"), builder)
 
 
-def test_comparison_equal_also_raises(builder: VectorizedLinopyBuilder) -> None:
+def test_comparison_equal_also_raises(builder: VectorizedLinearExprBuilder) -> None:
     with pytest.raises(NotImplementedError):
         visit(literal(1) == literal(1), builder)
 
@@ -368,34 +370,34 @@ def test_comparison_equal_also_raises(builder: VectorizedLinopyBuilder) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_floor_on_da_works(builder: VectorizedLinopyBuilder) -> None:
+def test_floor_on_da_works(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(literal(2.7).floor(), builder)
     assert isinstance(result, xr.DataArray)
     assert float(result) == pytest.approx(2.0)
 
 
-def test_floor_on_variable_raises(builder: VectorizedLinopyBuilder) -> None:
+def test_floor_on_variable_raises(builder: VectorizedLinearExprBuilder) -> None:
     with pytest.raises(NotImplementedError, match="floor"):
         visit(var("x").floor(), builder)
 
 
-def test_floor_on_negative_da(builder: VectorizedLinopyBuilder) -> None:
+def test_floor_on_negative_da(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(literal(-2.1).floor(), builder)
     assert float(result) == pytest.approx(-3.0)
 
 
-def test_ceil_on_da_works(builder: VectorizedLinopyBuilder) -> None:
+def test_ceil_on_da_works(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(literal(2.1).ceil(), builder)
     assert isinstance(result, xr.DataArray)
     assert float(result) == pytest.approx(3.0)
 
 
-def test_ceil_on_variable_raises(builder: VectorizedLinopyBuilder) -> None:
+def test_ceil_on_variable_raises(builder: VectorizedLinearExprBuilder) -> None:
     with pytest.raises(NotImplementedError, match="ceil"):
         visit(var("x").ceil(), builder)
 
 
-def test_ceil_on_exact_integer_da(builder: VectorizedLinopyBuilder) -> None:
+def test_ceil_on_exact_integer_da(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(literal(3.0).ceil(), builder)
     assert float(result) == pytest.approx(3.0)
 
@@ -405,34 +407,36 @@ def test_ceil_on_exact_integer_da(builder: VectorizedLinopyBuilder) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_maximum_all_da_works(builder: VectorizedLinopyBuilder) -> None:
+def test_maximum_all_da_works(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(maximum(literal(3), literal(1), literal(4)), builder)
     assert isinstance(result, xr.DataArray)
     assert float(result) == pytest.approx(4.0)
 
 
-def test_maximum_two_da_returns_larger(builder: VectorizedLinopyBuilder) -> None:
+def test_maximum_two_da_returns_larger(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(maximum(literal(7), literal(3)), builder)
     assert float(result) == pytest.approx(7.0)
 
 
-def test_maximum_with_variable_raises(builder: VectorizedLinopyBuilder) -> None:
+def test_maximum_with_variable_raises(builder: VectorizedLinearExprBuilder) -> None:
     with pytest.raises(NotImplementedError, match="maximum"):
         visit(maximum(var("x"), literal(5)), builder)
 
 
-def test_maximum_variable_first_also_raises(builder: VectorizedLinopyBuilder) -> None:
+def test_maximum_variable_first_also_raises(
+    builder: VectorizedLinearExprBuilder,
+) -> None:
     with pytest.raises(NotImplementedError):
         visit(maximum(literal(5), var("x")), builder)
 
 
-def test_minimum_all_da_works(builder: VectorizedLinopyBuilder) -> None:
+def test_minimum_all_da_works(builder: VectorizedLinearExprBuilder) -> None:
     result = visit(minimum(literal(3), literal(1), literal(4)), builder)
     assert isinstance(result, xr.DataArray)
     assert float(result) == pytest.approx(1.0)
 
 
-def test_minimum_with_variable_raises(builder: VectorizedLinopyBuilder) -> None:
+def test_minimum_with_variable_raises(builder: VectorizedLinearExprBuilder) -> None:
     with pytest.raises(NotImplementedError, match="minimum"):
         visit(minimum(literal(2), var("x")), builder)
 
@@ -451,9 +455,9 @@ def _scalar_time_da(values: list) -> xr.DataArray:
     )
 
 
-def test_time_shift_by_zero(empty_builder: VectorizedLinopyBuilder) -> None:
+def test_time_shift_by_zero(empty_builder: VectorizedLinearExprBuilder) -> None:
     da = _scalar_time_da([1.0, 2.0, 3.0])
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -465,10 +469,10 @@ def test_time_shift_by_zero(empty_builder: VectorizedLinopyBuilder) -> None:
     xr.testing.assert_allclose(result, da)
 
 
-def test_time_shift_by_one_cycles(empty_builder: VectorizedLinopyBuilder) -> None:
+def test_time_shift_by_one_cycles(empty_builder: VectorizedLinearExprBuilder) -> None:
     """Shift by +1: [1,2,3] → [2,3,1] (element at position t = original[t+1 % T])."""
     da = _scalar_time_da([1.0, 2.0, 3.0])
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -482,11 +486,11 @@ def test_time_shift_by_one_cycles(empty_builder: VectorizedLinopyBuilder) -> Non
 
 
 def test_time_shift_by_negative_one_cycles(
-    empty_builder: VectorizedLinopyBuilder,
+    empty_builder: VectorizedLinearExprBuilder,
 ) -> None:
     """Shift by -1: [1,2,3] → [3,1,2]."""
     da = _scalar_time_da([1.0, 2.0, 3.0])
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -502,7 +506,7 @@ def test_time_shift_by_negative_one_cycles(
 def test_time_shift_by_block_length_is_identity() -> None:
     """Shift by block_length should produce the same array (full cycle)."""
     da = _scalar_time_da([10.0, 20.0, 30.0])
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -517,7 +521,7 @@ def test_time_shift_by_block_length_is_identity() -> None:
 def test_time_shift_on_no_time_dim_is_noop() -> None:
     """Scalar (no time dim) DataArray: shift is a no-op."""
     scalar = xr.DataArray(99.0)
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): scalar},
@@ -532,7 +536,7 @@ def test_time_shift_on_no_time_dim_is_noop() -> None:
 def test_time_shift_coordinates_are_reassigned() -> None:
     """After a shift, time coords must be [0,1,2] not the shifted positions."""
     da = _scalar_time_da([1.0, 2.0, 3.0])
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -551,7 +555,7 @@ def test_time_shift_coordinates_are_reassigned() -> None:
 
 def test_time_eval_selects_correct_timestep() -> None:
     da = _scalar_time_da([10.0, 20.0, 30.0])
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -568,7 +572,7 @@ def test_time_eval_selects_correct_timestep() -> None:
 def test_time_eval_wraps_beyond_block() -> None:
     """eval(block_length + 1) == eval(1) via modulo."""
     da = _scalar_time_da([10.0, 20.0, 30.0])
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -583,7 +587,7 @@ def test_time_eval_wraps_beyond_block() -> None:
 
 def test_time_eval_on_no_time_dim() -> None:
     scalar = xr.DataArray(7.0)
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): scalar},
@@ -602,7 +606,7 @@ def test_time_eval_on_no_time_dim() -> None:
 
 def test_all_time_sum_with_time_dim() -> None:
     da = _scalar_time_da([1.0, 2.0, 3.0])  # sum = 6
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -617,7 +621,7 @@ def test_all_time_sum_with_time_dim() -> None:
 
 def test_all_time_sum_without_time_dim_multiplies_block_length() -> None:
     scalar = xr.DataArray(5.0)
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): scalar},
@@ -637,7 +641,7 @@ def test_all_time_sum_without_time_dim_multiplies_block_length() -> None:
 def test_time_sum_same_from_and_to_equals_single_shift() -> None:
     """time_sum(0, 0) should equal shift(0) — the operand itself."""
     da = _scalar_time_da([1.0, 2.0, 3.0])
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -652,7 +656,7 @@ def test_time_sum_same_from_and_to_equals_single_shift() -> None:
 def test_time_sum_range_sums_correctly() -> None:
     """time_sum(0, 2) on [1,1,1] = 3 per position (each position accumulates 3 cyclic copies)."""
     da = _scalar_time_da([1.0, 1.0, 1.0])
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -665,7 +669,7 @@ def test_time_sum_range_sums_correctly() -> None:
 
 
 def test_time_sum_with_variable_returns_linear_expression(
-    builder: VectorizedLinopyBuilder,
+    builder: VectorizedLinearExprBuilder,
 ) -> None:
     result = visit(var("x").time_sum(0, 1), builder)
     assert isinstance(result, linopy.LinearExpression)
@@ -682,7 +686,7 @@ def test_expectation_with_scenario_dim() -> None:
         dims=["component", "scenario"],
         coords={"component": ["c1"], "scenario": [0, 1]},
     )
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): da},
@@ -698,7 +702,7 @@ def test_expectation_with_scenario_dim() -> None:
 
 def test_expectation_without_scenario_dim_is_noop() -> None:
     scalar = xr.DataArray(42.0)
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): scalar},
@@ -716,7 +720,7 @@ def test_variance_scenario_operator_raises_at_node_construction() -> None:
     'Variance' IS in the valid list. The builder raises NotImplementedError at visit time.
     """
     scalar = xr.DataArray(1.0)
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={("m", "s"): scalar},
@@ -738,7 +742,7 @@ def test_variance_scenario_operator_raises_at_node_construction() -> None:
 def test_port_field_found() -> None:
     key = PortFieldId("port_a", "flow")
     da = xr.DataArray(99.0)
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={},
@@ -753,7 +757,7 @@ def test_port_field_found() -> None:
 
 
 def test_port_field_missing_raises_key_error(
-    empty_builder: VectorizedLinopyBuilder,
+    empty_builder: VectorizedLinearExprBuilder,
 ) -> None:
     from gems.expression.expression import port_field
 
@@ -769,7 +773,7 @@ def test_port_field_missing_raises_key_error(
 def test_port_sum_with_connection_returns_expression() -> None:
     key = PortFieldId("port_a", "flow")
     da = xr.DataArray(7.0)
-    b = VectorizedLinopyBuilder(
+    b = VectorizedLinearExprBuilder(
         model_id="m",
         linopy_vars={},
         param_arrays={},
@@ -785,7 +789,7 @@ def test_port_sum_with_connection_returns_expression() -> None:
 
 
 def test_port_sum_no_connection_returns_zero(
-    empty_builder: VectorizedLinopyBuilder,
+    empty_builder: VectorizedLinearExprBuilder,
 ) -> None:
     """PortFieldAggregatorNode with no matching port returns DataArray(0.0)."""
     from gems.expression.expression import port_field

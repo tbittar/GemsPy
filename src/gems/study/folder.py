@@ -18,7 +18,7 @@ from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.optim_config import load_optim_config
 from gems.simulation import TimeBlock, build_problem
-from gems.simulation.linopy_problem import LinopyOptimizationProblem
+from gems.simulation.optimization import OptimizationProblem
 from gems.study.data import DataBase
 from gems.study.system import System
 from gems.study.parsing import parse_yaml_components
@@ -78,7 +78,7 @@ def run_study(
     scenarios: int,
     time_block: TimeBlock,
     export_simulation_table: Optional[bool] = False,
-) -> LinopyOptimizationProblem:
+) -> OptimizationProblem:
     """
     Runs a simulation study.
 

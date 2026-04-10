@@ -114,7 +114,7 @@ class SimulationTable:
 
 from gems.expression.visitor import visit
 from gems.simulation.extra_output import VectorizedExtraOutputBuilder
-from gems.simulation.linopy_problem import LinopyOptimizationProblem, build_port_arrays
+from gems.simulation.optimization import OptimizationProblem, build_port_arrays
 
 
 class SimulationColumns(str, Enum):
@@ -129,7 +129,7 @@ class SimulationColumns(str, Enum):
 
 
 class SimulationTableBuilder:
-    """Builds simulation tables directly from a LinopyOptimizationProblem."""
+    """Builds simulation tables directly from a OptimizationProblem."""
 
     def __init__(self, simulation_id: Optional[str] = None) -> None:
         self.simulation_id: str = simulation_id or datetime.now().strftime(
@@ -138,7 +138,7 @@ class SimulationTableBuilder:
 
     def build(
         self,
-        problem: LinopyOptimizationProblem,
+        problem: OptimizationProblem,
         absolute_time_offset: Optional[int] = None,
     ) -> SimulationTable:
         block = problem.block.id
@@ -162,7 +162,7 @@ class SimulationTableBuilder:
 
     def _collect_solver_outputs(
         self,
-        problem: LinopyOptimizationProblem,
+        problem: OptimizationProblem,
         block: int,
         abs_offset: int,
     ) -> list[dict[str, Any]]:
@@ -191,7 +191,7 @@ class SimulationTableBuilder:
 
     def _collect_extra_outputs(
         self,
-        problem: LinopyOptimizationProblem,
+        problem: OptimizationProblem,
         block: int,
         abs_offset: int,
     ) -> list[dict[str, Any]]:
@@ -254,7 +254,7 @@ class SimulationTableBuilder:
     # -------------------------------------------------------------------------
 
     def _collect_objective_value(
-        self, problem: LinopyOptimizationProblem, block: int
+        self, problem: OptimizationProblem, block: int
     ) -> dict[str, Any]:
         return {
             SimulationColumns.BLOCK.value: block,

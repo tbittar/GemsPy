@@ -47,7 +47,7 @@ class FakeLinopyModel:
 
 @dataclass
 class FakeProblem:
-    """Fake LinopyOptimizationProblem with the attributes used by SimulationTableBuilder."""
+    """Fake OptimizationProblem with the attributes used by SimulationTableBuilder."""
 
     block: FakeBlock = field(default_factory=FakeBlock)
     block_length: int = 3

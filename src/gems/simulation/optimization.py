@@ -13,7 +13,7 @@
 """
 Linopy-based optimization problem builder.
 
-Provides :func:`build_problem` and :class:`LinopyOptimizationProblem`.
+Provides :func:`build_problem` and :class:`OptimizationProblem`.
 The builder groups system components by model, then constructs the full
 optimization problem in four phases:
 
@@ -24,7 +24,7 @@ optimization problem in four phases:
 3. Port arrays — resolve port connections via an incidence matrix so that
    port-field expressions are available as linopy ``LinearExpression`` objects.
 4. Constraints and objective — traverse each constraint AST once with
-   :class:`~gems.simulation.linopy_linearize.VectorizedLinopyBuilder` to
+   :class:`~gems.simulation.linearize.VectorizedLinearExprBuilder` to
    produce vectorized linopy constraints added in a single
    ``Model.add_constraints()`` call per constraint type.
 """
@@ -43,9 +43,9 @@ from gems.expression.visitor import visit
 from gems.model.common import ValueType
 from gems.model.model import Model
 from gems.model.port import PortField, PortFieldId
-from gems.simulation.linopy_linearize import (
+from gems.simulation.linearize import (
     VectorizedExpr,
-    VectorizedLinopyBuilder,
+    VectorizedLinearExprBuilder,
     _linopy_add,
 )
 from gems.simulation.time_block import TimeBlock
@@ -263,7 +263,7 @@ class BlockBorderManagement(Enum):
     IGNORE_OUT_OF_FRAME = "IGNORE"
 
 
-class LinopyOptimizationProblem:
+class OptimizationProblem:
     """
     Wraps a linopy.Model and provides the high-level API for solving and
     extracting results.
@@ -342,7 +342,7 @@ class LinopyOptimizationProblem:
 # ---------------------------------------------------------------------------
 
 
-class _LinopyProblemBuilder:
+class _OptimizationProblemBuilder:
     """
     Builds the linopy problem in 4 phases:
       1. Build parameter DataArrays for all models.
@@ -387,7 +387,7 @@ class _LinopyProblemBuilder:
                 self.models[mk] = m
             self.model_components[mk].append(component)
 
-    def build(self) -> LinopyOptimizationProblem:
+    def build(self) -> OptimizationProblem:
         # Phase 1: parameter arrays
         for mk, components in self.model_components.items():
             self._build_param_arrays_for_model(self.models[mk], components)
@@ -431,7 +431,7 @@ class _LinopyProblemBuilder:
             )
             self.linopy_model.add_objective(0 * dummy)  # type: ignore[operator]
 
-        return LinopyOptimizationProblem(
+        return OptimizationProblem(
             name=self.name,
             linopy_model=self.linopy_model,
             system=self.system,
@@ -563,7 +563,7 @@ class _LinopyProblemBuilder:
                 )
 
                 # Build a minimal builder for bound expressions (no variables needed)
-                bound_builder = VectorizedLinopyBuilder(
+                bound_builder = VectorizedLinearExprBuilder(
                     model_id=model.id,
                     linopy_vars={},
                     param_arrays=self.param_arrays,
@@ -740,8 +740,8 @@ class _LinopyProblemBuilder:
         self,
         model: Model,
         port_arrays: Dict[PortFieldId, VectorizedExpr],
-    ) -> VectorizedLinopyBuilder:
-        return VectorizedLinopyBuilder(
+    ) -> VectorizedLinearExprBuilder:
+        return VectorizedLinearExprBuilder(
             model_id=model.id,
             linopy_vars=self.linopy_vars,
             param_arrays=self.param_arrays,
@@ -764,9 +764,9 @@ def build_problem(
     *,
     problem_name: str = "optimization_problem",
     border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
-) -> LinopyOptimizationProblem:
+) -> OptimizationProblem:
     """
-    Build and return a LinopyOptimizationProblem for the given time block.
+    Build and return an OptimizationProblem for the given time block.
 
     Parameters
     ----------
@@ -791,7 +791,7 @@ def build_problem(
 
     database.requirements_consistency(system)
 
-    builder = _LinopyProblemBuilder(
+    builder = _OptimizationProblemBuilder(
         name=problem_name,
         system=system,
         database=database,
@@ -813,16 +813,16 @@ class DecomposedProblems:
     Attributes
     ----------
     subproblem:
-        LinopyOptimizationProblem containing all elements whose location is
+        OptimizationProblem containing all elements whose location is
         ``subproblems`` or ``master-and-subproblems``.
     master:
-        LinopyOptimizationProblem containing all elements whose location is
+        OptimizationProblem containing all elements whose location is
         ``master`` or ``master-and-subproblems``.  ``None`` when the
         optim-config declares no master-side elements.
     """
 
-    subproblem: LinopyOptimizationProblem
-    master: Optional[LinopyOptimizationProblem]
+    subproblem: OptimizationProblem
+    master: Optional[OptimizationProblem]
 
 
 def build_decomposed_problems(
@@ -836,7 +836,7 @@ def build_decomposed_problems(
     master_name: str = "master",
     border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
 ) -> DecomposedProblems:
-    """Build master and subproblem LinopyOptimizationProblems according to *optim_config*.
+    """Build master and subproblem OptimizationProblems according to *optim_config*.
 
     The subproblem is always built; it contains every element whose declared
     location is ``subproblems`` (the default) or ``master-and-subproblems``.
@@ -875,7 +875,7 @@ def build_decomposed_problems(
         ElementLocation.MASTER_AND_SUBPROBLEMS,
     }
 
-    subproblem = _LinopyProblemBuilder(
+    subproblem = _OptimizationProblemBuilder(
         name=subproblem_name,
         system=system,
         database=database,
@@ -884,9 +884,9 @@ def build_decomposed_problems(
         location_filter=DecompositionFilter(optim_config, sub_locs),
     ).build()
 
-    master: Optional[LinopyOptimizationProblem] = None
+    master: Optional[OptimizationProblem] = None
     if _has_any_master_element(optim_config):
-        master = _LinopyProblemBuilder(
+        master = _OptimizationProblemBuilder(
             name=master_name,
             system=system,
             database=database,

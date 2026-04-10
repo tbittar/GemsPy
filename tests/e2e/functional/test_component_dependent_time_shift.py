@@ -21,7 +21,7 @@ the state ``lag`` steps ago under CYCLE border management:
 where ``lag`` is a **per-component constant parameter**.  When two
 component instances carry different ``lag`` values, the problem builder
 must emit different shifted sub-expressions for each component — the
-"per-component slow path" in ``linopy_linearize._time_shift``.
+"per-component slow path" in ``linearize._time_shift``.
 
 Group-partition property (the key insight)
 ------------------------------------------
@@ -284,7 +284,7 @@ def test_two_components_different_lags_asymmetric_demand() -> None:
 
     The ``lag`` parameter DataArray has a component dimension with two
     distinct values ([−1, −2] after negation), triggering the per-component
-    slow path in ``linopy_linearize._time_shift``.
+    slow path in ``linearize._time_shift``.
     """
     horizon = 4
     inflows = 5.0

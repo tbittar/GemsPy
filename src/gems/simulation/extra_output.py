@@ -21,7 +21,7 @@ nonlinear operations (products of variables, floor, ceil, min, max) that
 are not permitted during pre-solve constraint building.
 
 Port arrays for ``sum_connections`` support are built by calling
-:func:`~gems.simulation.linopy_problem.build_port_arrays` with a
+:func:`~gems.simulation.optimization.build_port_arrays` with a
 :class:`VectorizedExtraOutputBuilder` factory.
 """
 
