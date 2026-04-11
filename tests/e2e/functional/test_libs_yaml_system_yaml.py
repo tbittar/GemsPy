@@ -60,12 +60,12 @@ def test_basic_balance_using_yaml(
 ) -> None:
     result_lib = resolve_library([input_library])
     system = resolve_system(input_system, result_lib)
-    consistency_check(system_input, result_lib["basic"].models)
+    consistency_check(system, result_lib["basic"].models)
 
     database = build_data_base(input_system, None)
 
     scenarios = 1
-    problem = build_problem(Study(study, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
@@ -74,8 +74,8 @@ def test_basic_balance_using_yaml(
 @pytest.fixture
 def setup_test(
     libs_dir: Path, systems_dir: Path, series_dir: Path
-) -> Callable[[], Study:
-    def _setup_test(study_file_name: str):
+) -> Callable[[str], Study]:
+    def _setup_test(study_file_name: str) -> Study:
         study_file = systems_dir / study_file_name
         lib_file = libs_dir / "lib_unittest.yml"
         with lib_file.open() as lib:
@@ -85,7 +85,7 @@ def setup_test(
             input_system = parse_yaml_components(c)
         lib_dict = resolve_library([input_library])
         system = resolve_system(input_system, lib_dict)
-        consistency_check(study, lib_dict["basic"].models)
+        consistency_check(system, lib_dict["basic"].models)
 
         database = build_data_base(input_system, series_dir)
         return Study(system, database)
@@ -94,7 +94,7 @@ def setup_test(
 
 
 def test_basic_balance_time_only_series(
-    setup_test: Callable[[], Study,
+    setup_test: Callable[[str], Study],
 ) -> None:
     study = setup_test("study_time_only_series.yml")
     scenarios = 1
@@ -105,7 +105,7 @@ def test_basic_balance_time_only_series(
 
 
 def test_basic_balance_scenario_only_series(
-    setup_test: Callable[[], Study,
+    setup_test: Callable[[str], Study],
 ) -> None:
     study = setup_test("study_scenario_only_series.yml")
     scenarios = 2
@@ -116,7 +116,7 @@ def test_basic_balance_scenario_only_series(
 
 
 def test_short_term_storage_base_with_yaml(
-    setup_test: Callable[[], Study,
+    setup_test: Callable[[str], Study],
 ) -> None:
     study = setup_test("components_for_short_term_storage.yml")
     # 18 produced in the 1st time-step, then consumed 2 * efficiency in the rest
@@ -141,7 +141,7 @@ def test_short_term_storage_base_with_yaml(
 
 
 def test_varying_down_time(
-    setup_test: Callable[[], Study,
+    setup_test: Callable[[str], Study],
 ) -> None:
     """
     Two thermal clusters with different min-down-times actually start and stop,
