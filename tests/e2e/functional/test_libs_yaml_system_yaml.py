@@ -51,6 +51,7 @@ from gems.study.resolve_components import (
     consistency_check,
     resolve_system,
 )
+from gems.study.study import Study
 from gems.study.system import System
 
 
@@ -58,13 +59,13 @@ def test_basic_balance_using_yaml(
     input_system: InputSystem, input_library: InputLibrary
 ) -> None:
     result_lib = resolve_library([input_library])
-    system_input = resolve_system(input_system, result_lib)
+    system = resolve_system(input_system, result_lib)
     consistency_check(system_input, result_lib["basic"].models)
 
     database = build_data_base(input_system, None)
 
     scenarios = 1
-    problem = build_problem(Study(system_input, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(study, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
@@ -73,7 +74,7 @@ def test_basic_balance_using_yaml(
 @pytest.fixture
 def setup_test(
     libs_dir: Path, systems_dir: Path, series_dir: Path
-) -> Callable[[], Tuple[System, DataBase]]:
+) -> Callable[[], Study:
     def _setup_test(study_file_name: str):
         study_file = systems_dir / study_file_name
         lib_file = libs_dir / "lib_unittest.yml"
@@ -81,51 +82,50 @@ def setup_test(
             input_library = parse_yaml_library(lib)
 
         with study_file.open() as c:
-            input_study = parse_yaml_components(c)
+            input_system = parse_yaml_components(c)
         lib_dict = resolve_library([input_library])
-        network_components = resolve_system(input_study, lib_dict)
-        consistency_check(network_components, lib_dict["basic"].models)
+        system = resolve_system(input_system, lib_dict)
+        consistency_check(study, lib_dict["basic"].models)
 
-        database = build_data_base(input_study, series_dir)
-        return network_components, database
+        database = build_data_base(input_system, series_dir)
+        return Study(system, database)
 
     return _setup_test
 
 
 def test_basic_balance_time_only_series(
-    setup_test: Callable[[], Tuple[System, DataBase]],
+    setup_test: Callable[[], Study,
 ) -> None:
-    system, database = setup_test("study_time_only_series.yml")
+    study = setup_test("study_time_only_series.yml")
     scenarios = 1
-    problem = build_problem(Study(system, database), TimeBlock(1, [0, 1]), scenarios)
+    problem = build_problem(study, TimeBlock(1, [0, 1]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 10000
 
 
 def test_basic_balance_scenario_only_series(
-    setup_test: Callable[[], Tuple[System, DataBase]],
+    setup_test: Callable[[], Study,
 ) -> None:
-    system, database = setup_test("study_scenario_only_series.yml")
+    study = setup_test("study_scenario_only_series.yml")
     scenarios = 2
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(study, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 0.5 * 5000 + 0.5 * 10000
 
 
 def test_short_term_storage_base_with_yaml(
-    setup_test: Callable[[], Tuple[System, DataBase]],
+    setup_test: Callable[[], Study,
 ) -> None:
-    system, database = setup_test("components_for_short_term_storage.yml")
+    study = setup_test("components_for_short_term_storage.yml")
     # 18 produced in the 1st time-step, then consumed 2 * efficiency in the rest
     scenarios = 1
     horizon = 10
     time_blocks = [TimeBlock(0, list(range(horizon)))]
 
     problem = build_problem(
-        system,
-        database,
+        study,
         time_blocks[0],
         scenarios,
         border_management=BlockBorderManagement.CYCLE,
@@ -141,7 +141,7 @@ def test_short_term_storage_base_with_yaml(
 
 
 def test_varying_down_time(
-    setup_test: Callable[[], Tuple[System, DataBase]],
+    setup_test: Callable[[], Study,
 ) -> None:
     """
     Two thermal clusters with different min-down-times actually start and stop,
@@ -169,13 +169,12 @@ def test_varying_down_time(
       G_2: 2 steps × 50 × 50 =  5000
       Total                   = 12250
     """
-    system, database = setup_test("system_with_varying_down_time.yml")
+    study = setup_test("system_with_varying_down_time.yml")
     scenarios = 1
     horizon = 10
 
     problem = build_problem(
-        system,
-        database,
+        study,
         TimeBlock(0, list(range(horizon))),
         scenarios,
         border_management=BlockBorderManagement.CYCLE,
