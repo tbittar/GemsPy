@@ -248,4 +248,3 @@ class DataBase:
             return self._data[index].get_value([timestep], scenario)
         else:
             raise KeyError(f"Index {index} not found.")
-
