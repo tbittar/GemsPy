@@ -20,6 +20,7 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     create_component,
 )
@@ -132,7 +133,7 @@ def test_electrolyzer_n_inputs_1(
     )
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -234,7 +235,7 @@ def test_electrolyzer_n_inputs_2(
     )
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -348,7 +349,7 @@ def test_electrolyzer_n_inputs_3(
     )
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
 
     assert problem.termination_condition == "optimal"
@@ -452,7 +453,7 @@ def test_electrolyzer_n_inputs_4(
     )
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
 

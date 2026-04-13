@@ -17,8 +17,6 @@ from typing import Dict, List, Mapping, Optional, Union
 import numpy as np
 import pandas as pd
 
-from gems.study.system import System
-
 
 @dataclass(frozen=True)
 class TimeScenarioIndex:
@@ -250,16 +248,3 @@ class DataBase:
             return self._data[index].get_value([timestep], scenario)
         else:
             raise KeyError(f"Index {index} not found.")
-
-    def requirements_consistency(self, system: System) -> None:
-        for component in system.components:
-            for param in component.model.parameters.values():
-                data_structure = self.get_data(component.id, param.name)
-
-                if not data_structure.check_requirement(
-                    component.model.parameters[param.name].structure.time,
-                    component.model.parameters[param.name].structure.scenario,
-                ):
-                    raise ValueError(
-                        f"Data inconsistency for component: {component.id}, parameter: {param.name}. Requirement not met."
-                    )

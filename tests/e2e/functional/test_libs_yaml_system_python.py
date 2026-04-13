@@ -40,6 +40,7 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     TimeScenarioSeriesData,
     create_component,
@@ -82,7 +83,7 @@ def test_basic_balance(lib_dict: dict[str, Library]) -> None:
     system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
@@ -133,7 +134,7 @@ def test_link(lib_dict: dict[str, Library]) -> None:
     system.connect(PortRef(link, "out_port"), PortRef(node2, "balance_port"))
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3500
@@ -186,7 +187,7 @@ def test_stacking_generation(lib_dict: dict[str, Library]) -> None:
     system.connect(PortRef(gen2, "balance_port"), PortRef(node1, "balance_port"))
 
     scenarios = 1
-    problem = build_problem(system, database, TimeBlock(1, [0]), scenarios)
+    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 30 * 100 + 50 * 50
@@ -225,7 +226,7 @@ def test_spillage(lib_dict: dict[str, Library]) -> None:
     system.connect(PortRef(gen1, "balance_port"), PortRef(node, "balance_port"))
     system.connect(PortRef(spillage, "balance_port"), PortRef(node, "balance_port"))
 
-    problem = build_problem(system, database, TimeBlock(0, [1]), 1)
+    problem = build_problem(Study(system, database), TimeBlock(0, [1]), 1)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 30 * 200 + 50 * 10
@@ -311,8 +312,7 @@ def test_min_up_down_times(lib_dict: dict[str, Library]) -> None:
     )
 
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         time_block,
         scenarios,
         border_management=BlockBorderManagement.CYCLE,
@@ -367,8 +367,7 @@ def test_changing_demand(lib_dict: dict[str, Library]) -> None:
     system.connect(PortRef(prod, "balance_port"), PortRef(node, "balance_port"))
 
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         time_block,
         scenarios,
         border_management=BlockBorderManagement.CYCLE,
@@ -458,8 +457,7 @@ def test_min_up_down_times_2(lib_dict: dict[str, Library]) -> None:
     )
 
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         time_block,
         scenarios,
         border_management=BlockBorderManagement.CYCLE,

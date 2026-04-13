@@ -15,6 +15,7 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     TimeScenarioSeriesData,
     create_component,
@@ -90,8 +91,7 @@ def short_term_storage_base(efficiency: float, horizon: int, result: int) -> Non
     system.connect(PortRef(unsupplied, "balance_port"), PortRef(node, "balance_port"))
 
     problem = build_problem(
-        system,
-        database,
+        Study(system, database),
         time_blocks[0],
         scenarios,
         border_management=BlockBorderManagement.CYCLE,

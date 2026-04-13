@@ -21,6 +21,7 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
+    Study,
     System,
     create_component,
 )
@@ -132,7 +133,7 @@ def test_stochastic_model_with_HD_for_thermal_startup(
     system.connect(PortRef(peak, "balance_port"), PortRef(node, "balance_port"))
 
     for block in time_blocks:  # TODO : To manage blocks simply for now
-        problem = build_problem(system, database, block, scenarios)
+        problem = build_problem(Study(system, database), block, scenarios)
         problem.solve(solver_name="highs")
         assert (
             problem.termination_condition == "optimal"
@@ -188,7 +189,7 @@ def test_stochastic_model_with_DH_for_thermal_startup(
     system.connect(PortRef(peak, "balance_port"), PortRef(node, "balance_port"))
 
     for block in time_blocks:  # TODO : To manage blocks simply for now
-        problem = build_problem(system, database, block, scenarios)
+        problem = build_problem(Study(system, database), block, scenarios)
         problem.solve(solver_name="highs")
         assert (
             problem.termination_condition == "optimal"

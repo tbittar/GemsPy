@@ -185,8 +185,7 @@ database = build_data_base(input_system, Path(series_dir))
 network = build_network(system_input)
 
 problem = build_problem(
-    network,
-    database,
+    Study(network, database),
     TimeBlock(1, [i for i in range(0, timespan)]),
     scenarios,
 )
