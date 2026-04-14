@@ -17,7 +17,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 ```bash
 pytest                                          # run all tests
 pytest tests/path/to/test_file.py::test_name   # run a single test
-pytest --cov gems --cov-report xml         # with coverage
+pytest --cov gems --cov-report xml             # with coverage
 ```
 
 **Lint & Format:**
@@ -37,51 +37,68 @@ gemspy \
   --duration     8760 \
   --scenarios    1
 
-# Python API (minimal example)
-from gems.main.main import build_problem
+# Python API — directory-based study
+from gems.study.folder import load_study, run_study
+from gems.simulation import TimeBlock
+
+study = load_study(Path("path/to/study_dir"))   # reads input/, model-libraries/, data-series/
+problem = run_study(Path("path/to/study_dir"), scenarios=1, time_block=TimeBlock(1, list(range(8760))))
+
+# Python API — programmatic study
+from gems.study import Study
+from gems.simulation import build_problem, TimeBlock
+
+study = Study(system=system, database=database)
+problem = build_problem(study, TimeBlock(1, list(range(8760))), scenarios=1)
+problem.solve(solver_name="highs")
 ```
 
 ## Architecture
 
-The pipeline flows: **YAML input → parsing → model resolution → network building → optimization problem → OR-Tools solver → results**
+The pipeline flows: **YAML input → parsing → model resolution → system instantiation → optimization problem → HiGHS solver (via linopy) → results**
+
+An optional `optim-config.yml` activates decomposition: variables and constraints are split across a master problem and subproblems, with either sequential resolution or full Benders decomposition.
 
 ### Core Modules (`src/gems/`)
 
 **`model/`** — Immutable model templates.
 - `Model`: defines component behavior (parameters, variables, constraints, ports)
 - `Library`: a collection of models, loaded from YAML
+- `Constraint`: a named expression with a `ProblemContext` (`OPERATIONAL` or `INVESTMENT`)
+- `ValueType` (`CONTINUOUS`, `INTEGER`, `BOOLEAN`): the data type of a variable or parameter
 - Models are never instantiated directly — they are referenced by components
 
 **`expression/`** — Mathematical expression language and AST.
 - `ExpressionNode`: base frozen dataclass for all expression tree nodes
-- Node types cover: arithmetic (`+`, `-`, `*`, `/`), comparisons (`<=`, `>=`, `==`), time/scenario operators (`time_sum()`), and functions (`max()`, `min()`, `ceil()`, `floor()`)
-- Grammar is defined in `/grammar/` and parsed via ANTLR4 (generated files live in `expression/parsing/antlr/`)
+- Grammar is defined in `grammar/Expr.g4` and parsed via ANTLR4 (generated files live in `expression/parsing/antlr/` — do not edit directly)
 - `ExpressionVisitor` is the dominant pattern for traversing and transforming expression trees (evaluation, linearization, printing, degree analysis)
-- Expressions support operator overloading: `var('x') + 5 * param('p')`
 
-**`study/`** — Study definition and network instantiation.
-- `System`: top-level structure parsed from YAML (before instantiation)
-- `Network`: instantiated graph of `Node`s, `Component`s, and connections
-- `Component`: an instance of a `Model` with concrete parameter values
-- `DataBase`: manages time series and scenario data
+**`study/`** — Study definition and instantiation.
+- `System` (`system.py`): resolved topology — graph of `Component`s, `PortRef`s, and `PortsConnection`s after library references are substituted
+- `Study` (`study.py`): dataclass pairing a `System` with a `DataBase`; validates that the database supplies every parameter required by the system
+- `DataBase` (`data.py`): manages time-series and scenario data;
+- `load_study` / `run_study` (`folder.py`): convenience functions for directory-based studies (`input/system.yml`, `input/model-libraries/`, `input/data-series/`)
 
 **`simulation/`** — Optimization problem construction and solving.
-- `OptimizationProblem`: main interface; translates network + database into OR-Tools constraints
-- `LinearExpression`: the linearized form of model constraints used by the solver
-- `BendersDecomposedProblem`: temporal decomposition strategy for large problems
-- `TimeBlock`: structure for defining temporal decomposition
-- `SimulationTableBuilder`: result extraction as a flat pandas DataFrame
+- `OptimizationProblem` (`optimization.py`): main interface; translates a `Study` into a linopy model solved by HiGHS
+- `DecomposedProblems` (`optimization.py`): holds the master problem and subproblem produced by temporal decomposition
+- `VectorizedLinearExprBuilder` (`linearize.py`): `ExpressionVisitor` subclass that converts an expression AST into a `VectorizedExpr`
+- `VectorizedBuilderBase` (`vectorized_builder.py`): shared base for all vectorized visitors (used by both `linearize.py` and `extra_output.py`)
+- `TimeBlock` (`time_block.py`): defines the temporal window for one solve
+- `SimulationTableBuilder` / `SimulationTableWriter` (`simulation_table.py`): result extraction as a flat pandas `DataFrame`
+
+**`optim_config/`** — Optional decomposition configuration.
+- `OptimConfig` (`parsing.py`): top-level config loaded from `optim-config.yml`
+- `ResolutionMode` (`parsing.py`): `SEQUENTIAL_SUBPROBLEMS` (default) or `BENDERS_DECOMPOSITION`
+- `ModelDecompositionConfig` (`parsing.py`): per-model assignment of variables/constraints/objective contributions to master or subproblems
+
+**`libs/`** — Resolves the path to bundled YAML model libraries shipped with the package.
 
 ### Key Design Patterns
 
-- **Frozen dataclasses** throughout for immutability (models, expressions, constraints)
-- **Visitor pattern** for all expression tree operations (`ExpressionVisitor` subclasses)
-- **Indexing dimensions**: parameters and variables carry time and scenario indices explicitly; expressions track these automatically
-- **`ValueType`** enum (`INTEGER`, `CONTINUOUS`, `BOOLEAN`) for variable typing
-
-### Type Checking
-
-Strict mypy is enforced (`disallow_untyped_defs`, `disallow_untyped_calls`). All new code must be fully typed. Configuration is in `mypy.ini`.
+- **Visitor pattern** for all expression tree operations (`ExpressionVisitor` subclasses). Use `ExpressionVisitorOperations` as a base when the return type supports `+, -, *, /` — it provides those four method implementations for free.
+- **Template-method via single abstract method**: `VectorizedBuilderBase` implements all 18+ visitor methods once with `xr.DataArray`-compatible semantics; concrete subclasses only override `variable()` (and optionally a few linopy-specific methods).
+- **Indexing dimensions**: parameters and variables carry time and scenario indices explicitly via `IndexingStructure`; expressions track these automatically.
 
 ## Further Reading
 
