@@ -64,9 +64,6 @@ An optional `optim-config.yml` activates decomposition: variables and constraint
 **`model/`** — Immutable model templates.
 - `Model`: defines component behavior (parameters, variables, constraints, ports)
 - `Library`: a collection of models, loaded from YAML
-- `Constraint`: a named expression with a `ProblemContext` (`OPERATIONAL` or `INVESTMENT`)
-- `ValueType` (`CONTINUOUS`, `INTEGER`, `BOOLEAN`): the data type of a variable or parameter
-- Models are never instantiated directly — they are referenced by components
 
 **`expression/`** — Mathematical expression language and AST.
 - `ExpressionNode`: base frozen dataclass for all expression tree nodes
