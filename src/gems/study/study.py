@@ -10,10 +10,16 @@
 #
 # This file is part of the Antares project.
 
-from dataclasses import dataclass
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Optional
 
 from gems.study.data import DataBase
 from gems.study.system import System
+
+if TYPE_CHECKING:
+    from gems.optim_config.parsing import OptimConfig
 
 
 @dataclass
@@ -27,10 +33,14 @@ class Study:
     provides the cross-validation logic that was previously spread between
     ``DataBase.requirements_consistency`` and the callers of
     ``build_problem``.
+
+    ``optim_config`` is optional; it is populated by :func:`~gems.study.folder.load_study`
+    when an ``optim-config.yml`` is present alongside the study inputs.
     """
 
     system: System
     database: DataBase
+    optim_config: Optional[OptimConfig] = field(default=None)
 
     def check_consistency(self) -> None:
         """Validate that the database supplies data for every parameter of every

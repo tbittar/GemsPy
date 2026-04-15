@@ -17,6 +17,7 @@ from gems.model.model import Model
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.optim_config import load_optim_config
+from gems.optim_config.parsing import validate_optim_config
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.optimization import OptimizationProblem
 from gems.study.parsing import parse_yaml_components
@@ -47,13 +48,6 @@ def load_study(study_dir: Path) -> Study:
     series_dir = study_dir / "input" / "data-series"
     config_file = study_dir / "input" / "optim-config.yml"
 
-    if config_file.exists():
-        optim_config = load_optim_config(config_file)
-        raise Warning(
-            "An optim config file has been provided but is not "
-            "used in the current version of problem definition"
-        )
-
     input_libraries = []
     for lib_file in lib_folder.glob("*.yml"):
         with lib_file.open() as lib:
@@ -69,7 +63,14 @@ def load_study(study_dir: Path) -> Study:
     consistency_check(system, model_dict)
 
     database = build_data_base(input_study, series_dir)
-    return Study(system=system, database=database)
+
+    optim_config = None
+    if config_file.exists():
+        optim_config = load_optim_config(config_file)
+        if optim_config is not None:
+            validate_optim_config(optim_config, system)
+
+    return Study(system=system, database=database, optim_config=optim_config)
 
 
 def run_study(

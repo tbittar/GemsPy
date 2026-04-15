@@ -38,7 +38,19 @@ import linopy
 import numpy as np
 import xarray as xr
 
-from gems.expression.expression import is_unbounded
+from gems.expression.evaluate import EvaluationContext, EvaluationVisitor
+from gems.expression.expression import (
+    AdditionNode,
+    AllTimeSumNode,
+    BinaryOperatorNode,
+    ExpressionNode,
+    MaxNode,
+    MinNode,
+    TimeShiftNode,
+    TimeSumNode,
+    UnaryOperatorNode,
+    is_unbounded,
+)
 from gems.expression.visitor import visit
 from gems.model.common import ValueType
 from gems.model.model import Model
@@ -54,7 +66,7 @@ from gems.study.study import Study
 from gems.study.system import Component, System
 
 if TYPE_CHECKING:
-    from gems.optim_config.parsing import ElementLocation, OptimConfig
+    from gems.optim_config.parsing import ElementLocation, OptimConfig, OutOfBoundsMode
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +119,103 @@ class DecompositionFilter:
     def include_objective(self, model_id: str, obj_id: str) -> bool:
         loc = self._objs.get((model_id, obj_id), self._default)
         return loc in self._target
+
+
+def _extract_scalar_param_values(
+    param_arrays: Dict[Tuple[str, str], xr.DataArray], model_id: str
+) -> Dict[str, float]:
+    """Return a name→scalar map for parameters that are uniform across all axes.
+
+    Only parameters whose entire array collapses to a single unique value are
+    included — these are the only ones that can serve as a constant time-shift
+    amount.  Component- or time-varying parameters are silently omitted.
+    """
+    result: Dict[str, float] = {}
+    for (mid, pname), arr in param_arrays.items():
+        if mid == model_id:
+            unique = np.unique(arr.values)
+            if len(unique) == 1:
+                result[pname] = float(unique[0])
+    return result
+
+
+def _collect_const_shifts(
+    expr: ExpressionNode,
+    param_values: Optional[Dict[str, float]] = None,
+) -> Set[int]:
+    """Recursively collect all constant integer time shifts in an expression.
+
+    *param_values* is an optional name→scalar mapping used to resolve
+    parameter-valued shift amounts (e.g. ``variable[t + d]`` where ``d`` is
+    a model parameter).
+    """
+    shifts: Set[int] = set()
+    _walk_shifts(expr, shifts, param_values or {})
+    return shifts
+
+
+def _walk_shifts(
+    expr: ExpressionNode, shifts: Set[int], param_values: Dict[str, float]
+) -> None:
+    if isinstance(expr, TimeShiftNode):
+        try:
+            ctx = EvaluationContext(parameters=param_values)
+            val = visit(expr.time_shift, EvaluationVisitor(ctx))
+            if isinstance(val, int):
+                shifts.add(val)
+            elif isinstance(val, float) and val.is_integer():
+                shifts.add(int(val))
+        except Exception:
+            pass
+        _walk_shifts(expr.operand, shifts, param_values)
+    elif isinstance(expr, AdditionNode):
+        for op in expr.operands:
+            _walk_shifts(op, shifts, param_values)
+    elif isinstance(expr, (MaxNode, MinNode)):
+        for op in expr.operands:
+            _walk_shifts(op, shifts, param_values)
+    elif isinstance(expr, TimeSumNode):
+        _walk_shifts(expr.operand, shifts, param_values)
+    elif isinstance(expr, AllTimeSumNode):
+        _walk_shifts(expr.operand, shifts, param_values)
+    elif isinstance(expr, UnaryOperatorNode):
+        _walk_shifts(expr.operand, shifts, param_values)
+    elif isinstance(expr, BinaryOperatorNode):
+        _walk_shifts(expr.left, shifts, param_values)
+        _walk_shifts(expr.right, shifts, param_values)
+
+
+def _compute_valid_time_indices(shifts: Set[int], block_length: int) -> List[int]:
+    """Return timestep indices where no shifted term falls outside [0, block_length)."""
+    return [
+        t for t in range(block_length) if all(0 <= t + s < block_length for s in shifts)
+    ]
+
+
+class OutOfBoundsFilter:
+    """Maps (model_id, constraint_id) to its :class:`OutOfBoundsMode`.
+
+    Used by :class:`_OptimizationProblemBuilder` to determine whether a
+    constraint should be dropped at timesteps where a shifted term falls
+    outside the current block.
+
+    Parameters
+    ----------
+    config:
+        Parsed OptimConfig from optim-config.yml.
+    """
+
+    def __init__(self, config: "OptimConfig") -> None:
+        self._modes: Dict[Tuple[str, str], "OutOfBoundsMode"] = {}
+        for model_config in config.models:
+            if model_config.out_of_bounds_processing is not None:
+                for constraint in model_config.out_of_bounds_processing.constraints:
+                    self._modes[(model_config.id, constraint.id)] = constraint.mode
+
+    def get_mode(
+        self, model_id: str, constraint_name: str
+    ) -> "Optional[OutOfBoundsMode]":
+        return self._modes.get((model_id, constraint_name))
 
 
 def build_port_arrays(
@@ -360,6 +469,7 @@ class _OptimizationProblemBuilder:
         block: TimeBlock,
         scenarios: int,
         location_filter: Optional[DecompositionFilter] = None,
+        oob_filter: Optional[OutOfBoundsFilter] = None,
     ) -> None:
         self.name = name
         self.system = system
@@ -367,6 +477,7 @@ class _OptimizationProblemBuilder:
         self.block = block
         self.scenarios = scenarios
         self._location_filter = location_filter
+        self._oob_filter = oob_filter
 
         self.block_length = len(block.timesteps)
         self.time_coord = list(range(self.block_length))
@@ -661,7 +772,35 @@ class _OptimizationProblemBuilder:
             if not self._location_filter or self._location_filter.include_constraint(
                 model.id, constraint.name
             ):
+                # Determine which timesteps are valid for this constraint.
+                # For drop mode, skip timesteps where any shifted term is out-of-bounds.
+                valid_times: Optional[List[int]] = None
+                if self._oob_filter is not None:
+                    from gems.optim_config.parsing import OutOfBoundsMode
+
+                    mode = self._oob_filter.get_mode(model.id, constraint.name)
+                    if mode == OutOfBoundsMode.DROP:
+                        param_values = _extract_scalar_param_values(
+                            self.param_arrays, model.id
+                        )
+                        shifts = _collect_const_shifts(
+                            constraint.expression, param_values
+                        )
+                        if shifts:
+                            valid_times = _compute_valid_time_indices(
+                                shifts, self.block_length
+                            )
+
                 lhs = visit(constraint.expression, builder)
+
+                # Skip constraints whose LHS evaluated to a pure DataArray (no
+                # decision variables — e.g. an unconnected port aggregation).
+                if isinstance(lhs, xr.DataArray):
+                    continue
+
+                # Apply time-index filter for drop mode.
+                if valid_times is not None and hasattr(lhs, "dims") and "time" in lhs.dims:  # type: ignore[union-attr]
+                    lhs = lhs.isel(time=valid_times)  # type: ignore[union-attr]
 
                 # Sanitize constraint name for LP format (spaces → underscores)
                 safe_name = constraint.name.replace(" ", "_").replace("-", "_")
@@ -669,6 +808,8 @@ class _OptimizationProblemBuilder:
                 # Lower bound constraint: lhs >= lb  (if lb != -inf)
                 if not is_unbounded(constraint.lower_bound):
                     lb = visit(constraint.lower_bound, builder)
+                    if valid_times is not None and hasattr(lb, "dims") and "time" in lb.dims:  # type: ignore[union-attr]
+                        lb = lb.isel(time=valid_times)  # type: ignore[union-attr]
                     name = f"{prefix}__{safe_name}__lb"
                     con_lb = lhs >= lb  # type: ignore[operator]
                     self.linopy_model.add_constraints(con_lb, name=name)  # type: ignore[arg-type]
@@ -676,6 +817,8 @@ class _OptimizationProblemBuilder:
                 # Upper bound constraint: lhs <= ub  (if ub != +inf)
                 if not is_unbounded(constraint.upper_bound):
                     ub = visit(constraint.upper_bound, builder)
+                    if valid_times is not None and hasattr(ub, "dims") and "time" in ub.dims:  # type: ignore[union-attr]
+                        ub = ub.isel(time=valid_times)  # type: ignore[union-attr]
                     name = f"{prefix}__{safe_name}__ub"
                     con_ub = lhs <= ub  # type: ignore[operator]
                     self.linopy_model.add_constraints(con_ub, name=name)  # type: ignore[arg-type]
@@ -764,6 +907,7 @@ def build_problem(
     *,
     problem_name: str = "optimization_problem",
     border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
+    optim_config: "Optional[OptimConfig]" = None,
 ) -> OptimizationProblem:
     """
     Build and return an OptimizationProblem for the given time block.
@@ -781,6 +925,9 @@ def build_problem(
         Label for the linopy model.
     border_management:
         How to handle time steps at block borders (only CYCLE is implemented).
+    optim_config:
+        Optional parsed OptimConfig.  When provided, out-of-bounds-processing
+        rules are applied to constraint building.
     """
     if border_management != BlockBorderManagement.CYCLE:
         raise NotImplementedError(
@@ -790,12 +937,14 @@ def build_problem(
 
     study.check_consistency()
 
+    oob_filter = OutOfBoundsFilter(optim_config) if optim_config is not None else None
     builder = _OptimizationProblemBuilder(
         name=problem_name,
         system=study.system,
         database=study.database,
         block=block,
         scenarios=scenarios,
+        oob_filter=oob_filter,
     )
     return builder.build()
 
@@ -876,6 +1025,8 @@ def build_decomposed_problems(
         ElementLocation.MASTER_AND_SUBPROBLEMS,
     }
 
+    oob_filter = OutOfBoundsFilter(optim_config)
+
     subproblem = _OptimizationProblemBuilder(
         name=subproblem_name,
         system=study.system,
@@ -883,6 +1034,7 @@ def build_decomposed_problems(
         block=block,
         scenarios=scenarios,
         location_filter=DecompositionFilter(optim_config, sub_locs),
+        oob_filter=oob_filter,
     ).build()
 
     master: Optional[OptimizationProblem] = None
@@ -894,6 +1046,7 @@ def build_decomposed_problems(
             block=block,
             scenarios=scenarios,
             location_filter=DecompositionFilter(optim_config, master_locs),
+            oob_filter=oob_filter,
         ).build()
 
     return DecomposedProblems(subproblem=subproblem, master=master)
