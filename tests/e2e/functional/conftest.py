@@ -13,9 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from gems.model.parsing import InputLibrary, parse_yaml_library
+from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import Library, resolve_library
-from gems.study.parsing import InputSystem, parse_yaml_components
 
 
 @pytest.fixture(scope="session")
@@ -31,22 +30,6 @@ def systems_dir() -> Path:
 @pytest.fixture
 def series_dir() -> Path:
     return Path(__file__).parent / "series"
-
-
-@pytest.fixture
-def input_system(systems_dir: Path) -> InputSystem:
-    compo_file = systems_dir / "system.yml"
-
-    with compo_file.open() as c:
-        return parse_yaml_components(c)
-
-
-@pytest.fixture
-def input_library(libs_dir: Path) -> InputLibrary:
-    library = libs_dir / "lib_unittest.yml"
-
-    with library.open() as lib:
-        return parse_yaml_library(lib)
 
 
 @pytest.fixture(scope="session")

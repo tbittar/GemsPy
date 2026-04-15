@@ -31,15 +31,10 @@ from pathlib import Path
 
 import pytest
 
-from gems.main.main import (
-    _write_structure_txt,
-    input_database,
-    input_libs,
-    input_system,
-)
+from gems.main.main import _write_structure_txt
 from gems.optim_config.parsing import load_optim_config, validate_optim_config
 from gems.simulation import TimeBlock, build_decomposed_problems
-from gems.study import Study
+from gems.study.folder import load_study
 
 STUDIES_DIR = Path(__file__).parent
 STUDY_IDS = ["13_1", "13_2"]
@@ -51,26 +46,20 @@ def test_study_mps_matches_expected(study_id: str, tmp_path: Path) -> None:
     input_dir = study_dir / "input"
     expected_dir = study_dir / "expected_outputs"
 
-    # --- Load model libraries ---
-    lib_paths = sorted((input_dir / "model-libraries").glob("*.yml"))
-    lib_dict = input_libs(lib_paths)
-
-    # --- Load system and database ---
-    system_path = input_dir / "system.yml"
-    system = input_system(system_path, lib_dict)
-    database = input_database(system_path, timeseries_path=None)
+    # --- Load study (system + database) ---
+    study = load_study(study_dir)
 
     # --- Load and validate optim-config ---
     config_path = input_dir / "optim-config.yml"
     optim_config = load_optim_config(config_path)
     assert optim_config is not None, f"optim-config.yml not found in {input_dir}"
-    validate_optim_config(optim_config, system)
+    validate_optim_config(optim_config, study.system)
 
     # --- Build decomposed problems (1 timestep, 1 scenario) ---
     time_block = TimeBlock(1, [0])
     scenarios = 1
     decomposed = build_decomposed_problems(
-        Study(system, database), time_block, scenarios, optim_config
+        study, time_block, scenarios, optim_config
     )
 
     # --- Write MPS files ---

@@ -37,66 +37,28 @@ Several cases are tested:
 """
 
 from pathlib import Path
-from typing import Callable, Tuple
 
 import pytest
 
-from gems.model.parsing import InputLibrary, parse_yaml_library
-from gems.model.resolve_library import resolve_library
 from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
-from gems.study.data import DataBase
-from gems.study.parsing import InputSystem, parse_yaml_components
-from gems.study.resolve_components import (
-    build_data_base,
-    consistency_check,
-    resolve_system,
-)
-from gems.study.study import Study
-from gems.study.system import System
+from gems.study.folder import load_study
+
+_STUDIES_DIR = Path(__file__).parent / "studies"
 
 
-def test_basic_balance_using_yaml(
-    input_system: InputSystem, input_library: InputLibrary
-) -> None:
-    result_lib = resolve_library([input_library])
-    system = resolve_system(input_system, result_lib)
-    consistency_check(system, result_lib["basic"].models)
-
-    database = build_data_base(input_system, None)
+def test_basic_balance_using_yaml() -> None:
+    study = load_study(_STUDIES_DIR / "basic_balance")
 
     scenarios = 1
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(study, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000
 
 
-@pytest.fixture
-def setup_test(
-    libs_dir: Path, systems_dir: Path, series_dir: Path
-) -> Callable[[str], Study]:
-    def _setup_test(study_file_name: str) -> Study:
-        study_file = systems_dir / study_file_name
-        lib_file = libs_dir / "lib_unittest.yml"
-        with lib_file.open() as lib:
-            input_library = parse_yaml_library(lib)
+def test_basic_balance_time_only_series() -> None:
+    study = load_study(_STUDIES_DIR / "time_series")
 
-        with study_file.open() as c:
-            input_system = parse_yaml_components(c)
-        lib_dict = resolve_library([input_library])
-        system = resolve_system(input_system, lib_dict)
-        consistency_check(system, lib_dict["basic"].models)
-
-        database = build_data_base(input_system, series_dir)
-        return Study(system, database)
-
-    return _setup_test
-
-
-def test_basic_balance_time_only_series(
-    setup_test: Callable[[str], Study],
-) -> None:
-    study = setup_test("study_time_only_series.yml")
     scenarios = 1
     problem = build_problem(study, TimeBlock(1, [0, 1]), scenarios)
     problem.solve(solver_name="highs")
@@ -104,10 +66,9 @@ def test_basic_balance_time_only_series(
     assert problem.objective_value == 10000
 
 
-def test_basic_balance_scenario_only_series(
-    setup_test: Callable[[str], Study],
-) -> None:
-    study = setup_test("study_scenario_only_series.yml")
+def test_basic_balance_scenario_only_series() -> None:
+    study = load_study(_STUDIES_DIR / "scenario_series")
+
     scenarios = 2
     problem = build_problem(study, TimeBlock(1, [0]), scenarios)
     problem.solve(solver_name="highs")
@@ -115,10 +76,9 @@ def test_basic_balance_scenario_only_series(
     assert problem.objective_value == 0.5 * 5000 + 0.5 * 10000
 
 
-def test_short_term_storage_base_with_yaml(
-    setup_test: Callable[[str], Study],
-) -> None:
-    study = setup_test("components_for_short_term_storage.yml")
+def test_short_term_storage_base_with_yaml() -> None:
+    study = load_study(_STUDIES_DIR / "storage")
+
     # 18 produced in the 1st time-step, then consumed 2 * efficiency in the rest
     scenarios = 1
     horizon = 10
@@ -140,9 +100,7 @@ def test_short_term_storage_base_with_yaml(
     # TODO: update variable access
 
 
-def test_varying_down_time(
-    setup_test: Callable[[str], Study],
-) -> None:
+def test_varying_down_time() -> None:
     """
     Two thermal clusters with different min-down-times actually start and stop,
     proving the per-component aggregation constraint is binding.
@@ -169,7 +127,7 @@ def test_varying_down_time(
       G_2: 2 steps × 50 × 50 =  5000
       Total                   = 12250
     """
-    study = setup_test("system_with_varying_down_time.yml")
+    study = load_study(_STUDIES_DIR / "varying_down_time")
     scenarios = 1
     horizon = 10
 

@@ -7,6 +7,7 @@ A study is defined by a directory containing:
 - `input/data-series/`: A folder containing data series files.
 """
 import time
+import warnings
 from pathlib import Path
 from typing import Optional
 
@@ -48,8 +49,7 @@ def load_study(study_dir: Path) -> Study:
     config_file = study_dir / "input" / "optim-config.yml"
 
     if config_file.exists():
-        optim_config = load_optim_config(config_file)
-        raise Warning(
+        warnings.warn(
             "An optim config file has been provided but is not "
             "used in the current version of problem definition"
         )
