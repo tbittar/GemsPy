@@ -87,7 +87,7 @@ from gems.model.constraint import Constraint
 from gems.model.parsing import parse_yaml_library
 from gems.model.port import PortFieldDefinition, PortFieldId
 from gems.model.resolve_library import resolve_library
-from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
+from gems.simulation import TimeBlock, build_problem
 from gems.study import (
     Component,
     ConstantData,
@@ -244,7 +244,6 @@ def test_single_lag2_forced_odd_spillage() -> None:
         Study(system, database),
         TimeBlock(1, list(range(horizon))),
         scenarios=1,
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
 
@@ -298,7 +297,6 @@ def test_two_components_different_lags_asymmetric_demand() -> None:
         Study(system, database),
         TimeBlock(1, list(range(horizon))),
         scenarios=1,
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
 
@@ -359,7 +357,6 @@ def test_three_components_distinct_lags_orbit_spillage() -> None:
         Study(system, database),
         TimeBlock(1, list(range(horizon))),
         scenarios=1,
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
 
@@ -424,7 +421,6 @@ def test_two_components_different_lags_yaml(
         Study(system, database),
         TimeBlock(1, list(range(4))),
         scenarios=1,
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
 

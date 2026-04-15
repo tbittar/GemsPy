@@ -34,7 +34,7 @@ import pandas as pd
 import pytest
 
 from gems.model.library import Library
-from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
+from gems.simulation import TimeBlock, build_problem
 from gems.study import (
     Component,
     ConstantData,
@@ -315,7 +315,6 @@ def test_min_up_down_times(lib_dict: dict[str, Library]) -> None:
         Study(system, database),
         time_block,
         scenarios,
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
 
@@ -370,7 +369,6 @@ def test_changing_demand(lib_dict: dict[str, Library]) -> None:
         Study(system, database),
         time_block,
         scenarios,
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
@@ -460,7 +458,6 @@ def test_min_up_down_times_2(lib_dict: dict[str, Library]) -> None:
         Study(system, database),
         time_block,
         scenarios,
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
 

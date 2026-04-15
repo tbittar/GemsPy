@@ -9,7 +9,7 @@ from libs.standard import (
 )
 from libs.standard_sc import SHORT_TERM_STORAGE_COMPLEX
 
-from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
+from gems.simulation import TimeBlock, build_problem
 from gems.study import (
     Component,
     ConstantData,
@@ -94,7 +94,6 @@ def short_term_storage_base(efficiency: float, horizon: int, result: int) -> Non
         Study(system, database),
         time_blocks[0],
         scenarios,
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"

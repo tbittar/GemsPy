@@ -41,7 +41,7 @@ from gems.expression import literal, param, var
 from gems.expression.indexing_structure import IndexingStructure
 from gems.model import Model, ModelPort, float_parameter, float_variable, model
 from gems.model.port import PortFieldDefinition, PortFieldId
-from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
+from gems.simulation import TimeBlock, build_problem
 from gems.study import (
     Component,
     ConstantData,
@@ -300,7 +300,6 @@ def short_term_storage_base(efficiency: float, horizon: int) -> None:
         Study(system, database),
         time_blocks[0],
         scenarios,
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"

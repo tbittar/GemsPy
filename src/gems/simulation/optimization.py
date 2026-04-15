@@ -31,7 +31,6 @@ optimization problem in four phases:
 
 from collections import defaultdict
 from dataclasses import dataclass
-from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 
 import linopy
@@ -359,18 +358,6 @@ def _build_slave_port_array(
         total = contribution if total is None else _linopy_add(total, contribution)
 
     return total if total is not None else xr.DataArray(0.0)
-
-
-class BlockBorderManagement(Enum):
-    """
-    Specifies how the time horizon border is handled.
-
-    - CYCLE: All time steps are addressed modulo the horizon length (Antares default).
-    - IGNORE_OUT_OF_FRAME: Terms leading to out-of-horizon data are ignored.
-    """
-
-    CYCLE = "CYCLE"
-    IGNORE_OUT_OF_FRAME = "IGNORE"
 
 
 class OptimizationProblem:
@@ -906,7 +893,6 @@ def build_problem(
     scenarios: int,
     *,
     problem_name: str = "optimization_problem",
-    border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
     optim_config: "Optional[OptimConfig]" = None,
 ) -> OptimizationProblem:
     """
@@ -923,18 +909,13 @@ def build_problem(
         Number of scenarios.
     problem_name:
         Label for the linopy model.
-    border_management:
-        How to handle time steps at block borders (only CYCLE is implemented).
     optim_config:
         Optional parsed OptimConfig.  When provided, out-of-bounds-processing
-        rules are applied to constraint building.
+        rules are applied to constraint building.  The default cyclic border
+        behaviour (wrapping time shifts modulo the block length) is always
+        active; ``out-of-bounds-processing`` entries in the config can
+        override it per constraint.
     """
-    if border_management != BlockBorderManagement.CYCLE:
-        raise NotImplementedError(
-            f"Border management {border_management} is not yet implemented. "
-            "Only BlockBorderManagement.CYCLE is supported."
-        )
-
     study.check_consistency()
 
     oob_filter = OutOfBoundsFilter(optim_config) if optim_config is not None else None
@@ -981,7 +962,6 @@ def build_decomposed_problems(
     *,
     subproblem_name: str = "subproblem",
     master_name: str = "master",
-    border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
 ) -> DecomposedProblems:
     """Build master and subproblem OptimizationProblems according to *optim_config*.
 
@@ -1002,17 +982,8 @@ def build_decomposed_problems(
         Parsed ``OptimConfig`` from an ``optim-config.yml`` file.
     subproblem_name, master_name:
         Labels used for the underlying linopy models.
-    border_management:
-        Only ``CYCLE`` is implemented (identical restriction as in
-        :func:`build_problem`).
     """
     from gems.optim_config.parsing import ElementLocation
-
-    if border_management != BlockBorderManagement.CYCLE:
-        raise NotImplementedError(
-            f"Border management {border_management} is not yet implemented. "
-            "Only BlockBorderManagement.CYCLE is supported."
-        )
 
     study.check_consistency()
 
