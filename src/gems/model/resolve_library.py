@@ -21,7 +21,6 @@ from gems.model import (
     Parameter,
     PortField,
     PortType,
-    ProblemContext,
     ValueType,
     Variable,
     model,
@@ -249,7 +248,6 @@ def _to_variable(var: InputVariable, identifiers: ModelIdentifiers) -> Variable:
         structure=IndexingStructure(var.time_dependent, var.scenario_dependent),
         lower_bound=_to_expression_if_present(var.lower_bound, identifiers),
         upper_bound=_to_expression_if_present(var.upper_bound, identifiers),
-        context=ProblemContext.OPERATIONAL,
     )
 
 
