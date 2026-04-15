@@ -60,6 +60,10 @@ def _normalize_objective_contributions(
     are returned unchanged with no warning.
 
     This implements the iso-format behaviour of Antares Simulator v10.0.0 (Issue #76).
+
+    TODO: This auto-wrapping is a temporary compatibility shim. Once Antares Simulator
+    natively supports the expec() operator in objective contributions, this function
+    should be removed and authors should be required to write expec() explicitly.
     """
 
     class _Provider(IndexingStructureProvider):
