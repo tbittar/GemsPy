@@ -10,9 +10,19 @@
 #
 # This file is part of the Antares project.
 
+import warnings
+
 import pytest
 
-from gems.expression.expression import ExpressionNode, literal, param, port_field, var
+from gems.expression.expression import (
+    ExpressionNode,
+    ScenarioOperatorNode,
+    literal,
+    param,
+    port_field,
+    var,
+)
+from gems.expression.indexing_structure import IndexingStructure
 from gems.model import Constraint, float_variable, model
 from gems.model.port import port_field_def
 
@@ -205,3 +215,88 @@ def test_constraint_equals() -> None:
     assert Constraint(name="c", expression=var("x") <= param("p")) != Constraint(
         name="c", expression=var("y") <= param("p")
     )
+
+
+# --- Issue #76: tolerate absence of expec() in objective contributions ---
+
+
+def test_objective_without_expec_on_scenario_var_emits_warning_and_wraps() -> None:
+    """
+    When a scenario-dependent variable is used in an objective contribution
+    without expec(), the model() factory should auto-wrap with expec() and
+    emit a UserWarning.
+    """
+    scenario_var = float_variable("generation", structure=IndexingStructure(True, True))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        m = model(
+            id="auto_wrap_model",
+            variables=[scenario_var],
+            objective_contributions={"operational": var("generation").time_sum()},
+        )
+    user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+    assert len(user_warnings) == 1
+    assert "expec()" in str(user_warnings[0].message)
+    assert "operational" in str(user_warnings[0].message)
+    # The stored expression must now be wrapped in expec()
+    stored = m.objective_contributions["operational"]
+    assert isinstance(stored, ScenarioOperatorNode)
+    assert stored.name == "Expectation"
+
+
+def test_objective_with_explicit_expec_emits_no_warning() -> None:
+    """
+    When expec() is already present in the objective contribution,
+    no warning should be emitted and the expression is not double-wrapped.
+    """
+    scenario_var = float_variable("generation", structure=IndexingStructure(True, True))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        m = model(
+            id="explicit_expec_model",
+            variables=[scenario_var],
+            objective_contributions={
+                "operational": var("generation").time_sum().expec()
+            },
+        )
+    user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+    assert len(user_warnings) == 0
+    stored = m.objective_contributions["operational"]
+    assert isinstance(stored, ScenarioOperatorNode)
+    assert stored.name == "Expectation"
+    # Must not be double-wrapped
+    assert not isinstance(stored.operand, ScenarioOperatorNode)
+
+
+def test_objective_with_non_scenario_var_emits_no_warning() -> None:
+    """
+    When the objective contribution is already a scalar (no scenario dimension),
+    no auto-wrapping or warning should occur.
+    """
+    non_scenario_var = float_variable(
+        "generation", structure=IndexingStructure(True, False)
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        model(
+            id="non_scenario_model",
+            variables=[non_scenario_var],
+            objective_contributions={"operational": var("generation").time_sum()},
+        )
+    user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+    assert len(user_warnings) == 0
+
+
+def test_objective_with_time_dimension_remaining_is_still_rejected() -> None:
+    """
+    Auto-wrapping only applies when scenario=True and time=False.
+    If time dimension is still present (missing time_sum()), validation must fail.
+    """
+    scenario_var = float_variable("generation", structure=IndexingStructure(True, True))
+    with pytest.raises(ValueError, match="real-valued expression"):
+        model(
+            id="bad_time_model",
+            variables=[scenario_var],
+            # No time_sum() — still has time dimension → rejected regardless
+            objective_contributions={"operational": var("generation")},
+        )

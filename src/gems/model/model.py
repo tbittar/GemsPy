@@ -17,6 +17,7 @@ defining parameters, variables, and equations.
 """
 
 import itertools
+import warnings
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, Iterable, Optional
 
@@ -40,6 +41,50 @@ def _make_structure_provider(model: "Model") -> IndexingStructureProvider:
             return model.variables[name].structure
 
     return Provider()
+
+
+def _normalize_objective_contributions(
+    contributions: Dict[str, ExpressionNode],
+    parameters: Dict[str, Parameter],
+    variables: Dict[str, Variable],
+) -> Dict[str, ExpressionNode]:
+    """
+    Tolerate absence of expec() in objective contributions that carry a residual
+    scenario dimension (IndexingStructure(time=False, scenario=True)).
+
+    Such contributions are automatically wrapped with expec(), applying
+    expectation (average-over-scenarios) semantics, and a UserWarning is emitted
+    so authors can add expec() explicitly at their convenience.
+
+    Contributions that are already fully scalar, or already wrapped in expec(),
+    are returned unchanged with no warning.
+
+    This implements the iso-format behaviour of Antares Simulator v10.0.0 (Issue #76).
+    """
+
+    class _Provider(IndexingStructureProvider):
+        def get_parameter_structure(self, name: str) -> IndexingStructure:
+            return parameters[name].structure
+
+        def get_variable_structure(self, name: str) -> IndexingStructure:
+            return variables[name].structure
+
+    provider = _Provider()
+    result: Dict[str, ExpressionNode] = {}
+    for contrib_id, expr in contributions.items():
+        structure = compute_indexation(expr, provider)
+        if structure == IndexingStructure(time=False, scenario=True):
+            warnings.warn(
+                f"Objective contribution '{contrib_id}' has a scenario dimension "
+                "but no explicit expec() operator. "
+                "Expectation semantics (average over scenarios) are applied "
+                "automatically. Add expec() explicitly to suppress this warning.",
+                UserWarning,
+                stacklevel=4,
+            )
+            expr = expr.expec()
+        result[contrib_id] = expr
+    return result
 
 
 def _is_objective_contribution_valid(
@@ -140,6 +185,17 @@ def model(
     """
     Utility method to create Models from relaxed arguments
     """
+    # Build dicts upfront so we can inspect indexing structure before Model construction.
+    params_dict = {p.name: p for p in parameters} if parameters else {}
+    vars_dict = {v.name: v for v in variables} if variables else {}
+
+    # Auto-wrap any objective contribution that has a residual scenario dimension
+    # without an explicit expec() (Issue #76 / Antares Simulator v10.0.0 iso-format).
+    if objective_contributions:
+        objective_contributions = _normalize_objective_contributions(
+            objective_contributions, params_dict, vars_dict
+        )
+
     existing_port_names = {}
     if ports:
         for port in ports:
@@ -156,8 +212,8 @@ def model(
         binding_constraints=(
             {c.name: c for c in binding_constraints} if binding_constraints else {}
         ),
-        parameters={p.name: p for p in parameters} if parameters else {},
-        variables={v.name: v for v in variables} if variables else {},
+        parameters=params_dict,
+        variables=vars_dict,
         objective_contributions=objective_contributions,
         inter_block_dyn=inter_block_dyn,
         ports=existing_port_names,
