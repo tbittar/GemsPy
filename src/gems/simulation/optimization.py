@@ -281,7 +281,6 @@ class OptimizationProblem:
         # Constant term of the objective (linopy cannot represent pure-constant objectives).
         self._objective_constant: float = objective_constant
 
-      
     @property
     def block_length(self) -> int:
         return len(self.block.timesteps)
