@@ -37,22 +37,19 @@ class Study:
     database: DataBase
 
     @cached_property
-    def models(self) -> Dict[str, Model]:
-        """All unique models in the system, keyed by model.id."""
-        result: Dict[str, Model] = {}
-        for component in self.system.all_components:
-            mk = component.model.id
-            if mk not in result:
-                result[mk] = component.model
-        return result
-
-    @cached_property
     def model_components(self) -> Dict[str, List[Component]]:
         """Components grouped by their model.id."""
         result: Dict[str, List[Component]] = defaultdict(list)
         for component in self.system.all_components:
             result[component.model.id].append(component)
         return dict(result)
+
+    @cached_property
+    def models(self) -> Dict[str, Model]:
+        """All unique models in the system, keyed by model.id."""
+        return {
+            mk: components[0].model for mk, components in self.model_components.items()
+        }
 
     def check_consistency(self) -> None:
         """Validate that the database supplies data for every parameter of every

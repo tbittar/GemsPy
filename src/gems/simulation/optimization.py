@@ -112,9 +112,7 @@ class DecompositionFilter:
 def build_port_arrays(
     model: Model,
     components: List[Component],
-    models: Dict[str, Model],
-    model_components: Dict[str, List[Component]],
-    system: "System",
+    study: Study,
     make_builder: Callable[[str, Model], Any],
 ) -> Dict[PortFieldId, Any]:
     """Build port arrays for all ports of *model*.
@@ -131,12 +129,8 @@ def build_port_arrays(
         The model for which to build port arrays.
     components :
         Components of this model.
-    models :
-        All models keyed by ``model.id``.
-    model_components :
-        Components grouped by ``model.id``.
-    system :
-        The system, used for connection lookup.
+    study :
+        The study, used for component/connection lookup.
     make_builder :
         Factory ``(model_key: str, model: Model) -> builder``.
         Called with an empty port_arrays context for master-field evaluation.
@@ -166,9 +160,7 @@ def build_port_arrays(
                     n,
                     port_name,
                     field_name,
-                    models,
-                    model_components,
-                    system,
+                    study,
                     make_builder,
                 )
 
@@ -180,9 +172,7 @@ def _build_slave_port_array(
     n_components: int,
     port_name: str,
     field_name: str,
-    models: Dict[str, Model],
-    model_components: Dict[str, List[Component]],
-    system: "System",
+    study: Study,
     make_builder: Callable[[str, Model], Any],
 ) -> Any:
     """Build a slave port array by summing contributions from connected masters.
@@ -197,7 +187,7 @@ def _build_slave_port_array(
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
     comp_id_set = set(comp_ids)
-    for cnx in system.connections:
+    for cnx in study.system.connections:
         for port_ref in [cnx.port1, cnx.port2]:
             if (
                 port_ref.port_id != port_name
@@ -218,7 +208,7 @@ def _build_slave_port_array(
     total: Optional[Any] = None
 
     for (master_mk, master_pf_id), conn_list in per_master.items():
-        master_comps = model_components[master_mk]
+        master_comps = study.model_components[master_mk]
         master_comp_ids = [c.id for c in master_comps]
         n_prime = len(master_comps)
 
@@ -233,7 +223,7 @@ def _build_slave_port_array(
             coords={"component": comp_ids, "component_master": master_comp_ids},
         )
 
-        master_model = models[master_mk]
+        master_model = study.models[master_mk]
         defn = master_model.port_fields_definitions[master_pf_id].definition
         master_builder = make_builder(master_mk, master_model)
         try:
@@ -386,27 +376,23 @@ class _OptimizationProblemBuilder:
         self.param_arrays: Dict[Tuple[str, str], xr.DataArray] = {}
         self.port_arrays: Dict[str, Dict[PortFieldId, VectorizedExpr]] = {}
 
-        # Shortcuts sourced from the study
-        self.model_components = study.model_components
-        self.models = study.models
-
     def build(self) -> OptimizationProblem:
         # Phase 1: parameter arrays
-        for mk, components in self.model_components.items():
-            self._build_param_arrays_for_model(self.models[mk], components)
+        for mk, components in self.study.model_components.items():
+            self._build_param_arrays_for_model(self.study.models[mk], components)
 
         # Phase 2: linopy variables
-        for mk, components in self.model_components.items():
-            self._create_variables_for_model(self.models[mk], components)
+        for mk, components in self.study.model_components.items():
+            self._create_variables_for_model(self.study.models[mk], components)
 
         # Phase 3: port arrays
-        for mk, components in self.model_components.items():
-            self._build_port_arrays_for_model(self.models[mk], components)
+        for mk, components in self.study.model_components.items():
+            self._build_port_arrays_for_model(self.study.models[mk], components)
 
         # Phase 4: constraints + objectives
         total_obj: Optional[VectorizedExpr] = None
-        for mk in self.model_components.keys():
-            model = self.models[mk]
+        for mk, components in self.study.model_components.items():
+            model = self.study.models[mk]
             port_arrays_for_model = self.port_arrays.get(mk, {})
             self._create_constraints_for_model(model, port_arrays_for_model)
             total_obj = self._add_objectives_for_model(
@@ -637,9 +623,7 @@ class _OptimizationProblemBuilder:
         self.port_arrays[model.id] = build_port_arrays(
             model,
             components,
-            self.models,
-            dict(self.model_components),
-            self.study.system,
+            self.study,
             lambda mk_, m: self._make_builder(m, port_arrays={}),
         )
 
