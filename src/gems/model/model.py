@@ -32,13 +32,16 @@ from gems.model.variable import Variable
 
 
 # TODO: Introduce bool_variable ?
-def _make_structure_provider(model: "Model") -> IndexingStructureProvider:
+def _make_structure_provider(
+    parameters: Dict[str, Parameter],
+    variables: Dict[str, Variable],
+) -> IndexingStructureProvider:
     class Provider(IndexingStructureProvider):
         def get_parameter_structure(self, name: str) -> IndexingStructure:
-            return model.parameters[name].structure
+            return parameters[name].structure
 
         def get_variable_structure(self, name: str) -> IndexingStructure:
-            return model.variables[name].structure
+            return variables[name].structure
 
     return Provider()
 
@@ -66,14 +69,7 @@ def _normalize_objective_contributions(
     should be removed and authors should be required to write expec() explicitly.
     """
 
-    class _Provider(IndexingStructureProvider):
-        def get_parameter_structure(self, name: str) -> IndexingStructure:
-            return parameters[name].structure
-
-        def get_variable_structure(self, name: str) -> IndexingStructure:
-            return variables[name].structure
-
-    provider = _Provider()
+    provider = _make_structure_provider(parameters, variables)
     result: Dict[str, ExpressionNode] = {}
     for contrib_id, expr in contributions.items():
         structure = compute_indexation(expr, provider)
@@ -97,7 +93,9 @@ def _is_objective_contribution_valid(
     if not is_linear(objective_contribution):
         raise ValueError("Objective contribution must be a linear expression.")
 
-    data_structure_provider = _make_structure_provider(model)
+    data_structure_provider = _make_structure_provider(
+        model.parameters, model.variables
+    )
     objective_structure = compute_indexation(
         objective_contribution, data_structure_provider
     )
