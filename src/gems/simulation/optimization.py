@@ -281,22 +281,7 @@ class OptimizationProblem:
         # Constant term of the objective (linopy cannot represent pure-constant objectives).
         self._objective_constant: float = objective_constant
 
-    @property
-    def system(self) -> System:
-        return self.study.system
-
-    @property
-    def database(self) -> DataBase:
-        return self.study.database
-
-    @property
-    def model_components(self) -> Dict[str, List[Component]]:
-        return self.study.model_components
-
-    @property
-    def models(self) -> Dict[str, Model]:
-        return self.study.models
-
+      
     @property
     def block_length(self) -> int:
         return len(self.block.timesteps)

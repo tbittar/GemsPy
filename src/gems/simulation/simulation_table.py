@@ -234,7 +234,7 @@ class SimulationTableBuilder:
                 if lv.name in solution:
                     var_solution_arrays[(mk, vname)] = solution[lv.name]
 
-        for mk, components in problem.model_components.items():
+        for mk, components in problem.study.model_components.items():
             model = problem.study.models[mk]
             if not model.extra_outputs:
                 continue
