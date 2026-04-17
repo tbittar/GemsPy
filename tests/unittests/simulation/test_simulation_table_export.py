@@ -41,6 +41,12 @@ class FakeModel:
 
 
 @dataclass
+class FakeStudy:
+    model_components: dict = field(default_factory=dict)
+    models: dict = field(default_factory=dict)
+
+
+@dataclass
 class FakeLinopyModel:
     solution: dict
 
@@ -54,6 +60,7 @@ class FakeProblem:
     _linopy_vars: dict = field(default_factory=dict)
     models: dict = field(default_factory=dict)
     model_components: dict = field(default_factory=dict)
+    study: FakeStudy = field(default_factory=FakeStudy)
     scenarios: int = 1
 
 
@@ -78,6 +85,7 @@ def _make_problem(n_scenarios: int = 1) -> FakeProblem:
         _linopy_vars={(0, "p"): fake_var},
         models={0: FakeModel()},
         model_components={},
+        study=FakeStudy(models={0: FakeModel()}, model_components={}),
         scenarios=n_scenarios,
     )
 

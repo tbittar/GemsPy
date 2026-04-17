@@ -72,7 +72,7 @@ def _coupling_rows_for_variable(
     var_id: str,
 ) -> List[CouplingRow]:
     rows: List[CouplingRow] = []
-    for comp in decomposed.subproblem.model_components.get(model_id, []):
+    for comp in decomposed.subproblem.study.model_components.get(model_id, []):
         for row in (
             _master_coupling_row(decomposed, model_id, var_id, comp.id),
             _subproblem_coupling_row(decomposed, model_id, var_id, comp.id),

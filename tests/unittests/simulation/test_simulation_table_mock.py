@@ -40,6 +40,12 @@ class FakeModel:
 
 
 @dataclass
+class FakeStudy:
+    model_components: dict = field(default_factory=dict)
+    models: dict = field(default_factory=dict)
+
+
+@dataclass
 class FakeLinopyModel:
     """Fake linopy model exposing a solution dataset."""
 
@@ -57,6 +63,7 @@ class FakeProblem:
     _linopy_vars: dict = field(default_factory=dict)
     models: dict = field(default_factory=dict)
     model_components: dict = field(default_factory=dict)
+    study: FakeStudy = field(default_factory=FakeStudy)
 
 
 def test_simulation_table_builder_manual(tmp_path: Path) -> None:
@@ -77,6 +84,7 @@ def test_simulation_table_builder_manual(tmp_path: Path) -> None:
         _linopy_vars={(0, "p"): fake_var},
         models={0: FakeModel()},
         model_components={},
+        study=FakeStudy(models={0: FakeModel()}, model_components={}),
     )
 
     builder = SimulationTableBuilder(simulation_id="test")
@@ -164,6 +172,7 @@ def _make_problem_with_da(da: xr.DataArray, var_name: str = "p") -> "FakeProblem
         _linopy_vars={(0, var_name): fake_var},
         models={0: FakeModel()},
         model_components={},
+        study=FakeStudy(models={0: FakeModel()}, model_components={}),
     )
 
 

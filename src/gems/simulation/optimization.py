@@ -112,9 +112,7 @@ class DecompositionFilter:
 def build_port_arrays(
     model: Model,
     components: List[Component],
-    models: Dict[str, Model],
-    model_components: Dict[str, List[Component]],
-    system: "System",
+    study: Study,
     make_builder: Callable[[str, Model], Any],
 ) -> Dict[PortFieldId, Any]:
     """Build port arrays for all ports of *model*.
@@ -131,12 +129,8 @@ def build_port_arrays(
         The model for which to build port arrays.
     components :
         Components of this model.
-    models :
-        All models keyed by ``model.id``.
-    model_components :
-        Components grouped by ``model.id``.
-    system :
-        The system, used for connection lookup.
+    study :
+        The study, used for component/connection lookup.
     make_builder :
         Factory ``(model_key: str, model: Model) -> builder``.
         Called with an empty port_arrays context for master-field evaluation.
@@ -166,9 +160,7 @@ def build_port_arrays(
                     n,
                     port_name,
                     field_name,
-                    models,
-                    model_components,
-                    system,
+                    study,
                     make_builder,
                 )
 
@@ -180,9 +172,7 @@ def _build_slave_port_array(
     n_components: int,
     port_name: str,
     field_name: str,
-    models: Dict[str, Model],
-    model_components: Dict[str, List[Component]],
-    system: "System",
+    study: Study,
     make_builder: Callable[[str, Model], Any],
 ) -> Any:
     """Build a slave port array by summing contributions from connected masters.
@@ -197,7 +187,7 @@ def _build_slave_port_array(
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
     comp_id_set = set(comp_ids)
-    for cnx in system.connections:
+    for cnx in study.system.connections:
         for port_ref in [cnx.port1, cnx.port2]:
             if (
                 port_ref.port_id != port_name
@@ -218,7 +208,7 @@ def _build_slave_port_array(
     total: Optional[Any] = None
 
     for (master_mk, master_pf_id), conn_list in per_master.items():
-        master_comps = model_components[master_mk]
+        master_comps = study.model_components[master_mk]
         master_comp_ids = [c.id for c in master_comps]
         n_prime = len(master_comps)
 
@@ -233,7 +223,7 @@ def _build_slave_port_array(
             coords={"component": comp_ids, "component_master": master_comp_ids},
         )
 
-        master_model = models[master_mk]
+        master_model = study.models[master_mk]
         defn = master_model.port_fields_definitions[master_pf_id].definition
         master_builder = make_builder(master_mk, master_model)
         try:
@@ -274,26 +264,20 @@ class OptimizationProblem:
         self,
         name: str,
         linopy_model: linopy.Model,
-        system: System,
-        database: DataBase,
+        study: Study,
         block: TimeBlock,
         scenarios: int,
         linopy_vars: Dict[Tuple[str, str], linopy.Variable],
         param_arrays: Dict[Tuple[str, str], xr.DataArray],
-        model_components: Dict[str, List[Component]],
-        models: Dict[str, Model],
         objective_constant: float = 0.0,
     ) -> None:
         self.name = name
         self.linopy_model = linopy_model
-        self.system = system
-        self.database = database
+        self.study = study
         self.block = block
         self.scenarios = scenarios
         self._linopy_vars = linopy_vars
         self.param_arrays = param_arrays
-        self.model_components = model_components
-        self.models = models
         # Constant term of the objective (linopy cannot represent pure-constant objectives).
         self._objective_constant: float = objective_constant
 
@@ -355,15 +339,13 @@ class _OptimizationProblemBuilder:
     def __init__(
         self,
         name: str,
-        system: System,
-        database: DataBase,
+        study: Study,
         block: TimeBlock,
         scenarios: int,
         location_filter: Optional[DecompositionFilter] = None,
     ) -> None:
         self.name = name
-        self.system = system
-        self.database = database
+        self.study = study
         self.block = block
         self.scenarios = scenarios
         self._location_filter = location_filter
@@ -378,33 +360,23 @@ class _OptimizationProblemBuilder:
         self.param_arrays: Dict[Tuple[str, str], xr.DataArray] = {}
         self.port_arrays: Dict[str, Dict[PortFieldId, VectorizedExpr]] = {}
 
-        # Group components by model.id.
-        self.model_components: Dict[str, List[Component]] = defaultdict(list)
-        self.models: Dict[str, Model] = {}
-        for component in system.all_components:
-            m = component.model
-            mk = m.id
-            if mk not in self.models:
-                self.models[mk] = m
-            self.model_components[mk].append(component)
-
     def build(self) -> OptimizationProblem:
         # Phase 1: parameter arrays
-        for mk, components in self.model_components.items():
-            self._build_param_arrays_for_model(self.models[mk], components)
+        for mk, components in self.study.model_components.items():
+            self._build_param_arrays_for_model(self.study.models[mk], components)
 
         # Phase 2: linopy variables
-        for mk, components in self.model_components.items():
-            self._create_variables_for_model(self.models[mk], components)
+        for mk, components in self.study.model_components.items():
+            self._create_variables_for_model(self.study.models[mk], components)
 
         # Phase 3: port arrays
-        for mk, components in self.model_components.items():
-            self._build_port_arrays_for_model(self.models[mk], components)
+        for mk, components in self.study.model_components.items():
+            self._build_port_arrays_for_model(self.study.models[mk], components)
 
         # Phase 4: constraints + objectives
         total_obj: Optional[VectorizedExpr] = None
-        for mk in self.model_components.keys():
-            model = self.models[mk]
+        for mk, components in self.study.model_components.items():
+            model = self.study.models[mk]
             port_arrays_for_model = self.port_arrays.get(mk, {})
             self._create_constraints_for_model(model, port_arrays_for_model)
             total_obj = self._add_objectives_for_model(
@@ -435,14 +407,11 @@ class _OptimizationProblemBuilder:
         return OptimizationProblem(
             name=self.name,
             linopy_model=self.linopy_model,
-            system=self.system,
-            database=self.database,
+            study=self.study,
             block=self.block,
             scenarios=self.scenarios,
             linopy_vars=self.linopy_vars,
             param_arrays=self.param_arrays,
-            model_components=dict(self.model_components),
-            models=self.models,
             objective_constant=objective_constant,
         )
 
@@ -488,7 +457,7 @@ class _OptimizationProblemBuilder:
                 coords = {"component": comp_ids}
 
             for i, c in enumerate(components):
-                param_data = self.database.get_data(c.id, param.name)
+                param_data = self.study.database.get_data(c.id, param.name)
                 if isinstance(param_data, ConstantData):
                     data[i] = param_data.value  # broadcasts into remaining dims
                 elif isinstance(param_data, TimeSeriesData):
@@ -638,9 +607,7 @@ class _OptimizationProblemBuilder:
         self.port_arrays[model.id] = build_port_arrays(
             model,
             components,
-            self.models,
-            dict(self.model_components),
-            self.system,
+            self.study,
             lambda mk_, m: self._make_builder(m, port_arrays={}),
         )
 
@@ -792,8 +759,7 @@ def build_problem(
 
     builder = _OptimizationProblemBuilder(
         name=problem_name,
-        system=study.system,
-        database=study.database,
+        study=study,
         block=block,
         scenarios=scenarios,
     )
@@ -878,8 +844,7 @@ def build_decomposed_problems(
 
     subproblem = _OptimizationProblemBuilder(
         name=subproblem_name,
-        system=study.system,
-        database=study.database,
+        study=study,
         block=block,
         scenarios=scenarios,
         location_filter=DecompositionFilter(optim_config, sub_locs),
@@ -889,8 +854,7 @@ def build_decomposed_problems(
     if _has_any_master_element(optim_config):
         master = _OptimizationProblemBuilder(
             name=master_name,
-            system=study.system,
-            database=study.database,
+            study=study,
             block=block,
             scenarios=scenarios,
             location_filter=DecompositionFilter(optim_config, master_locs),
