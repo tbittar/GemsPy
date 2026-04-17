@@ -41,11 +41,11 @@ from typing import Callable, Tuple
 
 import pytest
 
-from gems.model.parsing import InputLibrary, parse_yaml_library
+from gems.model.parsing import LibrarySchema, parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
 from gems.study.data import DataBase
-from gems.study.parsing import InputSystem, parse_yaml_components
+from gems.study.parsing import SystemSchema, parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
     consistency_check,
@@ -56,7 +56,7 @@ from gems.study.system import System
 
 
 def test_basic_balance_using_yaml(
-    input_system: InputSystem, input_library: InputLibrary
+    input_system: SystemSchema, input_library: LibrarySchema
 ) -> None:
     result_lib = resolve_library([input_library])
     system = resolve_system(input_system, result_lib)

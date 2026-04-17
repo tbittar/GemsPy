@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from gems.model.parsing import InputLibrary, parse_yaml_library
+from gems.model.parsing import LibrarySchema, parse_yaml_library
 from gems.model.resolve_library import Library, resolve_library
-from gems.study.parsing import InputSystem, parse_yaml_components
+from gems.study.parsing import SystemSchema, parse_yaml_components
 
 
 @pytest.fixture(scope="session")
@@ -34,7 +34,7 @@ def series_dir() -> Path:
 
 
 @pytest.fixture
-def input_system(systems_dir: Path) -> InputSystem:
+def input_system(systems_dir: Path) -> SystemSchema:
     compo_file = systems_dir / "system.yml"
 
     with compo_file.open() as c:
@@ -42,7 +42,7 @@ def input_system(systems_dir: Path) -> InputSystem:
 
 
 @pytest.fixture
-def input_library(libs_dir: Path) -> InputLibrary:
+def input_library(libs_dir: Path) -> LibrarySchema:
     library = libs_dir / "lib_unittest.yml"
 
     with library.open() as lib:
