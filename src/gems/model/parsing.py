@@ -90,7 +90,9 @@ class ModelSchema(ModifiedBaseModel):
     parameters: List[ParameterSchema] = Field(default_factory=list)
     variables: List[VariableSchema] = Field(default_factory=list)
     ports: List[ModelPortSchema] = Field(default_factory=list)
-    port_field_definitions: List[PortFieldDefinitionSchema] = Field(default_factory=list)
+    port_field_definitions: List[PortFieldDefinitionSchema] = Field(
+        default_factory=list
+    )
     binding_constraints: List[ConstraintSchema] = Field(default_factory=list)
     constraints: List[ConstraintSchema] = Field(default_factory=list)
     objective_contributions: List[ObjectiveContributionSchema] = Field(
