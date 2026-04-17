@@ -3,22 +3,22 @@ from pathlib import Path
 import pytest
 from yaml import dump, safe_load
 
-from gems.model.parsing import InputLibrary, parse_yaml_library
+from gems.model.parsing import LibrarySchema, parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.study.parsing import InputSystem, load_input_system, parse_yaml_components
+from gems.study.parsing import SystemSchema, load_input_system, parse_yaml_components
 from gems.study.resolve_components import consistency_check, resolve_system
 
 COMPO_FILE = Path(__file__).parent / "systems/system.yml"
 
 
 @pytest.fixture
-def input_system() -> InputSystem:
+def input_system() -> SystemSchema:
     with COMPO_FILE.open() as c:
         return parse_yaml_components(c)
 
 
 @pytest.fixture
-def input_library() -> InputLibrary:
+def input_library() -> LibrarySchema:
     library = Path(__file__).parent / "libs/lib_unittest.yml"
 
     with library.open() as lib:
@@ -26,7 +26,7 @@ def input_library() -> InputLibrary:
 
 
 def test_parsing_components_ok(
-    input_system: InputSystem, input_library: InputLibrary
+    input_system: SystemSchema, input_library: LibrarySchema
 ) -> None:
     assert len(input_system.components) == 3
     assert input_system.connections is not None
@@ -39,7 +39,7 @@ def test_parsing_components_ok(
 
 
 def test_consistency_check_ok(
-    input_system: InputSystem, input_library: InputLibrary
+    input_system: SystemSchema, input_library: LibrarySchema
 ) -> None:
     result_lib = resolve_library([input_library])
     result_system = resolve_system(input_system, result_lib)
@@ -54,7 +54,7 @@ def test_load_input_system_ok(tmp_path: Path) -> None:
 
     result = load_input_system(file_for_load)
 
-    assert isinstance(result, InputSystem)
+    assert isinstance(result, SystemSchema)
     assert len(result.components) == 3
     assert result.components[0].id == "N"
     assert result.components[1].id == "G"
@@ -82,7 +82,7 @@ def test_load_input_system_missing_file_raises_error() -> None:
 
 
 def test_consistency_check_ko(
-    input_system: InputSystem, input_library: InputLibrary
+    input_system: SystemSchema, input_library: LibrarySchema
 ) -> None:
     result_lib = resolve_library([input_library])
     result_comp = resolve_system(input_system, result_lib)

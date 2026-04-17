@@ -17,7 +17,7 @@ from typing import List
 import pandas as pd
 import pytest
 
-from gems.model.parsing import InputLibrary, parse_yaml_library
+from gems.model.parsing import LibrarySchema, parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
@@ -68,7 +68,7 @@ def relative_accuracy() -> float:
 
 
 @pytest.fixture
-def input_libraries(input_dir: Path) -> List[InputLibrary]:
+def input_libraries(input_dir: Path) -> List[LibrarySchema]:
     libs_dir = input_dir / "model-libraries"
     with open(libs_dir / "test_lib.yml") as lib_file:
         lib_new = parse_yaml_library(lib_file)
@@ -90,7 +90,7 @@ def test_model_behaviour(
     optim_result_file: str,
     batch: int,
     relative_accuracy: float,
-    input_libraries: List[InputLibrary],
+    input_libraries: List[LibrarySchema],
     results_dir: Path,
     series_dir: Path,
 ) -> None:
