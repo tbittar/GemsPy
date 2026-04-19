@@ -19,17 +19,13 @@ from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.optim_config.parsing import (
     OptimConfig,
-    ResolutionMode,
     load_optim_config,
     validate_optim_config,
 )
+from gems.session import SimulationSession
 from gems.simulation import (
-    BendersRunner,
     DecomposedProblems,
-    TimeBlock,
     build_couplings,
-    build_decomposed_problems,
-    build_problem,
     dump_couplings,
 )
 from gems.study import Study
@@ -98,61 +94,29 @@ def main_cli() -> None:
         database = input_database(
             parsed_args.components_path, parsed_args.timeseries_path
         )
-
     except UnboundLocalError:
         raise AntaresTimeSeriesImportError(
             "An error occurred while importing time series."
         )
 
-    timeblock = TimeBlock(1, list(range(parsed_args.duration)))
-    scenario = parsed_args.nb_scenarios
-
     study = Study(system=system, database=database)
-
-    # Load optional optim-config.yml
     optim_config = load_optim_config(parsed_args.components_path)
-
     if optim_config is not None:
         validate_optim_config(optim_config, system)
 
-        try:
-            decomposed = build_decomposed_problems(
-                study, timeblock, scenario, optim_config
-            )
-        except IndexError as e:
-            raise IndexError(
-                f"{e}. Did parameters '--duration' and '--scenario' were correctly set?"
-            )
-
-        if optim_config.resolution_mode == ResolutionMode.BENDERS_DECOMPOSITION:
-            # Generate structure.txt then hand off to the external Benders solver
-            if decomposed.master is not None:
-                _write_structure_txt(
-                    decomposed,
-                    optim_config,
-                    output_dir=parsed_args.components_path.parent,
-                )
-            BendersRunner(emplacement=parsed_args.components_path.parent).run()
-        else:
-            # sequential-subproblems (default): solve the subproblem directly
-            decomposed.subproblem.solve(solver_name="highs")
-            print("status : ", decomposed.subproblem.termination_condition)
-            print("final average cost : ", decomposed.subproblem.objective_value)
-
-    else:
-        # No optim-config.yml — original unchanged behaviour
-        try:
-            problem = build_problem(study, timeblock, scenario)
-
-        except IndexError as e:
-            raise IndexError(
-                f"{e}. Did parameters '--duration' and '--scenario' were correctly set?"
-            )
-
-        problem.solve(solver_name="highs")
-        print("status : ", problem.termination_condition)
-
-        print("final average cost : ", problem.objective_value)
+    try:
+        session = SimulationSession(
+            study=study,
+            optim_config=optim_config or OptimConfig(),
+            total_timesteps=parsed_args.duration,
+            scenario_ids=list(range(parsed_args.nb_scenarios)),
+            output_dir=parsed_args.components_path.parent,
+        )
+        session.run()
+    except IndexError as e:
+        raise IndexError(
+            f"{e}. Did parameters '--duration' and '--scenario' were correctly set?"
+        )
 
 
 if __name__ == "__main__":

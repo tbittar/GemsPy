@@ -181,9 +181,9 @@ def _build_slave_port_array(
     incidence matrix A[i, j] for each group, and accumulates
     ``sum_j A[i,j] * expr_master[j]`` into the result.
     """
-    per_master: Dict[
-        Tuple[str, PortFieldId], List[Tuple[int, Component]]
-    ] = defaultdict(list)
+    per_master: Dict[Tuple[str, PortFieldId], List[Tuple[int, Component]]] = (
+        defaultdict(list)
+    )
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
     comp_id_set = set(comp_ids)
@@ -343,12 +343,14 @@ class _OptimizationProblemBuilder:
         block: TimeBlock,
         scenarios: int,
         location_filter: Optional[DecompositionFilter] = None,
+        initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
     ) -> None:
         self.name = name
         self.study = study
         self.block = block
         self.scenarios = scenarios
         self._location_filter = location_filter
+        self._initial_values = initial_values or {}
 
         self.block_length = len(block.timesteps)
         self.time_coord = list(range(self.block_length))
@@ -382,6 +384,16 @@ class _OptimizationProblemBuilder:
             total_obj = self._add_objectives_for_model(
                 model, port_arrays_for_model, total_obj
             )
+
+        # Phase 5: carry-over constraints (sequential mode only)
+        for (mk, var_name), init_val in self._initial_values.items():
+            lv = self.linopy_vars.get((mk, var_name))
+            if lv is not None and "time" in lv.dims:
+                safe = f"{mk}__{var_name}".replace("-", "_")
+                self.linopy_model.add_constraints(
+                    lv.isel(time=0) == init_val,  # type: ignore[arg-type]
+                    name=f"carry_over__{safe}",
+                )
 
         # Extract constant objective contribution (linopy cannot hold pure constants).
         objective_constant = 0.0
@@ -731,6 +743,7 @@ def build_problem(
     *,
     problem_name: str = "optimization_problem",
     border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
+    initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
 ) -> OptimizationProblem:
     """
     Build and return an OptimizationProblem for the given time block.
@@ -748,6 +761,10 @@ def build_problem(
         Label for the linopy model.
     border_management:
         How to handle time steps at block borders (only CYCLE is implemented).
+    initial_values:
+        Optional carry-over values keyed by ``(model_id, var_name)``.  For
+        each entry a constraint ``var[time=0] == value`` is added, overriding
+        the cyclic border condition for the first timestep.
     """
     if border_management != BlockBorderManagement.CYCLE:
         raise NotImplementedError(
@@ -762,6 +779,7 @@ def build_problem(
         study=study,
         block=block,
         scenarios=scenarios,
+        initial_values=initial_values,
     )
     return builder.build()
 

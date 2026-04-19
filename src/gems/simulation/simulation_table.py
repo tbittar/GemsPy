@@ -172,6 +172,7 @@ class SimulationTableBuilder:
         self,
         problem: OptimizationProblem,
         absolute_time_offset: Optional[int] = None,
+        scenario_ids_remap: Optional[List[int]] = None,
     ) -> SimulationTable:
         block = problem.block.id
         block_size = problem.block_length
@@ -180,8 +181,12 @@ class SimulationTableBuilder:
             absolute_time_offset = (block - 1) * block_size
 
         dfs: list[pd.DataFrame] = []
-        dfs += self._collect_vars_outputs(problem, block, absolute_time_offset)
-        dfs += self._collect_extra_outputs(problem, block, absolute_time_offset)
+        dfs += self._collect_vars_outputs(
+            problem, block, absolute_time_offset, scenario_ids_remap
+        )
+        dfs += self._collect_extra_outputs(
+            problem, block, absolute_time_offset, scenario_ids_remap
+        )
         dfs.append(self._collect_objective_value(problem, block))
 
         return SimulationTable(pd.concat(dfs, ignore_index=True))
@@ -195,6 +200,7 @@ class SimulationTableBuilder:
         problem: OptimizationProblem,
         block: int,
         abs_offset: int,
+        scenario_ids_remap: Optional[List[int]] = None,
     ) -> list[pd.DataFrame]:
         dfs: list[pd.DataFrame] = []
         solution = problem.linopy_model.solution
@@ -210,7 +216,14 @@ class SimulationTableBuilder:
             sol_da = sol_da.sel(component=own_components)
 
             dfs.append(
-                self._da_to_df(sol_da, var_name, block, abs_offset, basis_status=None)
+                self._da_to_df(
+                    sol_da,
+                    var_name,
+                    block,
+                    abs_offset,
+                    basis_status=None,
+                    scenario_ids_remap=scenario_ids_remap,
+                )
             )
 
         return dfs
@@ -224,6 +237,7 @@ class SimulationTableBuilder:
         problem: OptimizationProblem,
         block: int,
         abs_offset: int,
+        scenario_ids_remap: Optional[List[int]] = None,
     ) -> list[pd.DataFrame]:
         dfs: list[pd.DataFrame] = []
 
@@ -273,7 +287,12 @@ class SimulationTableBuilder:
 
                 dfs.append(
                     self._da_to_df(
-                        result_da, out_id, block, abs_offset, basis_status=None
+                        result_da,
+                        out_id,
+                        block,
+                        abs_offset,
+                        basis_status=None,
+                        scenario_ids_remap=scenario_ids_remap,
                     )
                 )
 
@@ -312,6 +331,7 @@ class SimulationTableBuilder:
         block: int,
         abs_offset: int,
         basis_status: Optional[str],
+        scenario_ids_remap: Optional[List[int]] = None,
     ) -> pd.DataFrame:
         """Vectorize a [component?, time?, scenario?] DataArray into a DataFrame.
 
@@ -335,7 +355,10 @@ class SimulationTableBuilder:
 
         ci = np.repeat(np.arange(n_c), n_t * n_s)
         ti = np.tile(np.repeat(np.arange(n_t), n_s), n_c)
-        si = np.tile(np.arange(n_s), n_c * n_t)
+        raw_si = (
+            scenario_ids_remap if scenario_ids_remap is not None else list(range(n_s))
+        )
+        si = np.tile(raw_si, n_c * n_t)
 
         return pd.DataFrame(
             {
@@ -344,9 +367,9 @@ class SimulationTableBuilder:
                     str(c) if c is not None else None for c in np.array(comp_vals)[ci]
                 ],
                 SimulationColumns.OUTPUT.value: output_name,
-                SimulationColumns.ABSOLUTE_TIME_INDEX.value: (abs_offset + ti)
-                if has_time
-                else None,
+                SimulationColumns.ABSOLUTE_TIME_INDEX.value: (
+                    (abs_offset + ti) if has_time else None
+                ),
                 SimulationColumns.BLOCK_TIME_INDEX.value: ti if has_time else None,
                 SimulationColumns.SCENARIO_INDEX.value: si if has_scenario else None,
                 SimulationColumns.VALUE.value: da.values.ravel().astype(float),
@@ -402,3 +425,8 @@ class SimulationTableWriter:
         filepath = output_dir / filename
         self.simulation_table.to_dataset().to_netcdf(filepath)
         return filepath
+
+
+def merge_simulation_tables(tables: List[SimulationTable]) -> SimulationTable:
+    """Concatenate multiple SimulationTables into one."""
+    return SimulationTable(pd.concat([t.data for t in tables], ignore_index=True))

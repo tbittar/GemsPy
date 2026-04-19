@@ -10,20 +10,6 @@
 #
 # This file is part of the Antares project.
 
-from .parsing import (
-    ElementLocation,
-    OptimConfig,
-    ResolutionConfig,
-    ResolutionMode,
-    load_optim_config,
-    validate_optim_config,
-)
+from .session import SimulationSession, load_session
 
-__all__ = [
-    "ElementLocation",
-    "OptimConfig",
-    "ResolutionConfig",
-    "ResolutionMode",
-    "load_optim_config",
-    "validate_optim_config",
-]
+__all__ = ["SimulationSession", "load_session"]
