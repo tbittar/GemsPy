@@ -69,24 +69,21 @@ class SimulationSession:
         horizon: int = cfg.horizon  # type: ignore[assignment]
         overlap: int = cfg.overlap
 
-        all_tables: List[SimulationTable] = []
+        tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
             t_start = 0
             block_id = 0
             carry_over: Dict[Tuple[str, str], xr.DataArray] = {}
-            problems: List[OptimizationProblem] = []
-            tables: List[SimulationTable] = []
 
             while t_start < self.total_timesteps:
                 end = min(t_start + horizon, self.total_timesteps)
                 timesteps = list(range(t_start, end))
                 block = TimeBlock(block_id, timesteps)
-                problem, table = self._run_block(
+                _, table = self._run_block(
                     block,
                     scenario_ids=[scenario_id],
                     initial_values=carry_over or None,
                 )
-                problems.append(problem)
                 tables.append(table)
                 carry_over = self._extract_carry_over(
                     problem, local_index=len(timesteps) - 1
@@ -94,26 +91,24 @@ class SimulationSession:
                 t_start += horizon - overlap
                 block_id += 1
 
-            all_tables.append(self._reduce(tables))
-
-        return merge_simulation_tables(all_tables)
+        return self._reduce(tables)
 
     def _run_parallel(self) -> SimulationTable:
         cfg = self.optim_config.resolution
         horizon: int = cfg.horizon  # type: ignore[assignment]
 
-        all_tables: List[SimulationTable] = []
+        tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
             starts = range(0, self.total_timesteps, horizon)
             blocks = [
                 TimeBlock(i, list(range(t, min(t + horizon, self.total_timesteps))))
                 for i, t in enumerate(starts)
             ]
-            results = [self._run_block(b, scenario_ids=[scenario_id]) for b in blocks]
-            tables = [table for _, table in results]
-            all_tables.append(self._reduce(tables))
+            for block in blocks:
+                _, table = self._run_block(block, scenario_ids=[scenario_id])
+                tables.append(table)
 
-        return merge_simulation_tables(all_tables)
+        return self._reduce(tables)
 
     def _run_benders(self) -> SimulationTable:
         import pandas as pd
