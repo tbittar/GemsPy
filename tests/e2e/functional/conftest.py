@@ -58,3 +58,13 @@ def lib_dict(libs_dir: Path) -> dict[str, Library]:
 
     lib_dict = resolve_library([input_lib])
     return lib_dict
+
+
+@pytest.fixture(scope="session")
+def lib_dict_unittest(libs_dir: Path) -> dict[str, Library]:
+    lib_file = libs_dir / "lib_unittest.yml"
+
+    with lib_file.open() as f:
+        input_lib = parse_yaml_library(f)
+
+    return resolve_library([input_lib])
