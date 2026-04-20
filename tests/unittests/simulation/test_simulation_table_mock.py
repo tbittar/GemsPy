@@ -10,10 +10,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from gems.simulation.simulation_table import (
-    SimulationColumns,
-    SimulationTableBuilder,
-)
+from gems.simulation.simulation_table import SimulationColumns, SimulationTableBuilder
 
 
 @dataclass(frozen=True)

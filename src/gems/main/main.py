@@ -25,10 +25,10 @@ from gems.study.parsing import parse_cli, parse_yaml_components
 from gems.study.resolve_components import build_data_base, resolve_system
 from gems.study.system import System
 
-
 # ---------------------------------------------------------------------------
 # Low-level helpers (used by E2E tests)
 # ---------------------------------------------------------------------------
+
 
 def input_libs(yaml_lib_paths: List[Path]) -> Dict[str, Library]:
     yaml_libraries = []
@@ -64,6 +64,7 @@ def _write_structure_txt(
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def main_cli() -> None:
     parsed_args = parse_cli()

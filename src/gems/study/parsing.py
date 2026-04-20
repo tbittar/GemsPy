@@ -86,11 +86,16 @@ class ParsedArguments:
 def parse_cli() -> ParsedArguments:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--study", type=Path, required=True,
+        "--study",
+        type=Path,
+        required=True,
         help="path to the root directory of the study",
     )
     parser.add_argument(
-        "--optim-config", type=Path, default=None, dest="optim_config",
+        "--optim-config",
+        type=Path,
+        default=None,
+        dest="optim_config",
         help="optional custom path to optim-config.yml (defaults to study_dir/input/optim-config.yml)",
     )
 

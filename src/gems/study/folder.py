@@ -14,7 +14,11 @@ from typing import Optional
 from gems.model.model import Model
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.optim_config.parsing import OptimConfig, load_optim_config, validate_optim_config
+from gems.optim_config.parsing import (
+    OptimConfig,
+    load_optim_config,
+    validate_optim_config,
+)
 from gems.session.session import SimulationSession
 from gems.study.parameters import load_parameters
 from gems.study.parsing import parse_yaml_components
