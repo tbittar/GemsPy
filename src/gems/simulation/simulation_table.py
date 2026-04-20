@@ -178,7 +178,10 @@ class SimulationTableBuilder:
         block_size = problem.block_length
 
         if absolute_time_offset is None:
-            absolute_time_offset = (block - 1) * block_size
+            # Use the first element of the block's absolute timestep list so that
+            # the offset is correct for all modes, including blocks with overlap and
+            # block ids that are not 1-based.
+            absolute_time_offset = problem.block.timesteps[0]
 
         dfs: list[pd.DataFrame] = []
         dfs += self._collect_vars_outputs(

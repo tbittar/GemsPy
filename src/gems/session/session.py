@@ -61,8 +61,8 @@ class SimulationSession:
 
     def _run_frontal(self) -> SimulationTable:
         block = TimeBlock(0, list(range(self.total_timesteps)))
-        problem = self._run_block(block, scenario_ids=self.scenario_ids)
-        return self._reduce([problem], scenario_ids_remap=self.scenario_ids)
+        _problem, table = self._run_block(block, scenario_ids=self.scenario_ids)
+        return table
 
     def _run_sequential(self) -> SimulationTable:
         cfg = self.optim_config.resolution
@@ -75,24 +75,26 @@ class SimulationSession:
             block_id = 0
             carry_over: Dict[Tuple[str, str], xr.DataArray] = {}
             problems: List[OptimizationProblem] = []
+            tables: List[SimulationTable] = []
 
             while t_start < self.total_timesteps:
                 end = min(t_start + horizon, self.total_timesteps)
                 timesteps = list(range(t_start, end))
                 block = TimeBlock(block_id, timesteps)
-                problem = self._run_block(
+                problem, table = self._run_block(
                     block,
                     scenario_ids=[scenario_id],
                     initial_values=carry_over or None,
                 )
                 problems.append(problem)
+                tables.append(table)
                 carry_over = self._extract_carry_over(
                     problem, local_index=len(timesteps) - 1
                 )
                 t_start += horizon - overlap
                 block_id += 1
 
-            all_tables.append(self._reduce(problems, scenario_ids_remap=[scenario_id]))
+            all_tables.append(self._reduce(tables))
 
         return merge_simulation_tables(all_tables)
 
@@ -107,8 +109,9 @@ class SimulationSession:
                 TimeBlock(i, list(range(t, min(t + horizon, self.total_timesteps))))
                 for i, t in enumerate(starts)
             ]
-            problems = [self._run_block(b, scenario_ids=[scenario_id]) for b in blocks]
-            all_tables.append(self._reduce(problems, scenario_ids_remap=[scenario_id]))
+            results = [self._run_block(b, scenario_ids=[scenario_id]) for b in blocks]
+            tables = [table for _, table in results]
+            all_tables.append(self._reduce(tables))
 
         return merge_simulation_tables(all_tables)
 
@@ -143,8 +146,14 @@ class SimulationSession:
         block: TimeBlock,
         scenario_ids: List[int],
         initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
-    ) -> OptimizationProblem:
-        """MAP: build and solve one time block."""
+    ) -> Tuple[OptimizationProblem, SimulationTable]:
+        """MAP: build and solve one block, then convert to a SimulationTable.
+
+        Returns both the solved problem (for carry-over extraction or inspection)
+        and the SimulationTable with correct absolute-time and scenario indices.
+        scenario_ids_remap equals scenario_ids because the list of MC scenario IDs
+        IS the mapping from internal 0-based position to actual MC identifier.
+        """
         problem = build_problem(
             self.study,
             block,
@@ -152,18 +161,12 @@ class SimulationSession:
             initial_values=initial_values,
         )
         problem.solve(solver_name="highs")
-        return problem
+        table = SimulationTableBuilder().build(problem, scenario_ids_remap=scenario_ids)
+        return problem, table
 
-    def _reduce(
-        self,
-        problems: List[OptimizationProblem],
-        scenario_ids_remap: List[int],
-    ) -> SimulationTable:
-        """REDUCE: merge block results, remapping 0-based scenario indices to actual IDs."""
-        builder = SimulationTableBuilder()
-        tables = [
-            builder.build(p, scenario_ids_remap=scenario_ids_remap) for p in problems
-        ]
+    @staticmethod
+    def _reduce(tables: List[SimulationTable]) -> SimulationTable:
+        """REDUCE: merge SimulationTables from one scenario's blocks into one."""
         return merge_simulation_tables(tables)
 
     @staticmethod
