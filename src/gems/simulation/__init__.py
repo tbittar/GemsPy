@@ -15,6 +15,7 @@ from .optimization import (
     BlockBorderManagement,
     DecomposedProblems,
     DecompositionFilter,
+    LinopyModel,
     OptimizationProblem,
     build_decomposed_problems,
     build_problem,

@@ -56,6 +56,12 @@ from gems.study.system import Component, System
 if TYPE_CHECKING:
     from gems.optim_config.parsing import ElementLocation, OptimConfig
 
+# ---------------------------------------------------------------------------
+# Public types
+# ---------------------------------------------------------------------------
+
+LinopyModel = linopy.Model
+"""Alias for :class:`linopy.Model`, distinguishing it from :class:`gems.model.Model`."""
 
 # ---------------------------------------------------------------------------
 # Decomposition filter
@@ -263,7 +269,7 @@ class OptimizationProblem:
     def __init__(
         self,
         name: str,
-        linopy_model: linopy.Model,
+        linopy_model: LinopyModel,
         study: Study,
         block: TimeBlock,
         scenarios: int,
