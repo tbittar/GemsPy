@@ -16,7 +16,6 @@ from gems.simulation.simulation_table import (
     SimulationColumns,
     SimulationTable,
     SimulationTableBuilder,
-    SimulationTableWriter,
 )
 
 # ---------------------------------------------------------------------------
@@ -160,9 +159,8 @@ def test_to_dataset_includes_objective_value_scalar() -> None:
 
 def test_write_parquet_creates_file(tmp_path: Path) -> None:
     pytest.importorskip("pyarrow")
-    st = SimulationTableBuilder().build(_make_problem())  # type: ignore[arg-type]
-    writer = SimulationTableWriter(st)
-    path = writer.write_parquet(tmp_path, simulation_id="test", optim_nb=1)
+    st = SimulationTableBuilder().build(_make_problem(), table_id="test")  # type: ignore[arg-type]
+    path = st.to_parquet(tmp_path)
     assert path.exists()
     assert path.suffix == ".parquet"
 
@@ -176,9 +174,8 @@ def _to_object_dtype(frame: pd.DataFrame) -> pd.DataFrame:
 
 def test_write_parquet_content_matches_original(tmp_path: Path) -> None:
     pytest.importorskip("pyarrow")
-    st = SimulationTableBuilder().build(_make_problem())  # type: ignore[arg-type]
-    writer = SimulationTableWriter(st)
-    path = writer.write_parquet(tmp_path, simulation_id="test", optim_nb=1)
+    st = SimulationTableBuilder().build(_make_problem(), table_id="test")  # type: ignore[arg-type]
+    path = st.to_parquet(tmp_path)
 
     loaded = pd.read_parquet(path)
     pd.testing.assert_frame_equal(
@@ -194,17 +191,15 @@ def test_write_parquet_content_matches_original(tmp_path: Path) -> None:
 
 
 def test_write_netcdf_creates_file(tmp_path: Path) -> None:
-    st = SimulationTableBuilder().build(_make_problem())  # type: ignore[arg-type]
-    writer = SimulationTableWriter(st)
-    path = writer.write_netcdf(tmp_path, simulation_id="test", optim_nb=1)
+    st = SimulationTableBuilder().build(_make_problem(), table_id="test")  # type: ignore[arg-type]
+    path = st.to_netcdf(tmp_path)
     assert path.exists()
     assert path.suffix == ".nc"
 
 
 def test_write_netcdf_readable_as_dataset(tmp_path: Path) -> None:
-    st = SimulationTableBuilder().build(_make_problem())  # type: ignore[arg-type]
-    writer = SimulationTableWriter(st)
-    path = writer.write_netcdf(tmp_path, simulation_id="test", optim_nb=1)
+    st = SimulationTableBuilder().build(_make_problem(), table_id="test")  # type: ignore[arg-type]
+    path = st.to_netcdf(tmp_path)
 
     ds = xr.open_dataset(path)
     assert isinstance(ds, xr.Dataset)

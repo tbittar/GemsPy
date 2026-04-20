@@ -10,53 +10,36 @@
 #
 # This file is part of the Antares project.
 
-
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from gems.model.library import Library
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.optim_config.parsing import (
-    OptimConfig,
-    load_optim_config,
-    validate_optim_config,
-)
-from gems.session import SimulationSession
-from gems.simulation import (
-    DecomposedProblems,
-    build_couplings,
-    dump_couplings,
-)
+from gems.optim_config.parsing import OptimConfig
+from gems.simulation import DecomposedProblems, build_couplings, dump_couplings
 from gems.study import Study
 from gems.study.data import DataBase
+from gems.study.folder import run_study
 from gems.study.parsing import parse_cli, parse_yaml_components
-from gems.study.resolve_components import (
-    build_data_base,
-    consistency_check,
-    resolve_system,
-)
+from gems.study.resolve_components import build_data_base, resolve_system
 from gems.study.system import System
 
 
-class AntaresTimeSeriesImportError(Exception):
-    pass
+# ---------------------------------------------------------------------------
+# Low-level helpers (used by E2E tests)
+# ---------------------------------------------------------------------------
 
-
-def input_libs(yaml_lib_paths: List[Path]) -> dict[str, Library]:
+def input_libs(yaml_lib_paths: List[Path]) -> Dict[str, Library]:
     yaml_libraries = []
     yaml_library_ids = set()
-
     for path in yaml_lib_paths:
         with path.open("r") as file:
             yaml_lib = parse_yaml_library(file)
-
             if yaml_lib.id in yaml_library_ids:
                 raise ValueError(f"The identifier '{yaml_lib.id}' is defined twice")
-
             yaml_libraries.append(yaml_lib)
             yaml_library_ids.add(yaml_lib.id)
-
     return resolve_library(yaml_libraries)
 
 
@@ -65,9 +48,9 @@ def input_database(study_path: Path, timeseries_path: Optional[Path]) -> DataBas
         return build_data_base(parse_yaml_components(comp), timeseries_path)
 
 
-def input_system(study_path: Path, librairies: dict[str, Library]) -> System:
+def input_system(study_path: Path, libraries: Dict[str, Library]) -> System:
     with study_path.open() as comp:
-        return resolve_system(parse_yaml_components(comp), librairies)
+        return resolve_system(parse_yaml_components(comp), libraries)
 
 
 def _write_structure_txt(
@@ -78,45 +61,16 @@ def _write_structure_txt(
     dump_couplings(build_couplings(decomposed, optim_config), output_dir)
 
 
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+
 def main_cli() -> None:
     parsed_args = parse_cli()
-
-    lib_dict = input_libs(parsed_args.models_path)
-    system = input_system(parsed_args.components_path, lib_dict)
-
-    models = {}
-    for lib in lib_dict.values():
-        models.update(lib.models)
-
-    consistency_check(system, models)
-
-    try:
-        database = input_database(
-            parsed_args.components_path, parsed_args.timeseries_path
-        )
-    except UnboundLocalError:
-        raise AntaresTimeSeriesImportError(
-            "An error occurred while importing time series."
-        )
-
-    study = Study(system=system, database=database)
-    optim_config = load_optim_config(parsed_args.components_path)
-    if optim_config is not None:
-        validate_optim_config(optim_config, system)
-
-    try:
-        session = SimulationSession(
-            study=study,
-            optim_config=optim_config or OptimConfig(),
-            total_timesteps=parsed_args.duration,
-            scenario_ids=list(range(parsed_args.nb_scenarios)),
-            output_dir=parsed_args.components_path.parent,
-        )
-        session.run()
-    except IndexError as e:
-        raise IndexError(
-            f"{e}. Did parameters '--duration' and '--scenario' were correctly set?"
-        )
+    run_study(
+        study_dir=parsed_args.study_dir,
+        optim_config_path=parsed_args.optim_config_path,
+    )
 
 
 if __name__ == "__main__":

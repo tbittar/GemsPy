@@ -41,6 +41,10 @@ class SimulationSession:
     scenario_ids: List[int]
     run_id: str = field(default_factory=lambda: str(uuid4()))
     output_dir: Optional[Path] = None
+    first_timestep: int = 0
+    solver_name: str = "highs"
+    solver_logs: bool = False
+    solver_parameters: Dict[str, object] = field(default_factory=dict)
 
     def run(self) -> SimulationTable:
         """Entry point. Dispatches to the appropriate resolution strategy."""
@@ -60,7 +64,8 @@ class SimulationSession:
     # ------------------------------------------------------------------
 
     def _run_frontal(self) -> SimulationTable:
-        block = TimeBlock(0, list(range(self.total_timesteps)))
+        end = self.first_timestep + self.total_timesteps
+        block = TimeBlock(0, list(range(self.first_timestep, end)))
         _problem, table = self._run_block(block, scenario_ids=self.scenario_ids)
         return table
 
@@ -68,15 +73,16 @@ class SimulationSession:
         cfg = self.optim_config.resolution
         horizon: int = cfg.horizon  # type: ignore[assignment]
         overlap: int = cfg.overlap
+        t_end = self.first_timestep + self.total_timesteps
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
-            t_start = 0
+            t_start = self.first_timestep
             block_id = 0
             carry_over: Dict[Tuple[str, str], xr.DataArray] = {}
 
-            while t_start < self.total_timesteps:
-                end = min(t_start + horizon, self.total_timesteps)
+            while t_start < t_end:
+                end = min(t_start + horizon, t_end)
                 timesteps = list(range(t_start, end))
                 block = TimeBlock(block_id, timesteps)
                 problem, table = self._run_block(
@@ -96,12 +102,13 @@ class SimulationSession:
     def _run_parallel(self) -> SimulationTable:
         cfg = self.optim_config.resolution
         horizon: int = cfg.horizon  # type: ignore[assignment]
+        t_end = self.first_timestep + self.total_timesteps
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
-            starts = range(0, self.total_timesteps, horizon)
+            starts = range(self.first_timestep, t_end, horizon)
             blocks = [
-                TimeBlock(i, list(range(t, min(t + horizon, self.total_timesteps))))
+                TimeBlock(i, list(range(t, min(t + horizon, t_end))))
                 for i, t in enumerate(starts)
             ]
             for block in blocks:
@@ -155,14 +162,19 @@ class SimulationSession:
             scenario_ids,
             initial_values=initial_values,
         )
-        problem.solve(solver_name="highs")
-        table = SimulationTableBuilder().build(problem, scenario_ids_remap=scenario_ids)
+        problem.solve(
+            solver_name=self.solver_name,
+            solver_logs=self.solver_logs,
+            **self.solver_parameters,
+        )
+        table = SimulationTableBuilder().build(
+            problem, scenario_ids_remap=scenario_ids, table_id=self.run_id
+        )
         return problem, table
 
-    @staticmethod
-    def _reduce(tables: List[SimulationTable]) -> SimulationTable:
+    def _reduce(self, tables: List[SimulationTable]) -> SimulationTable:
         """REDUCE: merge SimulationTables from one scenario's blocks into one."""
-        return merge_simulation_tables(tables)
+        return merge_simulation_tables(tables, table_id=self.run_id)
 
     @staticmethod
     def _extract_carry_over(

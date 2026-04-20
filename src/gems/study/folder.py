@@ -5,20 +5,18 @@ A study is defined by a directory containing:
 - `input/system.yml`: A file describing the system to be simulated.
 - `input/model-libraries/`: A folder containing model library files in YAML format.
 - `input/data-series/`: A folder containing data series files.
+- `parameters.yml` (optional): Run parameters (timestep range, solver, scenarios).
 """
 
-import time
 from pathlib import Path
 from typing import Optional
-
-import numpy as np
-import pandas as pd
 
 from gems.model.model import Model
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.simulation import TimeBlock, build_problem
-from gems.simulation.optimization import OptimizationProblem
+from gems.optim_config.parsing import OptimConfig, load_optim_config, validate_optim_config
+from gems.session.session import SimulationSession
+from gems.study.parameters import load_parameters
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
@@ -46,7 +44,6 @@ def load_study(study_dir: Path) -> Study:
     system_file = study_dir / "input" / "system.yml"
     lib_folder = study_dir / "input" / "model-libraries"
     series_dir = study_dir / "input" / "data-series"
-    config_file = study_dir / "input" / "optim-config.yml"
 
     input_libraries = []
     for lib_file in lib_folder.glob("*.yml"):
@@ -74,42 +71,39 @@ def load_study(study_dir: Path) -> Study:
 
 def run_study(
     study_dir: Path,
-    scenarios: int,
-    time_block: TimeBlock,
-    export_simulation_table: Optional[bool] = False,
-) -> OptimizationProblem:
+    optim_config_path: Optional[Path] = None,
+) -> None:
     """
-    Runs a simulation study.
+    Runs a simulation study and exports results to CSV.
 
-    This function loads a study, builds a simulation problem, and solves it.
+    Reads run parameters (timestep range, solver, scenarios) from
+    ``study_dir/parameters.yml`` if present, otherwise uses defaults.
+    Results are written to ``study_dir/output/``.
 
     Args:
         study_dir: The path to the study directory.
-        scenarios: The number of scenarios to run.
-        time_block: The time block for the simulation.
-        export_simulation_table: Whether to export a simulation table CSV file.
-
-    Returns:
-        The solved simulation problem.
+        optim_config_path: Optional custom path to an optim-config YAML file.
+            If not provided, defaults to ``study_dir/input/optim-config.yml``
+            (frontal mode if the file is absent).
     """
-
+    params = load_parameters(study_dir)
     study = load_study(study_dir)
-    problem = build_problem(study, time_block, list(range(scenarios)))
-    problem.solve()
-    if export_simulation_table:
-        from gems.simulation.simulation_table import (
-            SimulationTableBuilder,
-            SimulationTableWriter,
-        )
 
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        builder = SimulationTableBuilder(simulation_id=study_dir.stem)
-        st = builder.build(problem)
-        writer = SimulationTableWriter(st)
-        writer.write_csv(
-            output_dir=study_dir / "output",
-            simulation_id=f"{study_dir.stem}_{timestamp}",
-            optim_nb=problem.block.id,
-        )
+    resolved_config_path = optim_config_path or (
+        study_dir / "input" / "optim-config.yml"
+    )
+    optim_config = load_optim_config(resolved_config_path) or OptimConfig()
+    validate_optim_config(optim_config, study.system)
 
-    return problem
+    session = SimulationSession(
+        study=study,
+        optim_config=optim_config,
+        total_timesteps=params.total_timesteps,
+        scenario_ids=params.scenario_ids,
+        first_timestep=params.first_time_step,
+        solver_name=params.solver,
+        solver_logs=params.solver_logs,
+        solver_parameters=params.parsed_solver_options(),
+    )
+    table = session.run()
+    table.to_csv(study_dir / "output")
