@@ -104,10 +104,6 @@ def run_study(
         optim_config=optim_config,
         total_timesteps=params.total_timesteps,
         scenario_ids=params.scenario_ids,
-        first_timestep=params.first_time_step,
-        solver_name=params.solver,
-        solver_logs=params.solver_logs,
-        solver_parameters=params.parsed_solver_options(),
     )
     table = session.run()
     table.to_csv(study_dir / "output")

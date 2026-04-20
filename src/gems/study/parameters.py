@@ -1,12 +1,17 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
+from pydantic import ConfigDict
 from yaml import safe_load
 
-from gems.utils import ModifiedBaseModel
+from gems.utils import ModifiedBaseModel, _to_kebab
 
 
 class StudyParameters(ModifiedBaseModel):
+    # Use extra="ignore" so unknown fields in parameters.yml (e.g. from other tools) are silently dropped.
+    model_config = ConfigDict(
+        alias_generator=_to_kebab, extra="ignore", populate_by_name=True
+    )
     solver: str = "highs"
     solver_logs: bool = False
     solver_parameters: str = ""
