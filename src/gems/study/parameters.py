@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from pydantic import Field
 from yaml import safe_load
 
 from gems.utils import ModifiedBaseModel
@@ -9,11 +8,11 @@ from gems.utils import ModifiedBaseModel
 
 class StudyParameters(ModifiedBaseModel):
     solver: str = "highs"
-    solver_logs: bool = Field(False, alias="solver-logs")
-    solver_parameters: str = Field("", alias="solver-parameters")
-    first_time_step: int = Field(0, alias="first-time-step")
-    last_time_step: int = Field(0, alias="last-time-step")
-    nb_scenarios: int = Field(1, alias="nb-scenarios")
+    solver_logs: bool = False
+    solver_parameters: str = ""
+    first_time_step: int = 0
+    last_time_step: int = 0
+    nb_scenarios: int = 1
 
     @property
     def scenario_ids(self) -> List[int]:
