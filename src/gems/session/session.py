@@ -79,7 +79,7 @@ class SimulationSession:
                 end = min(t_start + horizon, self.total_timesteps)
                 timesteps = list(range(t_start, end))
                 block = TimeBlock(block_id, timesteps)
-                _, table = self._run_block(
+                problem, table = self._run_block(
                     block,
                     scenario_ids=[scenario_id],
                     initial_values=carry_over or None,
