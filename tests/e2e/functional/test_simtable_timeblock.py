@@ -98,7 +98,10 @@ def test_simtable_on_partial_timeblock(lib_dict_unittest: dict[str, Library]) ->
     gen_series = sim_table.component("G").output("generation").value(scenario_index=0)
     expected = pd.Series(
         data=[float(t) for t in range(BLOCK_START, BLOCK_END)],
-        index=pd.Index(range(BLOCK_START, BLOCK_END), name=SimulationColumns.ABSOLUTE_TIME_INDEX.value),
+        index=pd.Index(
+            range(BLOCK_START, BLOCK_END),
+            name=SimulationColumns.ABSOLUTE_TIME_INDEX.value,
+        ),
         name=0,
     )
     pd.testing.assert_series_equal(gen_series, expected, check_dtype=False)
@@ -109,7 +112,9 @@ def test_simtable_on_partial_timeblock(lib_dict_unittest: dict[str, Library]) ->
         & (sim_table.data[SimulationColumns.OUTPUT.value] == "generation")
     ].copy()
 
-    abs_times = sorted(gen_rows[SimulationColumns.ABSOLUTE_TIME_INDEX.value].astype(int))
+    abs_times = sorted(
+        gen_rows[SimulationColumns.ABSOLUTE_TIME_INDEX.value].astype(int)
+    )
     block_times = sorted(gen_rows[SimulationColumns.BLOCK_TIME_INDEX.value].astype(int))
 
     assert abs_times == list(range(BLOCK_START, BLOCK_END))
