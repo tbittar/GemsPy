@@ -132,7 +132,7 @@ def test_model_behaviour(
         problem = build_problem(
             Study(system_input, database),
             TimeBlock(1, [i for i in range(k * timespan, (k + 1) * timespan)]),
-            scenarios,
+            list(range(scenarios)),
         )
         problem.solve(solver_name="highs")
         assert problem.termination_condition == "optimal"

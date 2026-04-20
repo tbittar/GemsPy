@@ -61,7 +61,7 @@ class SimulationSession:
 
     def _run_frontal(self) -> SimulationTable:
         block = TimeBlock(0, list(range(self.total_timesteps)))
-        problem = self._run_block(block, n_scenarios=len(self.scenario_ids))
+        problem = self._run_block(block, scenario_ids=self.scenario_ids)
         return self._reduce([problem], scenario_ids_remap=self.scenario_ids)
 
     def _run_sequential(self) -> SimulationTable:
@@ -82,7 +82,7 @@ class SimulationSession:
                 block = TimeBlock(block_id, timesteps)
                 problem = self._run_block(
                     block,
-                    n_scenarios=1,
+                    scenario_ids=[scenario_id],
                     initial_values=carry_over or None,
                 )
                 problems.append(problem)
@@ -107,7 +107,7 @@ class SimulationSession:
                 TimeBlock(i, list(range(t, min(t + horizon, self.total_timesteps))))
                 for i, t in enumerate(starts)
             ]
-            problems = [self._run_block(b, n_scenarios=1) for b in blocks]
+            problems = [self._run_block(b, scenario_ids=[scenario_id]) for b in blocks]
             all_tables.append(self._reduce(problems, scenario_ids_remap=[scenario_id]))
 
         return merge_simulation_tables(all_tables)
@@ -124,7 +124,7 @@ class SimulationSession:
 
         block = TimeBlock(1, list(range(self.total_timesteps)))
         decomposed = build_decomposed_problems(
-            self.study, block, len(self.scenario_ids), self.optim_config
+            self.study, block, self.scenario_ids, self.optim_config
         )
         if decomposed.master is not None and self.output_dir is not None:
             dump_couplings(
@@ -141,14 +141,14 @@ class SimulationSession:
     def _run_block(
         self,
         block: TimeBlock,
-        n_scenarios: int,
+        scenario_ids: List[int],
         initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
     ) -> OptimizationProblem:
         """MAP: build and solve one time block."""
         problem = build_problem(
             self.study,
             block,
-            n_scenarios,
+            scenario_ids,
             initial_values=initial_values,
         )
         problem.solve(solver_name="highs")

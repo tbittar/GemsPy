@@ -25,6 +25,7 @@ from gems.study.resolve_components import (
     consistency_check,
     resolve_system,
 )
+from gems.study.scenario_builder import ScenarioBuilder
 from gems.study.study import Study
 
 
@@ -62,7 +63,13 @@ def load_study(study_dir: Path) -> Study:
     consistency_check(system, model_dict)
 
     database = build_data_base(input_study, series_dir)
-    return Study(system=system, database=database)
+    scenario_builder_path = study_dir / "input" / "scenariobuilder.dat"
+    scenario_builder = (
+        ScenarioBuilder.load(scenario_builder_path)
+        if scenario_builder_path.exists()
+        else ScenarioBuilder()
+    )
+    return Study(system=system, database=database, scenario_builder=scenario_builder)
 
 
 def run_study(
@@ -87,7 +94,7 @@ def run_study(
     """
 
     study = load_study(study_dir)
-    problem = build_problem(study, time_block, scenarios)
+    problem = build_problem(study, time_block, list(range(scenarios)))
     problem.solve()
     if export_simulation_table:
         from gems.simulation.simulation_table import (

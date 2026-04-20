@@ -70,7 +70,7 @@ def test_study_mps_matches_expected(study_id: str, tmp_path: Path) -> None:
     time_block = TimeBlock(1, [0])
     scenarios = 1
     decomposed = build_decomposed_problems(
-        Study(system, database), time_block, scenarios, optim_config
+        Study(system, database), time_block, list(range(scenarios)), optim_config
     )
 
     # --- Write MPS files ---

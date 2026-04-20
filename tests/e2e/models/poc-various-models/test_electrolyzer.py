@@ -173,7 +173,9 @@ def test_electrolyzer() -> None:
     )
 
     scenarios = 1
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(
+        Study(system, database), TimeBlock(1, [0]), list(range(scenarios))
+    )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3000

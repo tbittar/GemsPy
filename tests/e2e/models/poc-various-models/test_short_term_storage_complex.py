@@ -93,7 +93,7 @@ def short_term_storage_base(efficiency: float, horizon: int, result: int) -> Non
     problem = build_problem(
         Study(system, database),
         time_blocks[0],
-        scenarios,
+        list(range(scenarios)),
         border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")

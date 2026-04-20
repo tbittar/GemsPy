@@ -341,20 +341,21 @@ class _OptimizationProblemBuilder:
         name: str,
         study: Study,
         block: TimeBlock,
-        scenarios: int,
+        scenario_ids: List[int],
         location_filter: Optional[DecompositionFilter] = None,
         initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
     ) -> None:
         self.name = name
         self.study = study
         self.block = block
-        self.scenarios = scenarios
+        self.scenario_ids = scenario_ids
+        self.scenarios = len(scenario_ids)
         self._location_filter = location_filter
         self._initial_values = initial_values or {}
 
         self.block_length = len(block.timesteps)
         self.time_coord = list(range(self.block_length))
-        self.scenario_coord = list(range(scenarios))
+        self.scenario_coord = list(range(len(scenario_ids)))
 
         # Populated during build
         self.linopy_model = linopy.Model()
@@ -481,26 +482,32 @@ class _OptimizationProblemBuilder:
                     else:
                         data[i] = v  # constant in time
                 elif isinstance(param_data, ScenarioSeriesData):
-                    for s in range(S):
-                        v = param_data.get_value(None, s)  # type: ignore[assignment]
+                    for s_pos in range(S):
+                        s_col = self.study.scenario_builder.resolve(
+                            c.scenario_group, self.scenario_ids[s_pos]
+                        )
+                        v = param_data.get_value(None, s_col)  # type: ignore[assignment]
                         if use_time and use_scenario:
-                            data[i, :, s] = v
+                            data[i, :, s_pos] = v
                         elif use_scenario:
-                            data[i, s] = v
+                            data[i, s_pos] = v
                         else:
                             data[i] = v  # constant in scenario
                 else:
                     # TimeScenarioSeriesData
-                    for s in range(S):
+                    for s_pos in range(S):
+                        s_col = self.study.scenario_builder.resolve(
+                            c.scenario_group, self.scenario_ids[s_pos]
+                        )
                         v = param_data.get_value(  # type: ignore[assignment]
-                            abs_timesteps, s
+                            abs_timesteps, s_col
                         )
                         if use_time and use_scenario:
-                            data[i, :, s] = v
+                            data[i, :, s_pos] = v
                         elif use_time:
                             data[i, :] = v
                         elif use_scenario:
-                            data[i, s] = v
+                            data[i, s_pos] = v
                         else:
                             data[i] = v  # take any single value
 
@@ -739,7 +746,7 @@ class _OptimizationProblemBuilder:
 def build_problem(
     study: Study,
     block: TimeBlock,
-    scenarios: int,
+    scenario_ids: List[int],
     *,
     problem_name: str = "optimization_problem",
     border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
@@ -755,8 +762,9 @@ def build_problem(
         the DataBase (parameter values for those components).
     block:
         The time block to optimize.
-    scenarios:
-        Number of scenarios.
+    scenario_ids:
+        List of MC scenario IDs to include.  Each ID is resolved to a
+        time-series column via ``study.scenario_builder``.
     problem_name:
         Label for the linopy model.
     border_management:
@@ -778,7 +786,7 @@ def build_problem(
         name=problem_name,
         study=study,
         block=block,
-        scenarios=scenarios,
+        scenario_ids=scenario_ids,
         initial_values=initial_values,
     )
     return builder.build()
@@ -811,7 +819,7 @@ class DecomposedProblems:
 def build_decomposed_problems(
     study: Study,
     block: TimeBlock,
-    scenarios: int,
+    scenario_ids: List[int],
     optim_config: "OptimConfig",
     *,
     subproblem_name: str = "subproblem",
@@ -831,7 +839,7 @@ def build_decomposed_problems(
     study:
         Container holding both the System and the DataBase.
         Same semantics as :func:`build_problem`.
-    block, scenarios:
+    block, scenario_ids:
         Same semantics as :func:`build_problem`.
     optim_config:
         Parsed ``OptimConfig`` from an ``optim-config.yml`` file.
@@ -864,7 +872,7 @@ def build_decomposed_problems(
         name=subproblem_name,
         study=study,
         block=block,
-        scenarios=scenarios,
+        scenario_ids=scenario_ids,
         location_filter=DecompositionFilter(optim_config, sub_locs),
     ).build()
 
@@ -874,7 +882,7 @@ def build_decomposed_problems(
             name=master_name,
             study=study,
             block=block,
-            scenarios=scenarios,
+            scenario_ids=scenario_ids,
             location_filter=DecompositionFilter(optim_config, master_locs),
         ).build()
 

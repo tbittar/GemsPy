@@ -67,6 +67,7 @@ def _resolve_component(
     return Component(
         model=model,
         id=component.id,
+        scenario_group=component.scenario_group,
     )
 
 

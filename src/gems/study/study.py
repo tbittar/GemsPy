@@ -11,12 +11,13 @@
 # This file is part of the Antares project.
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Dict, List
 
 from gems.model.model import Model
 from gems.study.data import DataBase
+from gems.study.scenario_builder import ScenarioBuilder
 from gems.study.system import Component, System
 
 
@@ -35,6 +36,7 @@ class Study:
 
     system: System
     database: DataBase
+    scenario_builder: ScenarioBuilder = field(default_factory=ScenarioBuilder)
 
     @cached_property
     def model_components(self) -> Dict[str, List[Component]]:
