@@ -17,7 +17,7 @@ from typing import List
 import pandas as pd
 import pytest
 
-from gems.model.parsing import InputLibrary, parse_yaml_library
+from gems.model.parsing import LibrarySchema, parse_yaml_library
 from gems.model.resolve_library import resolve_library
 from gems.simulation import build_problem
 from gems.simulation.time_block import TimeBlock
@@ -47,7 +47,7 @@ def series_dir(data_dir: Path) -> Path:
 
 
 @pytest.fixture
-def input_libraries(data_dir: Path) -> List[InputLibrary]:
+def input_libraries(data_dir: Path) -> List[LibrarySchema]:
     libs_dir = data_dir / "libs"
     with open(libs_dir / "antares_historic.yml") as lib_file:
         lib_historic = parse_yaml_library(lib_file)
@@ -116,7 +116,7 @@ def test_model_behaviour(
     timespan: int,
     batch: int,
     relative_accuracy: float,
-    input_libraries: List[InputLibrary],
+    input_libraries: List[LibrarySchema],
     results_dir: Path,
     systems_dir: Path,
     series_dir: Path,

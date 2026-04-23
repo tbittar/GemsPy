@@ -234,17 +234,15 @@ class SimulationTableBuilder:
                 if lv.name in solution:
                     var_solution_arrays[(mk, vname)] = solution[lv.name]
 
-        for mk, model in problem.models.items():
+        for mk, components in problem.study.model_components.items():
+            model = problem.study.models[mk]
             if not model.extra_outputs:
                 continue
-            components = problem.model_components[mk]
 
             port_arrays = build_port_arrays(
                 model,
                 components,
-                problem.models,
-                problem.model_components,
-                problem.system,
+                problem.study,
                 lambda mk_, m: VectorizedExtraOutputBuilder(
                     model_id=mk_,
                     param_arrays=problem.param_arrays,

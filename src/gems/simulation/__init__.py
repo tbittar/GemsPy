@@ -14,6 +14,7 @@ from .couplings import CouplingRow, build_couplings, dump_couplings
 from .optimization import (
     DecomposedProblems,
     DecompositionFilter,
+    LinopyModel,
     OptimizationProblem,
     build_decomposed_problems,
     build_problem,

@@ -12,11 +12,14 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from functools import cached_property
+from typing import TYPE_CHECKING, Dict, List, Optional
 
+from gems.model.model import Model
 from gems.study.data import DataBase
-from gems.study.system import System
+from gems.study.system import Component, System
 
 if TYPE_CHECKING:
     from gems.optim_config.parsing import OptimConfig
@@ -41,6 +44,21 @@ class Study:
     system: System
     database: DataBase
     optim_config: Optional[OptimConfig] = field(default=None)
+
+    @cached_property
+    def model_components(self) -> Dict[str, List[Component]]:
+        """Components grouped by their model.id."""
+        result: Dict[str, List[Component]] = defaultdict(list)
+        for component in self.system.all_components:
+            result[component.model.id].append(component)
+        return dict(result)
+
+    @cached_property
+    def models(self) -> Dict[str, Model]:
+        """All unique models in the system, keyed by model.id."""
+        return {
+            mk: components[0].model for mk, components in self.model_components.items()
+        }
 
     def check_consistency(self) -> None:
         """Validate that the database supplies data for every parameter of every

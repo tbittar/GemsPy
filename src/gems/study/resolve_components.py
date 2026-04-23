@@ -34,10 +34,10 @@ from gems.study.data import (
     dataframe_to_time_series,
     load_ts_from_file,
 )
-from gems.study.parsing import InputComponent, InputPortConnections, InputSystem
+from gems.study.parsing import ComponentSchema, PortConnectionsSchema, SystemSchema
 
 
-def resolve_system(input_system: InputSystem, libraries: dict[str, Library]) -> System:
+def resolve_system(input_system: SystemSchema, libraries: dict[str, Library]) -> System:
     """
     Resolves:
     - components to be used for study
@@ -59,7 +59,7 @@ def resolve_system(input_system: InputSystem, libraries: dict[str, Library]) -> 
 
 
 def _resolve_component(
-    libraries: dict[str, Library], component: InputComponent
+    libraries: dict[str, Library], component: ComponentSchema
 ) -> Component:
     lib_id, model_id = component.model.split(".")
     model = libraries[lib_id].models[f"{lib_id}.{model_id}"]
@@ -71,7 +71,7 @@ def _resolve_component(
 
 
 def _resolve_port_refs(
-    connection: InputPortConnections,
+    connection: PortConnectionsSchema,
     all_components: List[Component],
 ) -> Tuple[PortRef, PortRef]:
     component_1 = _get_component_by_id(all_components, connection.component1)
@@ -105,7 +105,7 @@ def consistency_check(system: System, input_models: Dict[str, Model]) -> bool:
 
 
 def build_data_base(
-    input_system: InputSystem, timeseries_dir: Optional[Path]
+    input_system: SystemSchema, timeseries_dir: Optional[Path]
 ) -> DataBase:
     database = DataBase()
     for comp in input_system.components:
@@ -165,7 +165,7 @@ def _resolve_scenarization(
 
 
 def build_scenarized_data_base(
-    input_comp: InputSystem,
+    input_comp: SystemSchema,
     scenario_builder_data: pd.DataFrame,
     timeseries_dir: Optional[Path],
 ) -> DataBase:

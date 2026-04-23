@@ -23,13 +23,20 @@ from gems.model import (
     Constraint,
     Model,
     ModelPort,
-    ProblemContext,
     float_parameter,
     float_variable,
     int_variable,
     model,
 )
 from gems.model.port import PortFieldDefinition, PortFieldId
+from gems.optim_config.parsing import (
+    ElementLocation,
+    ElementLocationConfig,
+    ModelDecompositionConfig,
+    ModelOptimConfig,
+    OptimConfig,
+    validate_optim_config,
+)
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.study import (
@@ -52,10 +59,6 @@ from tests.e2e.functional.libs.standard import (
 
 FREE = IndexingStructure(True, True)
 
-INVESTMENT = ProblemContext.INVESTMENT
-OPERATIONAL = ProblemContext.OPERATIONAL
-COUPLING = ProblemContext.COUPLING
-
 
 @pytest.fixture
 def thermal_candidate() -> Model:
@@ -72,7 +75,6 @@ def thermal_candidate() -> Model:
                 lower_bound=literal(0),
                 upper_bound=literal(1000),
                 structure=CONSTANT,
-                context=COUPLING,
             ),
         ],
         ports=[ModelPort(port_type=BALANCE_PORT_TYPE, port_name="balance_port")],
@@ -96,6 +98,33 @@ def thermal_candidate() -> Model:
 
 
 @pytest.fixture
+def thermal_candidate_optim_config() -> OptimConfig:
+    return OptimConfig(
+        models=[
+            ModelOptimConfig(
+                id="THERMAL_CANDIDATE",
+                model_decomposition=ModelDecompositionConfig(
+                    variables=[
+                        ElementLocationConfig(
+                            id="p_max",
+                            location=ElementLocation.MASTER_AND_SUBPROBLEMS,
+                        ),
+                    ],
+                    objective_contributions=[
+                        ElementLocationConfig(
+                            id="investment", location=ElementLocation.MASTER
+                        ),
+                        ElementLocationConfig(
+                            id="operational", location=ElementLocation.SUBPROBLEMS
+                        ),
+                    ],
+                ),
+            )
+        ]
+    )
+
+
+@pytest.fixture
 def discrete_candidate() -> Model:
     DISCRETE_CANDIDATE = model(
         id="DISCRETE",
@@ -110,14 +139,12 @@ def discrete_candidate() -> Model:
                 "p_max",
                 lower_bound=literal(0),
                 structure=CONSTANT,
-                context=COUPLING,
             ),
             int_variable(
                 "nb_units",
                 lower_bound=literal(0),
                 upper_bound=literal(10),
                 structure=CONSTANT,
-                context=INVESTMENT,
             ),
         ],
         ports=[ModelPort(port_type=BALANCE_PORT_TYPE, port_name="balance_port")],
@@ -134,7 +161,6 @@ def discrete_candidate() -> Model:
             Constraint(
                 name="Max investment",
                 expression=var("p_max") == param("p_max_per_unit") * var("nb_units"),
-                context=INVESTMENT,
             ),
         ],
         objective_contributions={
@@ -143,6 +169,41 @@ def discrete_candidate() -> Model:
         },
     )
     return DISCRETE_CANDIDATE
+
+
+@pytest.fixture
+def discrete_candidate_optim_config() -> OptimConfig:
+    return OptimConfig(
+        models=[
+            ModelOptimConfig(
+                id="DISCRETE",
+                model_decomposition=ModelDecompositionConfig(
+                    variables=[
+                        ElementLocationConfig(
+                            id="p_max",
+                            location=ElementLocation.MASTER_AND_SUBPROBLEMS,
+                        ),
+                        ElementLocationConfig(
+                            id="nb_units", location=ElementLocation.MASTER
+                        ),
+                    ],
+                    constraints=[
+                        ElementLocationConfig(
+                            id="Max investment", location=ElementLocation.MASTER
+                        ),
+                    ],
+                    objective_contributions=[
+                        ElementLocationConfig(
+                            id="investment", location=ElementLocation.MASTER
+                        ),
+                        ElementLocationConfig(
+                            id="operational", location=ElementLocation.SUBPROBLEMS
+                        ),
+                    ],
+                ),
+            )
+        ]
+    )
 
 
 @pytest.fixture
@@ -176,6 +237,7 @@ def test_generation_xpansion_single_time_step_single_scenario(
     generator: Component,
     candidate: Component,
     demand: Component,
+    thermal_candidate_optim_config: OptimConfig,
 ) -> None:
     """
     Simple generation expansion problem on one node. One timestep, one scenario, one thermal cluster candidate.
@@ -215,6 +277,8 @@ def test_generation_xpansion_single_time_step_single_scenario(
     system.connect(PortRef(generator, "balance_port"), PortRef(node, "balance_port"))
     system.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
 
+    validate_optim_config(thermal_candidate_optim_config, system)
+
     scenarios = 1
     problem = build_problem(
         Study(system, database),
@@ -242,6 +306,8 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
     candidate: Component,
     cluster_candidate: Component,
     demand: Component,
+    thermal_candidate_optim_config: OptimConfig,
+    discrete_candidate_optim_config: OptimConfig,
 ) -> None:
     """
     As before, simple generation expansion problem on one node, one timestep and one scenario
@@ -293,6 +359,9 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
     )
     scenarios = 1
 
+    validate_optim_config(thermal_candidate_optim_config, system)
+    validate_optim_config(discrete_candidate_optim_config, system)
+
     problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
 
     problem.solve(solver_name="highs")
@@ -326,6 +395,7 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
     generator: Component,
     candidate: Component,
     demand: Component,
+    thermal_candidate_optim_config: OptimConfig,
 ) -> None:
     """
     Same as previous example but with two timesteps and two scenarios, in order to test the correct instantiation of the objective function
@@ -377,6 +447,8 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
     system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
     system.connect(PortRef(generator, "balance_port"), PortRef(node, "balance_port"))
     system.connect(PortRef(candidate, "balance_port"), PortRef(node, "balance_port"))
+
+    validate_optim_config(thermal_candidate_optim_config, system)
 
     problem = build_problem(Study(system, database), time_block, scenarios)
     problem.solve(solver_name="highs")

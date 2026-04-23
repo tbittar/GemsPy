@@ -17,7 +17,6 @@ The standard module contains the definition of standard models.
 from gems.expression import literal, param, var
 from gems.expression.expression import port_field
 from gems.expression.indexing_structure import IndexingStructure
-from gems.model.common import ProblemContext
 from gems.model.constraint import Constraint
 from gems.model.model import ModelPort, model
 from gems.model.parameter import float_parameter, int_parameter
@@ -438,7 +437,6 @@ THERMAL_CANDIDATE = model(
             lower_bound=literal(0),
             upper_bound=param("max_invest"),
             structure=CONSTANT,
-            context=ProblemContext.COUPLING,
         ),
     ],
     ports=[ModelPort(port_type=BALANCE_PORT_TYPE, port_name="balance_port")],
@@ -473,7 +471,6 @@ THERMAL_CANDIDATE_WITH_ALREADY_INSTALLED_CAPA = model(
             lower_bound=literal(0),
             upper_bound=param("max_invest"),
             structure=CONSTANT,
-            context=ProblemContext.COUPLING,
         ),
     ],
     ports=[ModelPort(port_type=BALANCE_PORT_TYPE, port_name="balance_port")],

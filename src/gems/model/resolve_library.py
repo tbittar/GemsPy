@@ -21,7 +21,6 @@ from gems.model import (
     Parameter,
     PortField,
     PortType,
-    ProblemContext,
     ValueType,
     Variable,
     model,
@@ -29,21 +28,21 @@ from gems.model import (
 from gems.model.library import Library
 from gems.model.model import model
 from gems.model.parsing import (
-    InputConstraint,
-    InputField,
-    InputLibrary,
-    InputModel,
-    InputModelPort,
-    InputParameter,
-    InputPortFieldDefinition,
-    InputPortType,
-    InputVariable,
+    ConstraintSchema,
+    FieldSchema,
+    LibrarySchema,
+    ModelSchema,
+    ModelPortSchema,
+    ParameterSchema,
+    PortFieldDefinitionSchema,
+    PortTypeSchema,
+    VariableSchema,
 )
 from gems.model.port import PortFieldDefinition, port_field_def
 
 
 def resolve_library(
-    input_libs: List[InputLibrary], preloaded_libs: Optional[List[Library]] = None
+    input_libs: List[LibrarySchema], preloaded_libs: Optional[List[Library]] = None
 ) -> Dict[str, Library]:
     """
     Converts parsed data into an actually usable library of models.
@@ -105,7 +104,7 @@ def _add_preloaded_port_types_to_current_lib(
 def _add_resolved_dependent_port_types_to_current_lib(
     output_lib_dict: Dict[str, Library],
     treated_lib_ids: Set[str],
-    cur_yaml_lib: InputLibrary,
+    cur_yaml_lib: LibrarySchema,
     current_lib: Library,
 ) -> None:
     done_dependencies = set(cur_yaml_lib.dependencies) & treated_lib_ids
@@ -120,7 +119,7 @@ def _update_treated_libs_and_import_stack(
 
 
 def _resolve_lib(
-    current_lib: Library, cur_yaml_lib: InputLibrary, output_lib: Dict[str, Library]
+    current_lib: Library, cur_yaml_lib: LibrarySchema, output_lib: Dict[str, Library]
 ) -> None:
     port_types = [_convert_port_type(p) for p in cur_yaml_lib.port_types]
     port_types_dict = dict((p.id, p) for p in port_types)
@@ -157,18 +156,18 @@ def _add_dependencies_to_stack(
     import_stack.append(first_dependency)
 
 
-def _convert_field(field: InputField) -> PortField:
+def _convert_field(field: FieldSchema) -> PortField:
     return PortField(name=field.id)
 
 
-def _convert_port_type(port_type: InputPortType) -> PortType:
+def _convert_port_type(port_type: PortTypeSchema) -> PortType:
     return PortType(
         id=port_type.id, fields=[_convert_field(f) for f in port_type.fields]
     )
 
 
 def _resolve_model(
-    input_model: InputModel, port_types: Dict[str, PortType], library_id: str
+    input_model: ModelSchema, port_types: Dict[str, PortType], library_id: str
 ) -> Model:
     identifiers = ModelIdentifiers(
         variables={v.id for v in input_model.variables},
@@ -209,13 +208,13 @@ def _resolve_model(
 
 
 def _resolve_model_port(
-    port: InputModelPort, port_types: Dict[str, PortType]
+    port: ModelPortSchema, port_types: Dict[str, PortType]
 ) -> ModelPort:
     return ModelPort(port_name=port.id, port_type=port_types[port.type])
 
 
 def _resolve_field_definition(
-    definition: InputPortFieldDefinition, ids: ModelIdentifiers
+    definition: PortFieldDefinitionSchema, ids: ModelIdentifiers
 ) -> PortFieldDefinition:
     return port_field_def(
         port_name=definition.port,
@@ -224,7 +223,7 @@ def _resolve_field_definition(
     )
 
 
-def _to_parameter(param: InputParameter) -> Parameter:
+def _to_parameter(param: ParameterSchema) -> Parameter:
     return Parameter(
         name=param.id,
         type=ValueType.CONTINUOUS,
@@ -240,7 +239,7 @@ def _to_expression_if_present(
     return parse_expression(expr, identifiers)
 
 
-def _to_variable(var: InputVariable, identifiers: ModelIdentifiers) -> Variable:
+def _to_variable(var: VariableSchema, identifiers: ModelIdentifiers) -> Variable:
     return Variable(
         name=var.id,
         data_type={"continuous": ValueType.CONTINUOUS, "integer": ValueType.INTEGER}[
@@ -249,12 +248,11 @@ def _to_variable(var: InputVariable, identifiers: ModelIdentifiers) -> Variable:
         structure=IndexingStructure(var.time_dependent, var.scenario_dependent),
         lower_bound=_to_expression_if_present(var.lower_bound, identifiers),
         upper_bound=_to_expression_if_present(var.upper_bound, identifiers),
-        context=ProblemContext.OPERATIONAL,
     )
 
 
 def _to_constraint(
-    constraint: InputConstraint, identifiers: ModelIdentifiers
+    constraint: ConstraintSchema, identifiers: ModelIdentifiers
 ) -> Constraint:
     lb = _to_expression_if_present(constraint.lower_bound, identifiers)
     ub = _to_expression_if_present(constraint.upper_bound, identifiers)

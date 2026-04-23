@@ -23,17 +23,17 @@ from yaml import safe_load
 from gems.utils import ModifiedBaseModel
 
 
-def load_input_system(input_study: Path) -> "InputSystem":
+def load_input_system(input_study: Path) -> "SystemSchema":
     try:
         with input_study.open() as f:
-            return InputSystem.model_validate(safe_load(f))
+            return SystemSchema.model_validate(safe_load(f))
     except ValidationError as e:
         raise ValueError(f"An error occurred during parsing: {e}")
 
 
-def parse_yaml_components(input_study: TextIO) -> "InputSystem":
+def parse_yaml_components(input_study: TextIO) -> "SystemSchema":
     tree = safe_load(input_study)
-    return InputSystem.model_validate(tree["system"])
+    return SystemSchema.model_validate(tree["system"])
 
 
 def parse_scenario_builder(file: Path) -> pd.DataFrame:
@@ -42,20 +42,20 @@ def parse_scenario_builder(file: Path) -> pd.DataFrame:
     return sb
 
 
-class InputAreaConnections(ModifiedBaseModel):
+class AreaConnectionsSchema(ModifiedBaseModel):
     component: str
     port: str
     area: str
 
 
-class InputPortConnections(ModifiedBaseModel):
+class PortConnectionsSchema(ModifiedBaseModel):
     component1: str
     port1: str
     component2: str
     port2: str
 
 
-class InputComponentParameter(ModifiedBaseModel):
+class ComponentParameterSchema(ModifiedBaseModel):
     id: str
     time_dependent: bool = False
     scenario_dependent: bool = False
@@ -63,19 +63,19 @@ class InputComponentParameter(ModifiedBaseModel):
     scenario_group: Optional[str] = None
 
 
-class InputComponent(ModifiedBaseModel):
+class ComponentSchema(ModifiedBaseModel):
     id: str
     model: str
     scenario_group: Optional[str] = None
-    parameters: Optional[List[InputComponentParameter]] = None
+    parameters: Optional[List[ComponentParameterSchema]] = None
 
 
-class InputSystem(ModifiedBaseModel):
+class SystemSchema(ModifiedBaseModel):
     id: Optional[str] = None
     model_libraries: Optional[str] = None  # Parsed but unused for now
-    components: List[InputComponent] = Field(default_factory=list)
-    connections: Optional[List[InputPortConnections]] = None
-    area_connections: Optional[List[InputAreaConnections]] = None
+    components: List[ComponentSchema] = Field(default_factory=list)
+    connections: Optional[List[PortConnectionsSchema]] = None
+    area_connections: Optional[List[AreaConnectionsSchema]] = None
 
 
 @dataclass(frozen=True)
