@@ -31,6 +31,7 @@ optimization problem in four phases:
 
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 
 import linopy
@@ -120,34 +121,47 @@ class DecompositionFilter:
         return loc in self._target
 
 
-def _extract_scalar_param_values(
+def _extract_per_component_param_values(
     param_arrays: Dict[Tuple[str, str], xr.DataArray], model_id: str
-) -> Dict[str, float]:
-    """Return a name→scalar map for parameters that are uniform across all axes.
+) -> Tuple[List[str], List[Dict[str, float]]]:
+    """Return (comp_ids, per_component_params) for *model_id*.
 
-    Only parameters whose entire array collapses to a single unique value are
-    included — these are the only ones that can serve as a constant time-shift
-    amount.  Component- or time-varying parameters are silently omitted.
+    *per_component_params* has one name→scalar dict per component.  Only
+    parameters that collapse to a single scalar (ignoring time/scenario axes)
+    are included; time- or scenario-varying parameters cannot serve as
+    constant time-shift amounts and are silently omitted.
     """
-    result: Dict[str, float] = {}
+    comp_ids: Optional[List[str]] = None
+    for (mid, _), arr in param_arrays.items():
+        if mid == model_id and "component" in arr.dims:
+            comp_ids = list(arr.coords["component"].values)
+            break
+
+    if comp_ids is None:
+        return [], [{}]
+
+    result: List[Dict[str, float]] = [{} for _ in comp_ids]
     for (mid, pname), arr in param_arrays.items():
         if mid == model_id:
-            unique = np.unique(arr.values)
-            if len(unique) == 1:
-                result[pname] = float(unique[0])
-    return result
+            if "component" in arr.dims:
+                for i, cid in enumerate(comp_ids):
+                    comp_vals = arr.sel(component=cid).values
+                    unique = np.unique(comp_vals)
+                    if len(unique) == 1:
+                        result[i][pname] = float(unique[0])
+            else:
+                unique = np.unique(arr.values)
+                if len(unique) == 1:
+                    for d in result:
+                        d[pname] = float(unique[0])
+    return comp_ids, result
 
 
 def _collect_const_shifts(
     expr: ExpressionNode,
     param_values: Optional[Dict[str, float]] = None,
 ) -> Set[int]:
-    """Recursively collect all constant integer time shifts in an expression.
-
-    *param_values* is an optional name→scalar mapping used to resolve
-    parameter-valued shift amounts (e.g. ``variable[t + d]`` where ``d`` is
-    a model parameter).
-    """
+    """Recursively collect all constant integer time shifts in an expression."""
     shifts: Set[int] = set()
     _walk_shifts(expr, shifts, param_values or {})
     return shifts
@@ -175,6 +189,23 @@ def _walk_shifts(
             _walk_shifts(op, shifts, param_values)
     elif isinstance(expr, TimeSumNode):
         _walk_shifts(expr.operand, shifts, param_values)
+        # Sum bounds determine the range of time indices accessed.
+        # Evaluate from_time and to_time with this component's parameters.
+        try:
+            ctx = EvaluationContext(parameters=param_values)
+            ev = EvaluationVisitor(ctx)
+            from_val = visit(expr.from_time, ev)
+            to_val = visit(expr.to_time, ev)
+            if (
+                isinstance(from_val, (int, float))
+                and isinstance(to_val, (int, float))
+                and float(from_val).is_integer()
+                and float(to_val).is_integer()
+            ):
+                for s in range(int(from_val), int(to_val) + 1):
+                    shifts.add(s)
+        except Exception:
+            pass
     elif isinstance(expr, AllTimeSumNode):
         _walk_shifts(expr.operand, shifts, param_values)
     elif isinstance(expr, UnaryOperatorNode):
@@ -184,11 +215,46 @@ def _walk_shifts(
         _walk_shifts(expr.right, shifts, param_values)
 
 
-def _compute_valid_time_indices(shifts: Set[int], block_length: int) -> List[int]:
-    """Return timestep indices where no shifted term falls outside [0, block_length)."""
-    return [
-        t for t in range(block_length) if all(0 <= t + s < block_length for s in shifts)
-    ]
+def _apply_validity_mask(expr: VectorizedExpr, mask: xr.DataArray) -> VectorizedExpr:
+    """Filter *expr* to valid (component, time) entries using *mask*.
+
+    When *expr* has both component and time dimensions the mask is applied
+    element-wise via ``where``.  When only the time dimension is present the
+    intersection across components is used (conservative fallback).
+    """
+    if not hasattr(expr, "dims"):
+        return expr
+    dims = expr.dims  # type: ignore[union-attr]
+    if "component" in dims and "time" in dims:
+        return expr.where(mask)  # type: ignore[union-attr,return-value]
+    if "time" in dims:
+        valid_times: List[int] = mask.all("component").values.nonzero()[0].tolist()
+        return expr.isel(time=valid_times)  # type: ignore[union-attr,return-value]
+    return expr
+
+
+def _compute_validity_mask(
+    expr: ExpressionNode,
+    per_component_params: List[Dict[str, float]],
+    comp_ids: List[str],
+    block_length: int,
+) -> xr.DataArray:
+    """Return a boolean DataArray (dims: component × time) marking valid constraint instances.
+
+    A (component, time) entry is True when every time-shifted term in *expr*,
+    evaluated with that component's parameters, falls within [0, block_length).
+    """
+    data = np.ones((len(comp_ids), block_length), dtype=bool)
+    for i, param_values in enumerate(per_component_params):
+        shifts = _collect_const_shifts(expr, param_values)
+        for t in range(block_length):
+            if not all(0 <= t + s < block_length for s in shifts):
+                data[i, t] = False
+    return xr.DataArray(
+        data,
+        dims=["component", "time"],
+        coords={"component": comp_ids, "time": list(range(block_length))},
+    )
 
 
 class OutOfBoundsFilter:
@@ -419,6 +485,10 @@ class OptimizationProblem:
     def objective_value(self) -> float:
         """Objective function value after solving."""
         return float(self.linopy_model.objective.value) + self._objective_constant  # type: ignore[arg-type]
+
+    def export_lp(self, path: Path) -> None:
+        """Write the problem to an LP file at *path*."""
+        self.linopy_model.to_file(path, explicit_coordinate_names=True)
 
     def get_variable_labels(
         self, model_id: str, var_name: str
@@ -759,23 +829,25 @@ class _OptimizationProblemBuilder:
             if not self._location_filter or self._location_filter.include_constraint(
                 model.id, constraint.name
             ):
-                # Determine which timesteps are valid for this constraint.
-                # For drop mode, skip timesteps where any shifted term is out-of-bounds.
-                valid_times: Optional[List[int]] = None
+                # Compute a per-(component, time) validity mask for drop mode.
+                validity_mask: Optional[xr.DataArray] = None
                 if self._oob_filter is not None:
                     from gems.optim_config.parsing import OutOfBoundsMode
 
                     mode = self._oob_filter.get_mode(model.id, constraint.name)
                     if mode == OutOfBoundsMode.DROP:
-                        param_values = _extract_scalar_param_values(
+                        (
+                            comp_ids,
+                            per_component_params,
+                        ) = _extract_per_component_param_values(
                             self.param_arrays, model.id
                         )
-                        shifts = _collect_const_shifts(
-                            constraint.expression, param_values
-                        )
-                        if shifts:
-                            valid_times = _compute_valid_time_indices(
-                                shifts, self.block_length
+                        if comp_ids:
+                            validity_mask = _compute_validity_mask(
+                                constraint.expression,
+                                per_component_params,
+                                comp_ids,
+                                self.block_length,
                             )
 
                 lhs = visit(constraint.expression, builder)
@@ -785,9 +857,8 @@ class _OptimizationProblemBuilder:
                 if isinstance(lhs, xr.DataArray):
                     continue
 
-                # Apply time-index filter for drop mode.
-                if valid_times is not None and hasattr(lhs, "dims") and "time" in lhs.dims:  # type: ignore[union-attr]
-                    lhs = lhs.isel(time=valid_times)  # type: ignore[union-attr]
+                if validity_mask is not None:
+                    lhs = _apply_validity_mask(lhs, validity_mask)
 
                 # Sanitize constraint name for LP format (spaces → underscores)
                 safe_name = constraint.name.replace(" ", "_").replace("-", "_")
@@ -795,8 +866,8 @@ class _OptimizationProblemBuilder:
                 # Lower bound constraint: lhs >= lb  (if lb != -inf)
                 if not is_unbounded(constraint.lower_bound):
                     lb = visit(constraint.lower_bound, builder)
-                    if valid_times is not None and hasattr(lb, "dims") and "time" in lb.dims:  # type: ignore[union-attr]
-                        lb = lb.isel(time=valid_times)  # type: ignore[union-attr]
+                    if validity_mask is not None:
+                        lb = _apply_validity_mask(lb, validity_mask)
                     name = f"{prefix}__{safe_name}__lb"
                     con_lb = lhs >= lb  # type: ignore[operator]
                     self.linopy_model.add_constraints(con_lb, name=name)  # type: ignore[arg-type]
@@ -804,8 +875,8 @@ class _OptimizationProblemBuilder:
                 # Upper bound constraint: lhs <= ub  (if ub != +inf)
                 if not is_unbounded(constraint.upper_bound):
                     ub = visit(constraint.upper_bound, builder)
-                    if valid_times is not None and hasattr(ub, "dims") and "time" in ub.dims:  # type: ignore[union-attr]
-                        ub = ub.isel(time=valid_times)  # type: ignore[union-attr]
+                    if validity_mask is not None:
+                        ub = _apply_validity_mask(ub, validity_mask)
                     name = f"{prefix}__{safe_name}__ub"
                     con_ub = lhs <= ub  # type: ignore[operator]
                     self.linopy_model.add_constraints(con_ub, name=name)  # type: ignore[arg-type]
