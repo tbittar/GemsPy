@@ -35,9 +35,6 @@ class SimulationSession:
     scenario_ids: List[int]
     run_id: str = field(default_factory=lambda: str(uuid4()))
     output_dir: Optional[Path] = None
-    solver_name: str = "highs"
-    solver_logs: bool = False
-    solver_parameters: Dict[str, object] = field(default_factory=dict)
 
     def run(self) -> SimulationTable:
         """Entry point. Dispatches to the appropriate resolution strategy."""
@@ -57,7 +54,15 @@ class SimulationSession:
     # ------------------------------------------------------------------
 
     def _run_frontal(self) -> SimulationTable:
-        block = TimeBlock(0, list(range(self.optim_config.first_timestep, self.optim_config.last_timestep + 1)))
+        block = TimeBlock(
+            0,
+            list(
+                range(
+                    self.optim_config.time_scope.start_timestep,
+                    self.optim_config.time_scope.end_timestep + 1,
+                )
+            ),
+        )
         _, table = self._run_block(block, scenario_ids=self.scenario_ids)
         return table
 
@@ -68,12 +73,15 @@ class SimulationSession:
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
-            t_start = self.optim_config.first_timestep
+            t_start = self.optim_config.time_scope.start_timestep
             block_id = 0
             carry_over: Dict[Tuple[str, str], xr.DataArray] = {}
 
-            while t_start < self.optim_config.last_timestep:
-                end = min(t_start + block_length, self.optim_config.last_timestep + 1)
+            while t_start < self.optim_config.time_scope.end_timestep:
+                end = min(
+                    t_start + block_length,
+                    self.optim_config.time_scope.end_timestep + 1,
+                )
                 timesteps = list(range(t_start, end))
                 block = TimeBlock(block_id, timesteps)
                 problem, table = self._run_block(
@@ -96,9 +104,24 @@ class SimulationSession:
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
-            starts = range(self.optim_config.first_timestep, self.optim_config.last_timestep + 1, block_length)
+            starts = range(
+                self.optim_config.time_scope.start_timestep,
+                self.optim_config.time_scope.end_timestep + 1,
+                block_length,
+            )
             blocks = [
-                TimeBlock(i, list(range(t, min(t + block_length, self.optim_config.last_timestep + 1))))
+                TimeBlock(
+                    i,
+                    list(
+                        range(
+                            t,
+                            min(
+                                t + block_length,
+                                self.optim_config.time_scope.end_timestep + 1,
+                            ),
+                        )
+                    ),
+                )
                 for i, t in enumerate(starts)
             ]
             for block in blocks:
@@ -117,7 +140,15 @@ class SimulationSession:
             dump_couplings,
         )
 
-        block = TimeBlock(1, list(range(self.optim_config.first_timestep, self.optim_config.last_timestep + 1)))
+        block = TimeBlock(
+            1,
+            list(
+                range(
+                    self.optim_config.time_scope.start_timestep,
+                    self.optim_config.time_scope.end_timestep + 1,
+                )
+            ),
+        )
         decomposed = build_decomposed_problems(
             self.study, block, self.scenario_ids, self.optim_config
         )
@@ -157,9 +188,9 @@ class SimulationSession:
             initial_values=initial_values,
         )
         problem.solve(
-            solver_name=self.solver_name,
-            solver_logs=self.solver_logs,
-            **self.solver_parameters,
+            solver_name=self.optim_config.solver_options.solver,
+            solver_logs=self.optim_config.solver_options.solver_logs,
+            **self.optim_config.solver_options.parsed_solver_parameters(),
         )
         table = SimulationTableBuilder().build(
             problem, scenario_ids_remap=scenario_ids, table_id=self.run_id

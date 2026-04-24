@@ -12,7 +12,7 @@
 
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
 from pydantic import Field, ValidationError, model_validator
 from yaml import safe_load
@@ -78,7 +78,50 @@ class ResolutionConfig(ModifiedBaseModel):
         return self
 
 
+class TimeScopeConfig(ModifiedBaseModel):
+    start_timestep: int = 0
+    end_timestep: int = 0
+
+
+class SolverOptionsConfig(ModifiedBaseModel):
+    solver: str = "highs"
+    solver_logs: bool = False
+    solver_parameters: str = ""
+
+    def parsed_solver_parameters(self) -> Dict[str, Any]:
+        """Parse 'KEY VALUE KEY2 VALUE2 ...' into a dict with numeric coercion."""
+        if not self.solver_parameters.strip():
+            return {}
+        tokens = self.solver_parameters.split()
+        if len(tokens) % 2 != 0:
+            raise ValueError(
+                f"solver-parameters must be space-separated key-value pairs, got: {self.solver_parameters!r}"
+            )
+        result: Dict[str, Any] = {}
+        for i in range(0, len(tokens), 2):
+            key, raw = tokens[i], tokens[i + 1]
+            try:
+                result[key] = int(raw)
+            except ValueError:
+                try:
+                    result[key] = float(raw)
+                except ValueError:
+                    result[key] = raw
+        return result
+
+
+class ScenarioScopeConfig(ModifiedBaseModel):
+    nb_scenarios: int = 1
+
+    @property
+    def scenario_ids(self) -> List[int]:
+        return list(range(self.nb_scenarios))
+
+
 class OptimConfig(ModifiedBaseModel):
+    time_scope: TimeScopeConfig = Field(default_factory=TimeScopeConfig)
+    solver_options: SolverOptionsConfig = Field(default_factory=SolverOptionsConfig)
+    scenario_scope: ScenarioScopeConfig = Field(default_factory=ScenarioScopeConfig)
     resolution: ResolutionConfig = Field(default_factory=ResolutionConfig)
     models: List[ModelOptimConfig] = Field(default_factory=list)
 
