@@ -316,7 +316,7 @@ class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr], Generic[T_expr]):
             )
         operand = visit(node.operand, self)
         if self._has_dim(operand, "scenario"):
-            return operand.sum("scenario") / operand.size("scenario")  # type: ignore[union-attr,attr-defined,operator,return-value]
+            return operand.sum("scenario") / operand.sizes["scenario"]  # type: ignore[union-attr,attr-defined,operator,return-value]
         return operand  # type: ignore[return-value]
 
     # ------------------------------------------------------------------ #
