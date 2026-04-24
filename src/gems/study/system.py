@@ -16,7 +16,7 @@ including components and connections.
 """
 
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 from gems.model import PortField, PortType
 from gems.model.model import Model
@@ -32,6 +32,7 @@ class Component:
 
     model: Model
     id: str
+    scenario_group: Optional[str] = None
 
     def is_variable_in_model(self, var_id: str) -> bool:
         return var_id in self.model.variables.keys()
@@ -40,8 +41,10 @@ class Component:
         return replace(self, **changes)
 
 
-def create_component(model: Model, id: str) -> Component:
-    return Component(model=model, id=id)
+def create_component(
+    model: Model, id: str, scenario_group: Optional[str] = None
+) -> Component:
+    return Component(model=model, id=id, scenario_group=scenario_group)
 
 
 @dataclass(frozen=True)

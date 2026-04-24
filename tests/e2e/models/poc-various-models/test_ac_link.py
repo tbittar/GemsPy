@@ -82,7 +82,9 @@ def test_ac_network_no_links(ac_lib: dict[str, Library]) -> None:
     system.connect(PortRef(gen, "balance_port"), PortRef(node, "injections"))
 
     scenarios = 1
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(
+        Study(system, database), TimeBlock(1, [0]), list(range(scenarios))
+    )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3000, abs=0.01)
@@ -138,7 +140,9 @@ def test_ac_network(ac_lib: dict[str, Library]) -> None:
     system.connect(PortRef(link, "port2"), PortRef(node2, "links"))
 
     scenarios = 1
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(
+        Study(system, database), TimeBlock(1, [0]), list(range(scenarios))
+    )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3500, abs=0.01)
@@ -207,7 +211,9 @@ def test_parallel_ac_links(ac_lib: dict[str, Library]) -> None:
     system.connect(PortRef(link2, "port2"), PortRef(node2, "links"))
 
     scenarios = 1
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(
+        Study(system, database), TimeBlock(1, [0]), list(range(scenarios))
+    )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3500, abs=0.01)
@@ -284,7 +290,9 @@ def test_parallel_ac_links_with_pst(ac_lib: dict[str, Library]) -> None:
     system.connect(PortRef(link2, "port2"), PortRef(node2, "links"))
 
     scenarios = 1
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(
+        Study(system, database), TimeBlock(1, [0]), list(range(scenarios))
+    )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == pytest.approx(3550, abs=0.01)

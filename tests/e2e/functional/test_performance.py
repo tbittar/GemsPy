@@ -77,7 +77,9 @@ def test_large_sum_inside_model_with_loop() -> None:
     cost_model = create_component(model=SIMPLE_COST_MODEL, id="simple_cost")
     system.add_component(cost_model)
 
-    problem = build_problem(Study(system, database), time_blocks[0], scenarios)
+    problem = build_problem(
+        Study(system, database), time_blocks[0], list(range(scenarios))
+    )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert math.isclose(
@@ -112,7 +114,9 @@ def test_large_sum_outside_model_with_loop() -> None:
     )
     system.add_component(simple_model)
 
-    problem = build_problem(Study(system, database), time_blocks[0], scenarios)
+    problem = build_problem(
+        Study(system, database), time_blocks[0], list(range(scenarios))
+    )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == obj_coeff
@@ -159,7 +163,9 @@ def test_large_sum_inside_model_with_sum_operator() -> None:
     cost_model = create_component(model=SIMPLE_COST_MODEL, id="simple_cost")
     system.add_component(cost_model)
 
-    problem = build_problem(Study(system, database), time_blocks[0], scenarios)
+    problem = build_problem(
+        Study(system, database), time_blocks[0], list(range(scenarios))
+    )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 3 * nb_terms
@@ -201,7 +207,7 @@ def test_large_sum_of_port_connections() -> None:
             PortRef(generators[gen_id], "balance_port"), PortRef(node, "balance_port")
         )
 
-    problem = build_problem(Study(system, database), time_block, scenarios)
+    problem = build_problem(Study(system, database), time_block, list(range(scenarios)))
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 5 * nb_generators
@@ -237,7 +243,9 @@ def test_basic_balance_on_whole_year() -> None:
     system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     with cProfile.Profile() as pr:
-        problem = build_problem(Study(system, database), time_block, scenarios)
+        problem = build_problem(
+            Study(system, database), time_block, list(range(scenarios))
+        )
         pr.print_stats(sort=SortKey.CUMULATIVE)
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
@@ -275,7 +283,7 @@ def test_basic_balance_on_whole_year_with_large_sum() -> None:
     system.connect(PortRef(demand, "balance_port"), PortRef(node, "balance_port"))
     system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
-    problem = build_problem(Study(system, database), time_block, scenarios)
+    problem = build_problem(Study(system, database), time_block, list(range(scenarios)))
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     assert problem.objective_value == 30 * 100 * horizon

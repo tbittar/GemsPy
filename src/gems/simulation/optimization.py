@@ -272,7 +272,6 @@ class OptimizationProblem:
         linopy_model: LinopyModel,
         study: Study,
         block: TimeBlock,
-        scenarios: int,
         linopy_vars: Dict[Tuple[str, str], linopy.Variable],
         param_arrays: Dict[Tuple[str, str], xr.DataArray],
         objective_constant: float = 0.0,
@@ -281,7 +280,6 @@ class OptimizationProblem:
         self.linopy_model = linopy_model
         self.study = study
         self.block = block
-        self.scenarios = scenarios
         self._linopy_vars = linopy_vars
         self.param_arrays = param_arrays
         # Constant term of the objective (linopy cannot represent pure-constant objectives).
@@ -347,18 +345,20 @@ class _OptimizationProblemBuilder:
         name: str,
         study: Study,
         block: TimeBlock,
-        scenarios: int,
+        scenario_ids: List[int],
         location_filter: Optional[DecompositionFilter] = None,
+        initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
     ) -> None:
         self.name = name
         self.study = study
         self.block = block
-        self.scenarios = scenarios
+        self.scenario_ids = scenario_ids
         self._location_filter = location_filter
+        self._initial_values = initial_values or {}
 
         self.block_length = len(block.timesteps)
         self.time_coord = list(range(self.block_length))
-        self.scenario_coord = list(range(scenarios))
+        self.local_scenario_coord = list(range(len(scenario_ids)))
 
         # Populated during build
         self.linopy_model = linopy.Model()
@@ -389,6 +389,16 @@ class _OptimizationProblemBuilder:
                 model, port_arrays_for_model, total_obj
             )
 
+        # Phase 5: carry-over constraints (sequential mode only)
+        for (mk, var_name), init_val in self._initial_values.items():
+            linopy_var = self.linopy_vars.get((mk, var_name))
+            if linopy_var is not None and "time" in linopy_var.dims:
+                safe = f"{mk}__{var_name}".replace("-", "_")
+                self.linopy_model.add_constraints(
+                    linopy_var.isel(time=0) == init_val,  # type: ignore[arg-type]
+                    name=f"carry_over__{safe}",
+                )
+
         # Extract constant objective contribution (linopy cannot hold pure constants).
         objective_constant = 0.0
         if total_obj is not None and not isinstance(
@@ -415,7 +425,6 @@ class _OptimizationProblemBuilder:
             linopy_model=self.linopy_model,
             study=self.study,
             block=self.block,
-            scenarios=self.scenarios,
             linopy_vars=self.linopy_vars,
             param_arrays=self.param_arrays,
             objective_constant=objective_constant,
@@ -429,7 +438,7 @@ class _OptimizationProblemBuilder:
         self, model: Model, components: List[Component]
     ) -> None:
         T = self.block_length
-        S = self.scenarios
+        S = len(self.scenario_ids)
         C = len(components)
         comp_ids = [c.id for c in components]
         abs_timesteps = self.block.timesteps  # mapping: block_t → abs_t
@@ -447,7 +456,7 @@ class _OptimizationProblemBuilder:
                 coords: Dict[str, object] = {
                     "component": comp_ids,
                     "time": self.time_coord,
-                    "scenario": self.scenario_coord,
+                    "scenario": self.local_scenario_coord,
                 }
             elif use_time:
                 data = np.zeros((C, T))
@@ -456,7 +465,7 @@ class _OptimizationProblemBuilder:
             elif use_scenario:
                 data = np.zeros((C, S))
                 dims = ["component", "scenario"]
-                coords = {"component": comp_ids, "scenario": self.scenario_coord}
+                coords = {"component": comp_ids, "scenario": self.local_scenario_coord}
             else:
                 data = np.zeros((C,))
                 dims = ["component"]
@@ -475,26 +484,32 @@ class _OptimizationProblemBuilder:
                     else:
                         data[i] = v  # constant in time
                 elif isinstance(param_data, ScenarioSeriesData):
-                    for s in range(S):
-                        v = param_data.get_value(None, s)  # type: ignore[assignment]
+                    for s_pos in range(S):
+                        s_col = self.study.scenario_builder.resolve(
+                            c.scenario_group, self.scenario_ids[s_pos]
+                        )
+                        v = param_data.get_value(None, s_col)  # type: ignore[assignment]
                         if use_time and use_scenario:
-                            data[i, :, s] = v
+                            data[i, :, s_pos] = v
                         elif use_scenario:
-                            data[i, s] = v
+                            data[i, s_pos] = v
                         else:
                             data[i] = v  # constant in scenario
                 else:
                     # TimeScenarioSeriesData
-                    for s in range(S):
+                    for s_pos in range(S):
+                        s_col = self.study.scenario_builder.resolve(
+                            c.scenario_group, self.scenario_ids[s_pos]
+                        )
                         v = param_data.get_value(  # type: ignore[assignment]
-                            abs_timesteps, s
+                            abs_timesteps, s_col
                         )
                         if use_time and use_scenario:
-                            data[i, :, s] = v
+                            data[i, :, s_pos] = v
                         elif use_time:
                             data[i, :] = v
                         elif use_scenario:
-                            data[i, s] = v
+                            data[i, s_pos] = v
                         else:
                             data[i] = v  # take any single value
 
@@ -521,7 +536,7 @@ class _OptimizationProblemBuilder:
                     coords["time"] = self.time_coord
                     dims.append("time")
                 if var.structure.scenario:
-                    coords["scenario"] = self.scenario_coord
+                    coords["scenario"] = self.local_scenario_coord
                     dims.append("scenario")
 
                 # Shape of this variable (used to broadcast scalar bounds)
@@ -532,7 +547,7 @@ class _OptimizationProblemBuilder:
                         else (
                             len(self.time_coord)
                             if d == "time"
-                            else len(self.scenario_coord)
+                            else len(self.local_scenario_coord)
                         )
                     )
                     for d in dims
@@ -545,7 +560,6 @@ class _OptimizationProblemBuilder:
                     param_arrays=self.param_arrays,
                     port_arrays={},
                     block_length=self.block_length,
-                    scenarios_count=self.scenarios,
                 )
 
                 lower: object = (
@@ -721,7 +735,6 @@ class _OptimizationProblemBuilder:
             param_arrays=self.param_arrays,
             port_arrays=port_arrays,
             block_length=self.block_length,
-            scenarios_count=self.scenarios,
         )
 
 
@@ -733,10 +746,11 @@ class _OptimizationProblemBuilder:
 def build_problem(
     study: Study,
     block: TimeBlock,
-    scenarios: int,
+    scenario_ids: List[int],
     *,
     problem_name: str = "optimization_problem",
     border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
+    initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
 ) -> OptimizationProblem:
     """
     Build and return an OptimizationProblem for the given time block.
@@ -748,12 +762,17 @@ def build_problem(
         the DataBase (parameter values for those components).
     block:
         The time block to optimize.
-    scenarios:
-        Number of scenarios.
+    scenario_ids:
+        List of MC scenario IDs to include.  Each ID is resolved to a
+        time-series column via ``study.scenario_builder``.
     problem_name:
         Label for the linopy model.
     border_management:
         How to handle time steps at block borders (only CYCLE is implemented).
+    initial_values:
+        Optional carry-over values keyed by ``(model_id, var_name)``.  For
+        each entry a constraint ``var[time=0] == value`` is added, overriding
+        the cyclic border condition for the first timestep.
     """
     if border_management != BlockBorderManagement.CYCLE:
         raise NotImplementedError(
@@ -767,7 +786,8 @@ def build_problem(
         name=problem_name,
         study=study,
         block=block,
-        scenarios=scenarios,
+        scenario_ids=scenario_ids,
+        initial_values=initial_values,
     )
     return builder.build()
 
@@ -799,7 +819,7 @@ class DecomposedProblems:
 def build_decomposed_problems(
     study: Study,
     block: TimeBlock,
-    scenarios: int,
+    scenario_ids: List[int],
     optim_config: "OptimConfig",
     *,
     subproblem_name: str = "subproblem",
@@ -819,7 +839,7 @@ def build_decomposed_problems(
     study:
         Container holding both the System and the DataBase.
         Same semantics as :func:`build_problem`.
-    block, scenarios:
+    block, scenario_ids:
         Same semantics as :func:`build_problem`.
     optim_config:
         Parsed ``OptimConfig`` from an ``optim-config.yml`` file.
@@ -852,7 +872,7 @@ def build_decomposed_problems(
         name=subproblem_name,
         study=study,
         block=block,
-        scenarios=scenarios,
+        scenario_ids=scenario_ids,
         location_filter=DecompositionFilter(optim_config, sub_locs),
     ).build()
 
@@ -862,7 +882,7 @@ def build_decomposed_problems(
             name=master_name,
             study=study,
             block=block,
-            scenarios=scenarios,
+            scenario_ids=scenario_ids,
             location_filter=DecompositionFilter(optim_config, master_locs),
         ).build()
 

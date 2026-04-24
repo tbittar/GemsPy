@@ -62,7 +62,9 @@ def test_extra_output_with_sum_connections() -> None:
         PortRef(gen_comp, "balance_port"), PortRef(node_comp, "balance_port")
     )
 
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios=1)
+    problem = build_problem(
+        Study(system, database), TimeBlock(1, [0]), scenario_ids=list(range(1))
+    )
     problem.solve(solver_name="highs")
 
     df = SimulationTableBuilder().build(problem)
@@ -104,7 +106,9 @@ def test_extra_output_nonlinear() -> None:
     system = System("test_nonlinear")
     system.add_component(comp)
 
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios=1)
+    problem = build_problem(
+        Study(system, database), TimeBlock(1, [0]), scenario_ids=list(range(1))
+    )
     problem.solve(solver_name="highs")
 
     df = SimulationTableBuilder().build(problem)

@@ -243,7 +243,7 @@ def test_single_lag2_forced_odd_spillage() -> None:
     problem = build_problem(
         Study(system, database),
         TimeBlock(1, list(range(horizon))),
-        scenarios=1,
+        scenario_ids=list(range(1)),
         border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
@@ -297,7 +297,7 @@ def test_two_components_different_lags_asymmetric_demand() -> None:
     problem = build_problem(
         Study(system, database),
         TimeBlock(1, list(range(horizon))),
-        scenarios=1,
+        scenario_ids=list(range(1)),
         border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
@@ -358,7 +358,7 @@ def test_three_components_distinct_lags_orbit_spillage() -> None:
     problem = build_problem(
         Study(system, database),
         TimeBlock(1, list(range(horizon))),
-        scenarios=1,
+        scenario_ids=list(range(1)),
         border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
@@ -423,7 +423,7 @@ def test_two_components_different_lags_yaml(
     problem = build_problem(
         Study(system, database),
         TimeBlock(1, list(range(4))),
-        scenarios=1,
+        scenario_ids=list(range(1)),
         border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")

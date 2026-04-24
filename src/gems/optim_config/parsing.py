@@ -14,7 +14,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Set
 
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, model_validator
 from yaml import safe_load
 
 from gems.expression.expression import (
@@ -56,12 +56,30 @@ class ModelOptimConfig(ModifiedBaseModel):
 
 
 class ResolutionMode(str, Enum):
+    FRONTAL = "frontal"
     SEQUENTIAL_SUBPROBLEMS = "sequential-subproblems"
+    PARALLEL_SUBPROBLEMS = "parallel-subproblems"
     BENDERS_DECOMPOSITION = "benders-decomposition"
 
 
+class ResolutionConfig(ModifiedBaseModel):
+    mode: ResolutionMode = ResolutionMode.FRONTAL
+    block_length: Optional[int] = None
+    block_overlap: int = 0
+
+    @model_validator(mode="after")
+    def _block_length_required_for_windowed_modes(self) -> "ResolutionConfig":
+        windowed = {
+            ResolutionMode.SEQUENTIAL_SUBPROBLEMS,
+            ResolutionMode.PARALLEL_SUBPROBLEMS,
+        }
+        if self.mode in windowed and self.block_length is None:
+            raise ValueError(f"'block_length' is required for mode '{self.mode.value}'")
+        return self
+
+
 class OptimConfig(ModifiedBaseModel):
-    resolution_mode: ResolutionMode = ResolutionMode.SEQUENTIAL_SUBPROBLEMS
+    resolution: ResolutionConfig = Field(default_factory=ResolutionConfig)
     models: List[ModelOptimConfig] = Field(default_factory=list)
 
 

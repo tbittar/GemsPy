@@ -126,15 +126,12 @@ class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr], Generic[T_expr]):
         Keyed by ``PortFieldId(port_name, field_name)``.
     block_length:
         Number of time steps in the current time block.
-    scenarios_count:
-        Number of scenarios.
     """
 
     model_id: str
     param_arrays: Dict[Tuple[str, str], xr.DataArray]
     port_arrays: Dict[PortFieldId, T_expr]
     block_length: int
-    scenarios_count: int
 
     # ------------------------------------------------------------------ #
     # Abstract                                                              #
@@ -319,7 +316,7 @@ class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr], Generic[T_expr]):
             )
         operand = visit(node.operand, self)
         if self._has_dim(operand, "scenario"):
-            return operand.sum("scenario") / self.scenarios_count  # type: ignore[union-attr,attr-defined,operator,return-value]
+            return operand.sum("scenario") / operand.sizes["scenario"]  # type: ignore[union-attr,attr-defined,operator,return-value]
         return operand  # type: ignore[return-value]
 
     # ------------------------------------------------------------------ #

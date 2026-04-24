@@ -40,7 +40,7 @@ def build_pypsa_problem(system: System, database: DataBase, time_horizon: int) -
     scenarios = 1
     time_block = TimeBlock(1, list(range(time_horizon)))
     start = time.time()
-    problem = build_problem(Study(system, database), time_block, scenarios)
+    problem = build_problem(Study(system, database), time_block, list(range(scenarios)))
     end = time.time()
     print(f"Time elapsed for horizon {time_horizon}: {end - start:.4f}")
     return end - start
