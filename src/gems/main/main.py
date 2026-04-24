@@ -64,50 +64,10 @@ def _write_structure_txt(
 
 def main_cli() -> None:
     parsed_args = parse_cli()
-<<<<<<< claude/gemspy-issue-106-strategy-XZfgE
     run_study(
         study_dir=parsed_args.study_dir,
         optim_config_path=parsed_args.optim_config_path,
     )
-=======
-
-    lib_dict = input_libs(parsed_args.models_path)
-    system = input_system(parsed_args.components_path, lib_dict)
-
-    models = {}
-    for lib in lib_dict.values():
-        models.update(lib.models)
-
-    consistency_check(system, models)
-
-    try:
-        database = input_database(
-            parsed_args.components_path, parsed_args.timeseries_path
-        )
-    except UnboundLocalError:
-        raise AntaresTimeSeriesImportError(
-            "An error occurred while importing time series."
-        )
-
-    study = Study(system=system, database=database)
-    optim_config = load_optim_config(parsed_args.components_path)
-    if optim_config is not None:
-        validate_optim_config(optim_config, system)
-
-    try:
-        session = SimulationSession(
-            study=study,
-            optim_config=optim_config or OptimConfig(),
-            study_length=parsed_args.duration,
-            scenario_ids=list(range(parsed_args.nb_scenarios)),
-            output_dir=parsed_args.components_path.parent,
-        )
-        session.run()
-    except IndexError as e:
-        raise IndexError(
-            f"{e}. Did parameters '--duration' and '--scenario' were correctly set?"
-        )
->>>>>>> main
 
 
 if __name__ == "__main__":
