@@ -108,7 +108,7 @@ def main_cli() -> None:
         session = SimulationSession(
             study=study,
             optim_config=optim_config or OptimConfig(),
-            total_timesteps=parsed_args.duration,
+            study_length=parsed_args.duration,
             scenario_ids=list(range(parsed_args.nb_scenarios)),
             output_dir=parsed_args.components_path.parent,
         )

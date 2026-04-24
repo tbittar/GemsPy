@@ -37,7 +37,7 @@ from gems.study.study import Study
 class SimulationSession:
     study: Study
     optim_config: OptimConfig
-    total_timesteps: int
+    study_length: int
     scenario_ids: List[int]
     run_id: str = field(default_factory=lambda: str(uuid4()))
     output_dir: Optional[Path] = None
@@ -60,14 +60,14 @@ class SimulationSession:
     # ------------------------------------------------------------------
 
     def _run_frontal(self) -> SimulationTable:
-        block = TimeBlock(0, list(range(self.total_timesteps)))
+        block = TimeBlock(0, list(range(self.study_length)))
         _problem, table = self._run_block(block, scenario_ids=self.scenario_ids)
         return table
 
     def _run_sequential(self) -> SimulationTable:
         cfg = self.optim_config.resolution
-        horizon: int = cfg.horizon  # type: ignore[assignment]
-        overlap: int = cfg.overlap
+        block_length: int = cfg.block_length  # type: ignore[assignment]
+        block_overlap: int = cfg.block_overlap
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
@@ -75,8 +75,8 @@ class SimulationSession:
             block_id = 0
             carry_over: Dict[Tuple[str, str], xr.DataArray] = {}
 
-            while t_start < self.total_timesteps:
-                end = min(t_start + horizon, self.total_timesteps)
+            while t_start < self.study_length:
+                end = min(t_start + block_length, self.study_length)
                 timesteps = list(range(t_start, end))
                 block = TimeBlock(block_id, timesteps)
                 problem, table = self._run_block(
@@ -88,20 +88,20 @@ class SimulationSession:
                 carry_over = self._extract_carry_over(
                     problem, local_index=len(timesteps) - 1
                 )
-                t_start += horizon - overlap
+                t_start += block_length - block_overlap
                 block_id += 1
 
         return self._reduce(tables)
 
     def _run_parallel(self) -> SimulationTable:
         cfg = self.optim_config.resolution
-        horizon: int = cfg.horizon  # type: ignore[assignment]
+        block_length: int = cfg.block_length  # type: ignore[assignment]
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
-            starts = range(0, self.total_timesteps, horizon)
+            starts = range(0, self.study_length, block_length)
             blocks = [
-                TimeBlock(i, list(range(t, min(t + horizon, self.total_timesteps))))
+                TimeBlock(i, list(range(t, min(t + block_length, self.study_length))))
                 for i, t in enumerate(starts)
             ]
             for block in blocks:
@@ -120,7 +120,7 @@ class SimulationSession:
             dump_couplings,
         )
 
-        block = TimeBlock(1, list(range(self.total_timesteps)))
+        block = TimeBlock(1, list(range(self.study_length)))
         decomposed = build_decomposed_problems(
             self.study, block, self.scenario_ids, self.optim_config
         )
@@ -183,7 +183,7 @@ class SimulationSession:
 
 def load_session(
     study_dir: Path,
-    total_timesteps: int,
+    study_length: int,
     scenario_ids: List[int],
     run_id: Optional[str] = None,
     output_dir: Optional[Path] = None,
@@ -195,7 +195,7 @@ def load_session(
     return SimulationSession(
         study=study,
         optim_config=optim_config,
-        total_timesteps=total_timesteps,
+        study_length=study_length,
         scenario_ids=scenario_ids,
         run_id=run_id or str(uuid4()),
         output_dir=output_dir,

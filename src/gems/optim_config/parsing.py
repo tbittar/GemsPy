@@ -64,17 +64,17 @@ class ResolutionMode(str, Enum):
 
 class ResolutionConfig(ModifiedBaseModel):
     mode: ResolutionMode = ResolutionMode.FRONTAL
-    horizon: Optional[int] = None
-    overlap: int = 0
+    block_length: Optional[int] = None
+    block_overlap: int = 0
 
     @model_validator(mode="after")
-    def _horizon_required_for_windowed_modes(self) -> "ResolutionConfig":
+    def _block_length_required_for_windowed_modes(self) -> "ResolutionConfig":
         windowed = {
             ResolutionMode.SEQUENTIAL_SUBPROBLEMS,
             ResolutionMode.PARALLEL_SUBPROBLEMS,
         }
-        if self.mode in windowed and self.horizon is None:
-            raise ValueError(f"'horizon' is required for mode '{self.mode.value}'")
+        if self.mode in windowed and self.block_length is None:
+            raise ValueError(f"'block_length' is required for mode '{self.mode.value}'")
         return self
 
 
