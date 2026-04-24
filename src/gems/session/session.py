@@ -124,14 +124,16 @@ class SimulationSession:
         decomposed = build_decomposed_problems(
             self.study, block, self.scenario_ids, self.optim_config
         )
-        
+
         if decomposed.master is not None and self.output_dir is not None:
             dump_couplings(
                 build_couplings(decomposed, self.optim_config), self.output_dir
             )
             BendersRunner(emplacement=self.output_dir).run()
         else:
-            raise RuntimeError("Benders decomposition requires a master problem and an output directory for coupling files.")
+            raise RuntimeError(
+                "Benders decomposition requires a master problem and an output directory for coupling files."
+            )
         return SimulationTable(pd.DataFrame())
 
     # ------------------------------------------------------------------
@@ -176,10 +178,10 @@ class SimulationSession:
         solution = problem.linopy_model.solution
         if solution is None:
             return carry_over
-        for (mk, var_name), lv in problem._linopy_vars.items():
-            if "time" in lv.dims and lv.name in solution:
-                sol_da: xr.DataArray = solution[lv.name]
-                carry_over[(mk, var_name)] = sol_da.isel(time=local_index, drop=True)
+        for (model, var_name), linopy_var in problem._linopy_vars.items():
+            if "time" in linopy_var.dims and linopy_var.name in solution:
+                sol_da: xr.DataArray = solution[linopy_var.name]
+                carry_over[(model, var_name)] = sol_da.isel(time=local_index, drop=True)
         return carry_over
 
 
