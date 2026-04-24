@@ -84,7 +84,6 @@ def builder(
         param_arrays={("m", "p"): param_da},
         port_arrays={},
         block_length=3,
-        scenarios_count=2,
     )
 
 
@@ -97,7 +96,6 @@ def empty_builder() -> VectorizedLinearExprBuilder:
         param_arrays={},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
 
 
@@ -202,7 +200,6 @@ def test_parameter_wrong_model_id_raises(param_da: xr.DataArray) -> None:
         param_arrays={("A", "p"): param_da},  # wrong model id
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     with pytest.raises(KeyError):
         visit(param("p"), b)
@@ -244,7 +241,6 @@ def test_variable_key_includes_model_id(
         param_arrays={},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     with pytest.raises(KeyError):
         visit(var("x"), b)
@@ -463,7 +459,6 @@ def test_time_shift_by_zero(empty_builder: VectorizedLinearExprBuilder) -> None:
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").shift(0), b)
     xr.testing.assert_allclose(result, da)
@@ -478,7 +473,6 @@ def test_time_shift_by_one_cycles(empty_builder: VectorizedLinearExprBuilder) ->
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").shift(1), b)
     expected = _scalar_time_da([2.0, 3.0, 1.0])
@@ -496,7 +490,6 @@ def test_time_shift_by_negative_one_cycles(
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").shift(-1), b)
     expected = _scalar_time_da([3.0, 1.0, 2.0])
@@ -512,7 +505,6 @@ def test_time_shift_by_block_length_is_identity() -> None:
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").shift(3), b)  # shift by block_length
     xr.testing.assert_allclose(result, da)
@@ -527,7 +519,6 @@ def test_time_shift_on_no_time_dim_is_noop() -> None:
         param_arrays={("m", "s"): scalar},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").shift(1), b)
     assert float(result) == pytest.approx(99.0)
@@ -542,7 +533,6 @@ def test_time_shift_coordinates_are_reassigned() -> None:
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").shift(1), b)
     assert list(result.coords["time"].values) == [0, 1, 2]
@@ -561,7 +551,6 @@ def test_time_eval_selects_correct_timestep() -> None:
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").eval(1), b)
     # Should select time=1, squeezing the time dim
@@ -578,7 +567,6 @@ def test_time_eval_wraps_beyond_block() -> None:
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     r1 = visit(param("s").eval(1), b)
     r4 = visit(param("s").eval(4), b)  # 4 % 3 = 1
@@ -593,7 +581,6 @@ def test_time_eval_on_no_time_dim() -> None:
         param_arrays={("m", "s"): scalar},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").eval(2), b)
     assert float(result) == pytest.approx(7.0)
@@ -612,7 +599,6 @@ def test_all_time_sum_with_time_dim() -> None:
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").time_sum(), b)
     assert "time" not in result.dims
@@ -627,7 +613,6 @@ def test_all_time_sum_without_time_dim_multiplies_block_length() -> None:
         param_arrays={("m", "s"): scalar},
         port_arrays={},
         block_length=4,
-        scenarios_count=1,
     )
     result = visit(param("s").time_sum(), b)
     assert float(result) == pytest.approx(20.0)  # 5.0 * 4
@@ -647,7 +632,6 @@ def test_time_sum_same_from_and_to_equals_single_shift() -> None:
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").time_sum(0, 0), b)
     xr.testing.assert_allclose(result, da)
@@ -662,7 +646,6 @@ def test_time_sum_range_sums_correctly() -> None:
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=3,
-        scenarios_count=1,
     )
     result = visit(param("s").time_sum(0, 2), b)
     np.testing.assert_allclose(result.values.flatten(), [3.0, 3.0, 3.0])
@@ -692,7 +675,6 @@ def test_expectation_with_scenario_dim() -> None:
         param_arrays={("m", "s"): da},
         port_arrays={},
         block_length=1,
-        scenarios_count=2,
     )
     result = visit(param("s").expec(), b)
     # sum([10, 20]) / 2 = 15
@@ -708,7 +690,6 @@ def test_expectation_without_scenario_dim_is_noop() -> None:
         param_arrays={("m", "s"): scalar},
         port_arrays={},
         block_length=1,
-        scenarios_count=3,
     )
     result = visit(param("s").expec(), b)
     assert float(result) == pytest.approx(42.0)
@@ -726,7 +707,6 @@ def test_variance_scenario_operator_raises_at_node_construction() -> None:
         param_arrays={("m", "s"): scalar},
         port_arrays={},
         block_length=1,
-        scenarios_count=1,
     )
     # var("s").variance() builds ScenarioOperatorNode with name="Variance"
     expr = param("s").variance()
@@ -748,7 +728,6 @@ def test_port_field_found() -> None:
         param_arrays={},
         port_arrays={key: da},
         block_length=1,
-        scenarios_count=1,
     )
     from gems.expression.expression import port_field
 
@@ -779,7 +758,6 @@ def test_port_sum_with_connection_returns_expression() -> None:
         param_arrays={},
         port_arrays={key: da},
         block_length=1,
-        scenarios_count=1,
     )
     from gems.expression.expression import port_field
 
