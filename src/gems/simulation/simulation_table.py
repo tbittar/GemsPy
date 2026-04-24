@@ -266,7 +266,6 @@ class SimulationTableBuilder:
                     var_solution_arrays=var_solution_arrays,
                     port_arrays={},
                     block_length=problem.block_length,
-                    scenarios_count=problem.scenarios,
                 ),
             )
 
@@ -277,7 +276,6 @@ class SimulationTableBuilder:
                     var_solution_arrays=var_solution_arrays,
                     port_arrays=port_arrays,
                     block_length=problem.block_length,
-                    scenarios_count=problem.scenarios,
                 )
                 result_da: xr.DataArray = cast(xr.DataArray, visit(expr_node, builder))
 

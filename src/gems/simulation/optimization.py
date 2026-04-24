@@ -266,7 +266,6 @@ class OptimizationProblem:
         linopy_model: linopy.Model,
         study: Study,
         block: TimeBlock,
-        scenarios: int,
         linopy_vars: Dict[Tuple[str, str], linopy.Variable],
         param_arrays: Dict[Tuple[str, str], xr.DataArray],
         objective_constant: float = 0.0,
@@ -451,7 +450,7 @@ class _OptimizationProblemBuilder:
                 coords: Dict[str, object] = {
                     "component": comp_ids,
                     "time": self.time_coord,
-                    "scenario": self.scenario_coord,
+                    "scenario": self.local_scenario_coord,
                 }
             elif use_time:
                 data = np.zeros((C, T))
