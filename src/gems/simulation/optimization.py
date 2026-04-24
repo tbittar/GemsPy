@@ -275,7 +275,6 @@ class OptimizationProblem:
         self.linopy_model = linopy_model
         self.study = study
         self.block = block
-        self.scenarios = scenarios
         self._linopy_vars = linopy_vars
         self.param_arrays = param_arrays
         # Constant term of the objective (linopy cannot represent pure-constant objectives).
@@ -349,13 +348,12 @@ class _OptimizationProblemBuilder:
         self.study = study
         self.block = block
         self.scenario_ids = scenario_ids
-        self.scenarios = len(scenario_ids)
         self._location_filter = location_filter
         self._initial_values = initial_values or {}
 
         self.block_length = len(block.timesteps)
         self.time_coord = list(range(self.block_length))
-        self.scenario_coord = list(range(len(scenario_ids)))
+        self.local_scenario_coord = list(range(len(scenario_ids)))
 
         # Populated during build
         self.linopy_model = linopy.Model()
@@ -422,7 +420,6 @@ class _OptimizationProblemBuilder:
             linopy_model=self.linopy_model,
             study=self.study,
             block=self.block,
-            scenarios=self.scenarios,
             linopy_vars=self.linopy_vars,
             param_arrays=self.param_arrays,
             objective_constant=objective_constant,
@@ -436,7 +433,7 @@ class _OptimizationProblemBuilder:
         self, model: Model, components: List[Component]
     ) -> None:
         T = self.block_length
-        S = self.scenarios
+        S = len(self.scenario_ids)
         C = len(components)
         comp_ids = [c.id for c in components]
         abs_timesteps = self.block.timesteps  # mapping: block_t → abs_t
@@ -463,7 +460,7 @@ class _OptimizationProblemBuilder:
             elif use_scenario:
                 data = np.zeros((C, S))
                 dims = ["component", "scenario"]
-                coords = {"component": comp_ids, "scenario": self.scenario_coord}
+                coords = {"component": comp_ids, "scenario": self.local_scenario_coord}
             else:
                 data = np.zeros((C,))
                 dims = ["component"]
@@ -534,7 +531,7 @@ class _OptimizationProblemBuilder:
                     coords["time"] = self.time_coord
                     dims.append("time")
                 if var.structure.scenario:
-                    coords["scenario"] = self.scenario_coord
+                    coords["scenario"] = self.local_scenario_coord
                     dims.append("scenario")
 
                 # Shape of this variable (used to broadcast scalar bounds)
@@ -545,7 +542,7 @@ class _OptimizationProblemBuilder:
                         else (
                             len(self.time_coord)
                             if d == "time"
-                            else len(self.scenario_coord)
+                            else len(self.local_scenario_coord)
                         )
                     )
                     for d in dims
@@ -558,7 +555,6 @@ class _OptimizationProblemBuilder:
                     param_arrays=self.param_arrays,
                     port_arrays={},
                     block_length=self.block_length,
-                    scenarios_count=self.scenarios,
                 )
 
                 lower: object = (
@@ -734,7 +730,6 @@ class _OptimizationProblemBuilder:
             param_arrays=self.param_arrays,
             port_arrays=port_arrays,
             block_length=self.block_length,
-            scenarios_count=self.scenarios,
         )
 
 
