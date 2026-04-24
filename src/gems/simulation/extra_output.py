@@ -104,8 +104,6 @@ class VectorizedExtraOutputBuilder(VectorizedBuilderBase[xr.DataArray]):
         Keyed by PortFieldId(port_name, field_name).
     block_length:
         Number of time steps in the current time block.
-    scenarios_count:
-        Number of scenarios.
     """
 
     var_solution_arrays: Dict[Tuple[str, str], xr.DataArray]

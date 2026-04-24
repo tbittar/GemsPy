@@ -21,5 +21,6 @@ from .data import (
     TimeScenarioSeriesData,
     TimeSeriesData,
 )
+from .scenario_builder import ScenarioBuilder
 from .study import Study
 from .system import Component, PortRef, PortsConnection, System, create_component

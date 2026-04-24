@@ -26,6 +26,7 @@ from gems.simulation.simulation_table import (
 @dataclass(frozen=True)
 class FakeBlock:
     id: int = 1
+    timesteps: tuple = (0, 1)
 
 
 @dataclass

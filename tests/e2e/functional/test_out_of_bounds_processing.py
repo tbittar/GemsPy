@@ -70,6 +70,7 @@ from typing import Dict
 import linopy
 import pytest
 
+from gems.optim_config.parsing import OptimConfig, load_optim_config
 from gems.simulation import TimeBlock, build_decomposed_problems
 from gems.simulation.simulation_table import (
     SimulationTableBuilder,
@@ -97,18 +98,14 @@ def _count_active(model: linopy.Model, name: str) -> int:
 )
 def test_out_of_bounds_processing(study_id: str, expected_objective: float) -> None:
     study = load_study(STUDIES_DIR / study_id)
-
-    assert (
-        study.optim_config is not None
-    ), f"optim-config.yml not found in {STUDIES_DIR / study_id / 'input'}"
+    config_path = STUDIES_DIR / study_id / "input" / "optim-config.yml"
+    optim_config = load_optim_config(config_path)
 
     # 3-step block matching the study parameters (first-time-step: 0, last-time-step: 2)
     time_block = TimeBlock(1, [0, 1, 2])
-    scenarios = 1
+    scenarios = [0]
 
-    decomposed = build_decomposed_problems(
-        study, time_block, scenarios, study.optim_config
-    )
+    decomposed = build_decomposed_problems(study, time_block, scenarios, optim_config)
     decomposed.subproblem.solve(solver_name="highs")
 
     passed = False

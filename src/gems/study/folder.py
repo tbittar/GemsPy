@@ -6,6 +6,7 @@ A study is defined by a directory containing:
 - `input/model-libraries/`: A folder containing model library files in YAML format.
 - `input/data-series/`: A folder containing data series files.
 """
+
 import time
 from pathlib import Path
 from typing import Optional
@@ -16,8 +17,6 @@ import pandas as pd
 from gems.model.model import Model
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.optim_config import load_optim_config
-from gems.optim_config.parsing import validate_optim_config
 from gems.simulation import TimeBlock, build_problem
 from gems.simulation.optimization import OptimizationProblem
 from gems.study.parsing import parse_yaml_components
@@ -26,6 +25,7 @@ from gems.study.resolve_components import (
     consistency_check,
     resolve_system,
 )
+from gems.study.scenario_builder import ScenarioBuilder
 from gems.study.study import Study
 
 
@@ -46,7 +46,6 @@ def load_study(study_dir: Path) -> Study:
     system_file = study_dir / "input" / "system.yml"
     lib_folder = study_dir / "input" / "model-libraries"
     series_dir = study_dir / "input" / "data-series"
-    config_file = study_dir / "input" / "optim-config.yml"
 
     input_libraries = []
     for lib_file in lib_folder.glob("*.yml"):
@@ -63,14 +62,13 @@ def load_study(study_dir: Path) -> Study:
     consistency_check(system, model_dict)
 
     database = build_data_base(input_study, series_dir)
-
-    optim_config = None
-    if config_file.exists():
-        optim_config = load_optim_config(config_file)
-        if optim_config is not None:
-            validate_optim_config(optim_config, system)
-
-    return Study(system=system, database=database, optim_config=optim_config)
+    scenario_builder_path = study_dir / "input" / "scenariobuilder.dat"
+    scenario_builder = (
+        ScenarioBuilder.load(scenario_builder_path)
+        if scenario_builder_path.exists()
+        else ScenarioBuilder()
+    )
+    return Study(system=system, database=database, scenario_builder=scenario_builder)
 
 
 def run_study(
@@ -95,7 +93,7 @@ def run_study(
     """
 
     study = load_study(study_dir)
-    problem = build_problem(study, time_block, scenarios)
+    problem = build_problem(study, time_block, list(range(scenarios)))
     problem.solve()
     if export_simulation_table:
         from gems.simulation.simulation_table import (

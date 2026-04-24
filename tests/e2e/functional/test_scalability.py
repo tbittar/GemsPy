@@ -70,7 +70,7 @@ def build_for_horizon(horizon_size: int, scenario_count: int) -> float:
     system.connect(PortRef(gen, "balance_port"), PortRef(node, "balance_port"))
 
     start = time.time()
-    problem = build_problem(Study(system, database), time_block, scenarios)
+    problem = build_problem(Study(system, database), time_block, list(range(scenarios)))
     end = time.time()
     print(f"Time elapsed for horizon {horizon_size}: {end - start:.4f}")
     return end - start

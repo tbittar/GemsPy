@@ -283,7 +283,7 @@ def test_generation_xpansion_single_time_step_single_scenario(
     problem = build_problem(
         Study(system, database),
         TimeBlock(1, [0]),
-        scenarios,
+        list(range(scenarios)),
     )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
@@ -362,7 +362,9 @@ def test_two_candidates_xpansion_single_time_step_single_scenario(
     validate_optim_config(thermal_candidate_optim_config, system)
     validate_optim_config(discrete_candidate_optim_config, system)
 
-    problem = build_problem(Study(system, database), TimeBlock(1, [0]), scenarios)
+    problem = build_problem(
+        Study(system, database), TimeBlock(1, [0]), list(range(scenarios))
+    )
 
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
@@ -450,7 +452,7 @@ def test_generation_xpansion_two_time_steps_two_scenarios(
 
     validate_optim_config(thermal_candidate_optim_config, system)
 
-    problem = build_problem(Study(system, database), time_block, scenarios)
+    problem = build_problem(Study(system, database), time_block, list(range(scenarios)))
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
     # assert problem.solver.NumVariables() == 2 * scenarios * horizon + 1

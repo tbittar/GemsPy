@@ -62,7 +62,7 @@ def test_system_with_scenarization(
     consistency_check(components, lib_dict["basic"].models)
 
     timeblock = TimeBlock(1, list(range(2)))
-    problem = build_problem(Study(components, database), timeblock, 3)
+    problem = build_problem(Study(components, database), timeblock, list(range(3)))
 
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"

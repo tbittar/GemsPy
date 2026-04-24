@@ -72,8 +72,6 @@ class VectorizedLinearExprBuilder(VectorizedBuilderBase[VectorizedExpr]):
         Keyed by PortFieldId(port_name, field_name).
     block_length:
         Number of time steps in the current time block.
-    scenarios_count:
-        Number of scenarios.
     """
 
     linopy_vars: Dict[Tuple[str, str], linopy.Variable]

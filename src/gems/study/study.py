@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 from gems.model.model import Model
 from gems.study.data import DataBase
+from gems.study.scenario_builder import ScenarioBuilder
 from gems.study.system import Component, System
 
 if TYPE_CHECKING:
@@ -43,7 +44,7 @@ class Study:
 
     system: System
     database: DataBase
-    optim_config: Optional[OptimConfig] = field(default=None)
+    scenario_builder: ScenarioBuilder = field(default_factory=ScenarioBuilder)
 
     @cached_property
     def model_components(self) -> Dict[str, List[Component]]:

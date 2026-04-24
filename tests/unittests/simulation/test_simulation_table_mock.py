@@ -19,9 +19,10 @@ from gems.simulation.simulation_table import (
 
 @dataclass(frozen=True)
 class FakeBlock:
-    """Fake time block with an id."""
+    """Fake time block with an id and absolute timestep list."""
 
     id: int = 1
+    timesteps: tuple = (0, 1, 2)
 
 
 @dataclass
