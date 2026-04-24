@@ -124,12 +124,14 @@ class SimulationSession:
         decomposed = build_decomposed_problems(
             self.study, block, self.scenario_ids, self.optim_config
         )
+        
         if decomposed.master is not None and self.output_dir is not None:
             dump_couplings(
                 build_couplings(decomposed, self.optim_config), self.output_dir
             )
-        if self.output_dir is not None:
             BendersRunner(emplacement=self.output_dir).run()
+        else:
+            raise RuntimeError("Benders decomposition requires a master problem and an output directory for coupling files.")
         return SimulationTable(pd.DataFrame())
 
     # ------------------------------------------------------------------
