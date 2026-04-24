@@ -54,7 +54,15 @@ class SimulationSession:
     # ------------------------------------------------------------------
 
     def _run_frontal(self) -> SimulationTable:
-        block = TimeBlock(0, list(range(self.optim_config.time_scope.start_timestep, self.optim_config.time_scope.end_timestep + 1)))
+        block = TimeBlock(
+            0,
+            list(
+                range(
+                    self.optim_config.time_scope.start_timestep,
+                    self.optim_config.time_scope.end_timestep + 1,
+                )
+            ),
+        )
         _, table = self._run_block(block, scenario_ids=self.scenario_ids)
         return table
 
@@ -70,7 +78,10 @@ class SimulationSession:
             carry_over: Dict[Tuple[str, str], xr.DataArray] = {}
 
             while t_start < self.optim_config.time_scope.end_timestep:
-                end = min(t_start + block_length, self.optim_config.time_scope.end_timestep + 1)
+                end = min(
+                    t_start + block_length,
+                    self.optim_config.time_scope.end_timestep + 1,
+                )
                 timesteps = list(range(t_start, end))
                 block = TimeBlock(block_id, timesteps)
                 problem, table = self._run_block(
@@ -93,9 +104,24 @@ class SimulationSession:
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
-            starts = range(self.optim_config.time_scope.start_timestep, self.optim_config.time_scope.end_timestep + 1, block_length)
+            starts = range(
+                self.optim_config.time_scope.start_timestep,
+                self.optim_config.time_scope.end_timestep + 1,
+                block_length,
+            )
             blocks = [
-                TimeBlock(i, list(range(t, min(t + block_length, self.optim_config.time_scope.end_timestep + 1))))
+                TimeBlock(
+                    i,
+                    list(
+                        range(
+                            t,
+                            min(
+                                t + block_length,
+                                self.optim_config.time_scope.end_timestep + 1,
+                            ),
+                        )
+                    ),
+                )
                 for i, t in enumerate(starts)
             ]
             for block in blocks:
@@ -114,7 +140,15 @@ class SimulationSession:
             dump_couplings,
         )
 
-        block = TimeBlock(1, list(range(self.optim_config.time_scope.start_timestep, self.optim_config.time_scope.end_timestep + 1)))
+        block = TimeBlock(
+            1,
+            list(
+                range(
+                    self.optim_config.time_scope.start_timestep,
+                    self.optim_config.time_scope.end_timestep + 1,
+                )
+            ),
+        )
         decomposed = build_decomposed_problems(
             self.study, block, self.scenario_ids, self.optim_config
         )
