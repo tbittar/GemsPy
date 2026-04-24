@@ -388,11 +388,11 @@ class _OptimizationProblemBuilder:
 
         # Phase 5: carry-over constraints (sequential mode only)
         for (mk, var_name), init_val in self._initial_values.items():
-            lv = self.linopy_vars.get((mk, var_name))
-            if lv is not None and "time" in lv.dims:
+            linopy_var = self.linopy_vars.get((mk, var_name))
+            if linopy_var is not None and "time" in linopy_var.dims:
                 safe = f"{mk}__{var_name}".replace("-", "_")
                 self.linopy_model.add_constraints(
-                    lv.isel(time=0) == init_val,  # type: ignore[arg-type]
+                    linopy_var.isel(time=0) == init_val,  # type: ignore[arg-type]
                     name=f"carry_over__{safe}",
                 )
 
