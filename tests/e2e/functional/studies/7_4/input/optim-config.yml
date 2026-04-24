@@ -1,0 +1,11 @@
+time-scope:
+  start-timestep: 0
+  end-timestep: 167
+
+solver-options:
+  solver: highs
+  solver-logs: false
+  solver-parameters: ""
+
+scenario-scope:
+  nb-scenarios: 1

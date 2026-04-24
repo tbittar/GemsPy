@@ -5,7 +5,8 @@ A study is defined by a directory containing:
 - `input/system.yml`: A file describing the system to be simulated.
 - `input/model-libraries/`: A folder containing model library files in YAML format.
 - `input/data-series/`: A folder containing data series files.
-- `parameters.yml` (optional): Run parameters (timestep range, solver, scenarios).
+- `input/optim-config.yml` (optional): Run parameters (time scope, solver options,
+  scenario scope, and decomposition configuration).
 """
 
 from pathlib import Path
@@ -20,7 +21,6 @@ from gems.optim_config.parsing import (
     validate_optim_config,
 )
 from gems.session.session import SimulationSession
-from gems.study.parameters import load_parameters
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
@@ -80,17 +80,15 @@ def run_study(
     """
     Runs a simulation study and exports results to CSV.
 
-    Reads run parameters (timestep range, solver, scenarios) from
-    ``study_dir/parameters.yml`` if present, otherwise uses defaults.
+    Run parameters (time scope, solver options, scenario scope) are read from
+    ``study_dir/input/optim-config.yml``; defaults apply when the file is absent.
     Results are written to ``study_dir/output/``.
 
     Args:
         study_dir: The path to the study directory.
         optim_config_path: Optional custom path to an optim-config YAML file.
-            If not provided, defaults to ``study_dir/input/optim-config.yml``
-            (frontal mode if the file is absent).
+            If not provided, defaults to ``study_dir/input/optim-config.yml``.
     """
-    params = load_parameters(study_dir)
     study = load_study(study_dir)
 
     resolved_config_path = optim_config_path or (
@@ -102,8 +100,7 @@ def run_study(
     session = SimulationSession(
         study=study,
         optim_config=optim_config,
-        total_timesteps=params.total_timesteps,
-        scenario_ids=params.scenario_ids,
+        scenario_ids=optim_config.scenario_scope.scenario_ids,
     )
     table = session.run()
     table.to_csv(study_dir / "output")
