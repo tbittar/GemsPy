@@ -1,0 +1,95 @@
+# Copyright (c) 2024, RTE (https://www.rte-france.com)
+#
+# See AUTHORS.txt
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# SPDX-License-Identifier: MPL-2.0
+#
+# This file is part of the Antares project.
+
+# LP-only variant of the andromede_v1 DSR study (base028).
+#
+# Thermal clusters are omitted deliberately: keeping them as MIP components
+# with zero startup/fixed costs causes the solver to find multiple equivalent
+# integer solutions across block boundaries, making per-timestep comparison
+# between resolution modes unreliable.
+#
+# The remaining system (area + load + wind + DSR) is a fully time-separable
+# LP whose unique optimal dispatch is determined entirely by merit order at
+# each timestep.  Frontal, parallel-subproblems, and sequential-subproblems
+# modes must therefore produce identical per-timestep results, which is
+# exactly what this test verifies.
+
+system:
+
+  components:
+    - id: base_zone
+      model: antares-historic.area
+      scenario-group: sg
+      parameters:
+        - id: spillage_cost
+          time-dependent: false
+          scenario-dependent: false
+          value: 0
+        - id: ens_cost
+          time-dependent: false
+          scenario-dependent: false
+          value: 20000
+
+    - id: load_base_zone
+      model: antares-historic.load
+      scenario-group: sg
+      parameters:
+        - id: load
+          time-dependent: true
+          scenario-dependent: true
+          value: load_ts_base028
+
+    - id: wind_base_zone
+      model: antares-historic.renewable
+      scenario-group: sg
+      parameters:
+        - id: nominal_capacity
+          time-dependent: false
+          scenario-dependent: false
+          value: 9000
+        - id: unit_count
+          time-dependent: false
+          scenario-dependent: false
+          value: 1
+        - id: generation
+          time-dependent: true
+          scenario-dependent: true
+          value: wind_ts_base028
+
+    - id: dsr_base_zone
+      model: andromede-v1-models.dsr
+      scenario-group: sg
+      parameters:
+        - id: max_load
+          time-dependent: false
+          scenario-dependent: false
+          value: 300
+        - id: curtailment_price
+          time-dependent: false
+          scenario-dependent: false
+          value: 42.7
+
+  connections:
+    - component1: base_zone
+      port1: balance_port
+      component2: load_base_zone
+      port2: balance_port
+
+    - component1: base_zone
+      port1: balance_port
+      component2: wind_base_zone
+      port2: balance_port
+
+    - component1: base_zone
+      port1: balance_port
+      component2: dsr_base_zone
+      port2: balance_port
