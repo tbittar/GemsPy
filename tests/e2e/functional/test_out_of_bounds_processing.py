@@ -174,8 +174,10 @@ def test_constraint_instantiation(study_id: str) -> None:
     """Check that is_on_dynamics, min_up_duration, and min_down_duration are
     instantiated at exactly the expected (component, time) pairs."""
     study = load_study(STUDIES_DIR / study_id)
+    config_path = STUDIES_DIR / study_id / "input" / "optim-config.yml"
+    optim_config = load_optim_config(config_path)
     time_block = TimeBlock(1, [0, 1, 2])
-    decomposed = build_decomposed_problems(study, time_block, 1, study.optim_config)
+    decomposed = build_decomposed_problems(study, time_block, [0], optim_config)
     linopy_model = decomposed.subproblem.linopy_model
 
     expected = _EXPECTED_CONSTRAINT_COUNTS[study_id]
