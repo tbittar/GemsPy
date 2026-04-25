@@ -122,7 +122,37 @@ library:
           definition: p_withdrawal - p_injection
       constraints:
         - id: level_equation
-          expression: level[t+1] = level + efficiency_injection * p_injection - efficiency_withdrawal * p_withdrawal 
+          expression: level[t+1] = level + efficiency_injection * p_injection - efficiency_withdrawal * p_withdrawal
       objective-contributions:
         - id: obj
           expression: expec(sum(marginal_cost * p_injection))
+
+    - id: simple_generator
+      parameters:
+        - id: p_min
+          scenario-dependent: true
+          time-dependent: true
+        - id: p_max
+          scenario-dependent: true
+          time-dependent: true
+        - id: generation_cost
+          scenario-dependent: false
+          time-dependent: false
+        - id: co2_emission_factor
+          scenario-dependent: false
+          time-dependent: false
+      variables:
+        - id: generation
+          lower-bound: p_min
+          upper-bound: p_max
+          variable-type: continuous
+      ports:
+        - id: balance_port
+          type: flow
+      port-field-definitions:
+        - port: balance_port
+          field: flow
+          definition: generation
+      objective-contributions:
+        - id: objective
+          expression: expec(sum(generation_cost * generation))

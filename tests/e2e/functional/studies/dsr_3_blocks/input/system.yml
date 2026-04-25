@@ -12,16 +12,15 @@
 
 # LP-only variant of the andromede_v1 DSR study (base028).
 #
-# Thermal clusters are omitted deliberately: keeping them as MIP components
-# with zero startup/fixed costs causes the solver to find multiple equivalent
-# integer solutions across block boundaries, making per-timestep comparison
-# between resolution modes unreliable.
-#
-# The remaining system (area + load + wind + DSR) is a fully time-separable
-# LP whose unique optimal dispatch is determined entirely by merit order at
-# each timestep.  Frontal, parallel-subproblems, and sequential-subproblems
-# modes must therefore produce identical per-timestep results, which is
-# exactly what this test verifies.
+# Generators (gas, oil, coal) use the simple_generator LP model instead of
+# the antares-historic thermal MIP model.  MIP thermal clusters with zero
+# startup/fixed costs have multiple equivalent integer solutions across block
+# boundaries, making per-timestep comparison between resolution modes
+# unreliable.  The simple_generator model is a pure continuous LP, so the
+# unique optimal dispatch is determined entirely by merit order at each
+# timestep.  Frontal, parallel-subproblems, and sequential-subproblems modes
+# must therefore produce identical per-timestep results, which is exactly
+# what this test verifies.
 
 system:
 
@@ -78,6 +77,69 @@ system:
           scenario-dependent: false
           value: 42.7
 
+    - id: gas_base_zone
+      model: andromede-v1-models.simple_generator
+      scenario-group: sg
+      parameters:
+        - id: p_min
+          time-dependent: false
+          scenario-dependent: false
+          value: 0
+        - id: p_max
+          time-dependent: false
+          scenario-dependent: false
+          value: 2500
+        - id: generation_cost
+          time-dependent: false
+          scenario-dependent: false
+          value: 50
+        - id: co2_emission_factor
+          time-dependent: false
+          scenario-dependent: false
+          value: 0
+
+    - id: oil_base_zone
+      model: andromede-v1-models.simple_generator
+      scenario-group: sg
+      parameters:
+        - id: p_min
+          time-dependent: false
+          scenario-dependent: false
+          value: 0
+        - id: p_max
+          time-dependent: false
+          scenario-dependent: false
+          value: 1000
+        - id: generation_cost
+          time-dependent: false
+          scenario-dependent: false
+          value: 80
+        - id: co2_emission_factor
+          time-dependent: false
+          scenario-dependent: false
+          value: 0
+
+    - id: coal_base_zone
+      model: andromede-v1-models.simple_generator
+      scenario-group: sg
+      parameters:
+        - id: p_min
+          time-dependent: false
+          scenario-dependent: false
+          value: 0
+        - id: p_max
+          time-dependent: false
+          scenario-dependent: false
+          value: 6000
+        - id: generation_cost
+          time-dependent: false
+          scenario-dependent: false
+          value: 30
+        - id: co2_emission_factor
+          time-dependent: false
+          scenario-dependent: false
+          value: 0
+
   connections:
     - component1: base_zone
       port1: balance_port
@@ -92,4 +154,19 @@ system:
     - component1: base_zone
       port1: balance_port
       component2: dsr_base_zone
+      port2: balance_port
+
+    - component1: base_zone
+      port1: balance_port
+      component2: gas_base_zone
+      port2: balance_port
+
+    - component1: base_zone
+      port1: balance_port
+      component2: oil_base_zone
+      port2: balance_port
+
+    - component1: base_zone
+      port1: balance_port
+      component2: coal_base_zone
       port2: balance_port
