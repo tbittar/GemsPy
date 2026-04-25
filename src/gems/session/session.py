@@ -32,9 +32,12 @@ from gems.study.study import Study
 class SimulationSession:
     study: Study
     optim_config: OptimConfig
-    scenario_ids: List[int]
     run_id: str = field(default_factory=lambda: str(uuid4()))
     output_dir: Optional[Path] = None
+
+    @property
+    def scenario_ids(self) -> List[int]:
+        return list(range(self.optim_config.scenario_scope.nb_scenarios))
 
     def run(self) -> SimulationTable:
         """Entry point. Dispatches to the appropriate resolution strategy."""
@@ -220,7 +223,6 @@ class SimulationSession:
 
 def load_session(
     study_dir: Path,
-    scenario_ids: List[int],
     run_id: Optional[str] = None,
     output_dir: Optional[Path] = None,
 ) -> SimulationSession:
@@ -235,7 +237,6 @@ def load_session(
     return SimulationSession(
         study=study,
         optim_config=optim_config,
-        scenario_ids=scenario_ids,
         run_id=run_id or str(uuid4()),
         output_dir=output_dir,
     )

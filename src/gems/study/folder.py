@@ -100,7 +100,6 @@ def run_study(
     session = SimulationSession(
         study=study,
         optim_config=optim_config,
-        scenario_ids=optim_config.scenario_scope.scenario_ids,
     )
     table = session.run()
     table.to_csv(study_dir / "output")
