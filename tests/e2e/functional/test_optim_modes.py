@@ -13,18 +13,12 @@
 """
 E2E consistency test: frontal, parallel-subproblems, and sequential-subproblems
 resolution modes must produce identical per-timestep results for a fully
-time-separable problem (all thermal clusters have d_min_up=d_min_down=1).
+time-separable LP problem.
 
-All three modes run on the andromede_v1 DSR study (base028) over 504 timesteps
-(end-timestep=503). The sequential config uses block-length=168 and block-overlap=1,
-which produces 4 blocks (3 full + 1 partial) over the shared time scope.
+All three modes run on the dsr_3_blocks study over 504 timesteps (end-timestep=503).
+The sequential config uses block-length=168 and block-overlap=1, which produces
+4 blocks (3 full + 1 partial) over the shared time scope.
 Per-timestep values are compared after deduplicating overlap rows.
-
-Integer decision variables (nb_units_on, nb_starting, nb_stopping) are excluded
-from the per-timestep comparison: with zero startup and fixed costs those quantities
-have multiple equivalent optimal values in the MIP, so the three modes can produce
-different integer solutions with the same objective. The dispatch (generation) and
-energy balance outputs are uniquely determined by the merit order and are compared.
 """
 
 import shutil
@@ -90,10 +84,6 @@ _KEY_COLS = [
     "scenario-index",
 ]
 
-# Integer decision variables that are not uniquely determined when startup and
-# fixed costs are zero: multiple nb_units_on patterns achieve the same objective.
-_DEGENERATE_OUTPUTS = {"nb_units_on", "nb_starting", "nb_stopping"}
-
 
 def _load_csv(study_dir: Path) -> pd.DataFrame:
     output_files = list((study_dir / "output").glob("simulation_table_*.csv"))
@@ -110,15 +100,8 @@ def _run_with_config(study_dir: Path, config_yaml: str) -> pd.DataFrame:
 
 
 def _per_timestep_df(raw: pd.DataFrame) -> pd.DataFrame:
-    """Extract uniquely-determined per-timestep rows from a simulation table.
-
-    Drops objective-value (aggregate) rows, degenerate integer-variable rows,
-    and duplicate rows caused by overlapping blocks in sequential mode.
-    """
-    df = raw[
-        (raw["output"] != "objective-value")
-        & (~raw["output"].isin(_DEGENERATE_OUTPUTS))
-    ].copy()
+    """Return per-timestep rows, dropping aggregate and overlap-duplicate rows."""
+    df = raw[raw["output"] != "objective-value"].copy()
     df = df.drop_duplicates(subset=_KEY_COLS)
     df = df.sort_values(_KEY_COLS).reset_index(drop=True)
     return df
