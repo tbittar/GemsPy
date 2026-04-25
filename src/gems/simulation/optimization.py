@@ -595,7 +595,7 @@ class _OptimizationProblemBuilder:
 
                 prefix = model.id.replace("-", "_")
                 name = f"{prefix}__{var.name}"
-                binary = var.data_type == ValueType.BOOLEAN
+                binary = var.data_type == ValueType.BINARY
                 integer = var.data_type == ValueType.INTEGER
 
                 lv = self.linopy_model.add_variables(
