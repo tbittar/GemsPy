@@ -38,19 +38,7 @@ import linopy
 import numpy as np
 import xarray as xr
 
-from gems.expression.evaluate import EvaluationContext, EvaluationVisitor
-from gems.expression.expression import (
-    AdditionNode,
-    AllTimeSumNode,
-    BinaryOperatorNode,
-    ExpressionNode,
-    MaxNode,
-    MinNode,
-    TimeShiftNode,
-    TimeSumNode,
-    UnaryOperatorNode,
-    is_unbounded,
-)
+from gems.expression.expression import is_unbounded
 from gems.expression.visitor import visit
 from gems.model.common import ValueType
 from gems.model.model import Model
@@ -61,9 +49,10 @@ from gems.simulation.linearize import (
     _linopy_add,
 )
 from gems.simulation.time_block import TimeBlock
-from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
+from gems.simulation.vectorized_builder import ShiftValidityVisitor
+from gems.study.data import ConstantData, ScenarioSeriesData, TimeSeriesData
 from gems.study.study import Study
-from gems.study.system import Component, System
+from gems.study.system import Component
 
 if TYPE_CHECKING:
     from gems.optim_config.parsing import ElementLocation, OptimConfig, OutOfBoundsMode
@@ -127,100 +116,6 @@ class DecompositionFilter:
         return loc in self._target
 
 
-def _extract_per_component_param_values(
-    param_arrays: Dict[Tuple[str, str], xr.DataArray], model_id: str
-) -> Tuple[List[str], List[Dict[str, float]]]:
-    """Return (comp_ids, per_component_params) for *model_id*.
-
-    *per_component_params* has one name→scalar dict per component.  Only
-    parameters that collapse to a single scalar (ignoring time/scenario axes)
-    are included; time- or scenario-varying parameters cannot serve as
-    constant time-shift amounts and are silently omitted.
-    """
-    comp_ids: Optional[List[str]] = None
-    for (mid, _), arr in param_arrays.items():
-        if mid == model_id and "component" in arr.dims:
-            comp_ids = list(arr.coords["component"].values)
-            break
-
-    if comp_ids is None:
-        return [], [{}]
-
-    result: List[Dict[str, float]] = [{} for _ in comp_ids]
-    for (mid, pname), arr in param_arrays.items():
-        if mid == model_id:
-            if "component" in arr.dims:
-                for i, cid in enumerate(comp_ids):
-                    comp_vals = arr.sel(component=cid).values
-                    unique = np.unique(comp_vals)
-                    if len(unique) == 1:
-                        result[i][pname] = float(unique[0])
-            else:
-                unique = np.unique(arr.values)
-                if len(unique) == 1:
-                    for d in result:
-                        d[pname] = float(unique[0])
-    return comp_ids, result
-
-
-def _collect_const_shifts(
-    expr: ExpressionNode,
-    param_values: Optional[Dict[str, float]] = None,
-) -> Set[int]:
-    """Recursively collect all constant integer time shifts in an expression."""
-    shifts: Set[int] = set()
-    _walk_shifts(expr, shifts, param_values or {})
-    return shifts
-
-
-def _walk_shifts(
-    expr: ExpressionNode, shifts: Set[int], param_values: Dict[str, float]
-) -> None:
-    if isinstance(expr, TimeShiftNode):
-        try:
-            ctx = EvaluationContext(parameters=param_values)
-            val = visit(expr.time_shift, EvaluationVisitor(ctx))
-            if isinstance(val, int):
-                shifts.add(val)
-            elif isinstance(val, float) and val.is_integer():
-                shifts.add(int(val))
-        except Exception:
-            pass
-        _walk_shifts(expr.operand, shifts, param_values)
-    elif isinstance(expr, AdditionNode):
-        for op in expr.operands:
-            _walk_shifts(op, shifts, param_values)
-    elif isinstance(expr, (MaxNode, MinNode)):
-        for op in expr.operands:
-            _walk_shifts(op, shifts, param_values)
-    elif isinstance(expr, TimeSumNode):
-        _walk_shifts(expr.operand, shifts, param_values)
-        # Sum bounds determine the range of time indices accessed.
-        # Evaluate from_time and to_time with this component's parameters.
-        try:
-            ctx = EvaluationContext(parameters=param_values)
-            ev = EvaluationVisitor(ctx)
-            from_val = visit(expr.from_time, ev)
-            to_val = visit(expr.to_time, ev)
-            if (
-                isinstance(from_val, (int, float))
-                and isinstance(to_val, (int, float))
-                and float(from_val).is_integer()
-                and float(to_val).is_integer()
-            ):
-                for s in range(int(from_val), int(to_val) + 1):
-                    shifts.add(s)
-        except Exception:
-            pass
-    elif isinstance(expr, AllTimeSumNode):
-        _walk_shifts(expr.operand, shifts, param_values)
-    elif isinstance(expr, UnaryOperatorNode):
-        _walk_shifts(expr.operand, shifts, param_values)
-    elif isinstance(expr, BinaryOperatorNode):
-        _walk_shifts(expr.left, shifts, param_values)
-        _walk_shifts(expr.right, shifts, param_values)
-
-
 def _apply_validity_mask(expr: VectorizedExpr, mask: xr.DataArray) -> VectorizedExpr:
     """Filter *expr* to valid (component, time) entries using *mask*.
 
@@ -237,30 +132,6 @@ def _apply_validity_mask(expr: VectorizedExpr, mask: xr.DataArray) -> Vectorized
         valid_times: List[int] = mask.all("component").values.nonzero()[0].tolist()
         return expr.isel(time=valid_times)  # type: ignore[union-attr,return-value]
     return expr
-
-
-def _compute_validity_mask(
-    expr: ExpressionNode,
-    per_component_params: List[Dict[str, float]],
-    comp_ids: List[str],
-    block_length: int,
-) -> xr.DataArray:
-    """Return a boolean DataArray (dims: component × time) marking valid constraint instances.
-
-    A (component, time) entry is True when every time-shifted term in *expr*,
-    evaluated with that component's parameters, falls within [0, block_length).
-    """
-    data = np.ones((len(comp_ids), block_length), dtype=bool)
-    for i, param_values in enumerate(per_component_params):
-        shifts = _collect_const_shifts(expr, param_values)
-        for t in range(block_length):
-            if not all(0 <= t + s < block_length for s in shifts):
-                data[i, t] = False
-    return xr.DataArray(
-        data,
-        dims=["component", "time"],
-        coords={"component": comp_ids, "time": list(range(block_length))},
-    )
 
 
 class OutOfBoundsFilter:
@@ -823,19 +694,14 @@ class _OptimizationProblemBuilder:
 
                     mode = self._oob_filter.get_mode(model.id, constraint.name)
                     if mode == OutOfBoundsMode.DROP:
-                        (
-                            comp_ids,
-                            per_component_params,
-                        ) = _extract_per_component_param_values(
-                            self.param_arrays, model.id
+                        validity_mask = visit(
+                            constraint.expression,
+                            ShiftValidityVisitor(
+                                model_id=model.id,
+                                param_arrays=self.param_arrays,
+                                block_length=self.block_length,
+                            ),
                         )
-                        if comp_ids:
-                            validity_mask = _compute_validity_mask(
-                                constraint.expression,
-                                per_component_params,
-                                comp_ids,
-                                self.block_length,
-                            )
 
                 lhs = visit(constraint.expression, builder)
 

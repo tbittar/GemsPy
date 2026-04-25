@@ -31,6 +31,7 @@ implemented here once, with DataArray-friendly semantics as their default.
 behaviour (operand-swap in addition, type guards in nonlinear functions).
 """
 
+import functools
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Generic, Optional, Tuple, TypeVar, Union
@@ -62,7 +63,11 @@ from gems.expression.expression import (
     TimeSumNode,
     VariableNode,
 )
-from gems.expression.visitor import ExpressionVisitor, visit
+from gems.expression.visitor import (
+    ExpressionVisitor,
+    ExpressionVisitorOperations,
+    visit,
+)
 from gems.model.port import PortFieldId
 
 # ---------------------------------------------------------------------------
@@ -444,3 +449,227 @@ class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr], Generic[T_expr]):
     def _has_dim(operand: Any, dim: str) -> bool:
         """Return True if *operand* has a dimension named *dim*."""
         return dim in operand.dims
+
+
+# ---------------------------------------------------------------------------
+# Shift validity helpers — used for OutOfBoundsMode.DROP
+# ---------------------------------------------------------------------------
+
+
+@dataclass(kw_only=True)
+class _ShiftAmountEvaluator(ExpressionVisitorOperations[xr.DataArray]):
+    """Evaluate a shift-amount sub-expression to an xr.DataArray.
+
+    Handles literals, parameter references, and arithmetic over them.
+    All time/scenario/port/variable nodes raise so that callers can catch
+    and treat the shift as unevaluable.
+    """
+
+    model_id: str
+    param_arrays: Dict[Tuple[str, str], xr.DataArray]
+
+    def literal(self, node: LiteralNode) -> xr.DataArray:
+        return xr.DataArray(node.value)
+
+    def parameter(self, node: ParameterNode) -> xr.DataArray:
+        return self.param_arrays[(self.model_id, node.name)]
+
+    def variable(self, node: VariableNode) -> xr.DataArray:
+        raise ValueError("VariableNode cannot appear in a time-shift amount")
+
+    def comparison(self, node: ComparisonNode) -> xr.DataArray:
+        raise NotImplementedError
+
+    def time_shift(self, node: TimeShiftNode) -> xr.DataArray:
+        raise NotImplementedError
+
+    def time_eval(self, node: TimeEvalNode) -> xr.DataArray:
+        raise NotImplementedError
+
+    def time_sum(self, node: TimeSumNode) -> xr.DataArray:
+        raise NotImplementedError
+
+    def all_time_sum(self, node: AllTimeSumNode) -> xr.DataArray:
+        raise NotImplementedError
+
+    def scenario_operator(self, node: ScenarioOperatorNode) -> xr.DataArray:
+        raise NotImplementedError
+
+    def port_field(self, node: PortFieldNode) -> xr.DataArray:
+        raise NotImplementedError
+
+    def port_field_aggregator(self, node: PortFieldAggregatorNode) -> xr.DataArray:
+        raise NotImplementedError
+
+    def floor(self, node: FloorNode) -> xr.DataArray:
+        return np.floor(visit(node.operand, self))  # type: ignore[return-value]
+
+    def ceil(self, node: CeilNode) -> xr.DataArray:
+        return np.ceil(visit(node.operand, self))  # type: ignore[return-value]
+
+    def maximum(self, node: MaxNode) -> xr.DataArray:
+        ops = [visit(op, self) for op in node.operands]
+        return functools.reduce(
+            lambda a, b: xr.where(a >= b, a, b), ops  # type: ignore[return-value,no-untyped-call]
+        )
+
+    def minimum(self, node: MinNode) -> xr.DataArray:
+        ops = [visit(op, self) for op in node.operands]
+        return functools.reduce(
+            lambda a, b: xr.where(a <= b, a, b), ops  # type: ignore[return-value,no-untyped-call]
+        )
+
+
+def _and_mask(
+    a: Optional[xr.DataArray], b: Optional[xr.DataArray]
+) -> Optional[xr.DataArray]:
+    """AND two optional boolean DataArray masks; None means 'all valid'."""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return a & b  # type: ignore[operator]
+
+
+@dataclass(kw_only=True)
+class ShiftValidityVisitor(ExpressionVisitor[Optional[xr.DataArray]]):
+    """Walk an expression AST and compute a boolean [component, time] validity mask.
+
+    Returns ``None`` when no time-shifting nodes are encountered (all instances
+    are valid).  Otherwise returns a boolean DataArray with at least a ``time``
+    dimension (and a ``component`` dimension when shift amounts vary per
+    component) where ``True`` marks valid constraint instances.
+
+    Used for ``OutOfBoundsMode.DROP``: a ``(component, time)`` entry is
+    ``True`` iff every time-shifted access in the expression falls within
+    ``[0, block_length)``.
+    """
+
+    model_id: str
+    param_arrays: Dict[Tuple[str, str], xr.DataArray]
+    block_length: int
+
+    def _eval_as_da(self, expr: ExpressionNode) -> Optional[xr.DataArray]:
+        """Evaluate *expr* as a DataArray shift amount.
+
+        Tries a pure-constant evaluation first; falls back to a parameter-
+        aware DataArray evaluation.  Returns ``None`` if neither succeeds so
+        that the caller can skip the validity check for that shift.
+        """
+        try:
+            val = visit(expr, EvaluationVisitor(EvaluationContext()))
+            if isinstance(val, (int, float)):
+                return xr.DataArray(float(val))
+        except (KeyError, NotImplementedError):
+            pass
+        try:
+            return visit(
+                expr,
+                _ShiftAmountEvaluator(
+                    model_id=self.model_id, param_arrays=self.param_arrays
+                ),
+            )
+        except (KeyError, ValueError, NotImplementedError):
+            return None
+
+    # ------------------------------------------------------------------ #
+    # Time operators — produce validity conditions                          #
+    # ------------------------------------------------------------------ #
+
+    def time_shift(self, node: TimeShiftNode) -> Optional[xr.DataArray]:
+        operand_mask = visit(node.operand, self)
+        shift_da = self._eval_as_da(node.time_shift)
+        if shift_da is None:
+            raise ValueError(
+                f"Time-shift amount is not evaluable to a literal or parameter: "
+                f"{node.time_shift!r}. Only literals and parameter references are "
+                f"supported as shift amounts in OutOfBoundsMode.DROP constraints."
+            )
+        T = self.block_length
+        t = xr.DataArray(np.arange(T), dims="time")
+        own_mask = (t + shift_da >= 0) & (t + shift_da < T)
+        return _and_mask(operand_mask, own_mask)
+
+    def time_sum(self, node: TimeSumNode) -> Optional[xr.DataArray]:
+        operand_mask = visit(node.operand, self)
+        from_da = self._eval_as_da(node.from_time)
+        to_da = self._eval_as_da(node.to_time)
+        if from_da is None or to_da is None:
+            unevaluable = node.from_time if from_da is None else node.to_time
+            raise ValueError(
+                f"Time-sum bound is not evaluable to a literal or parameter: "
+                f"{unevaluable!r}. Only literals and parameter references are "
+                f"supported as bounds in OutOfBoundsMode.DROP constraints."
+            )
+        T = self.block_length
+        t = xr.DataArray(np.arange(T), dims="time")
+        # Every offset in [from, to] must be in bounds; the extreme values are binding.
+        own_mask = (t + from_da >= 0) & (t + to_da < T)
+        return _and_mask(operand_mask, own_mask)
+
+    # ------------------------------------------------------------------ #
+    # Structural nodes — AND-propagate children                             #
+    # ------------------------------------------------------------------ #
+
+    def negation(self, node: NegationNode) -> Optional[xr.DataArray]:
+        return visit(node.operand, self)
+
+    def addition(self, node: AdditionNode) -> Optional[xr.DataArray]:
+        return functools.reduce(
+            _and_mask, (visit(op, self) for op in node.operands), None
+        )
+
+    def multiplication(self, node: MultiplicationNode) -> Optional[xr.DataArray]:
+        return _and_mask(visit(node.left, self), visit(node.right, self))
+
+    def division(self, node: DivisionNode) -> Optional[xr.DataArray]:
+        return _and_mask(visit(node.left, self), visit(node.right, self))
+
+    def comparison(self, node: ComparisonNode) -> Optional[xr.DataArray]:
+        return _and_mask(visit(node.left, self), visit(node.right, self))
+
+    def floor(self, node: FloorNode) -> Optional[xr.DataArray]:
+        return visit(node.operand, self)
+
+    def ceil(self, node: CeilNode) -> Optional[xr.DataArray]:
+        return visit(node.operand, self)
+
+    def maximum(self, node: MaxNode) -> Optional[xr.DataArray]:
+        return functools.reduce(
+            _and_mask, (visit(op, self) for op in node.operands), None
+        )
+
+    def minimum(self, node: MinNode) -> Optional[xr.DataArray]:
+        return functools.reduce(
+            _and_mask, (visit(op, self) for op in node.operands), None
+        )
+
+    def all_time_sum(self, node: AllTimeSumNode) -> Optional[xr.DataArray]:
+        return visit(node.operand, self)
+
+    def time_eval(self, node: TimeEvalNode) -> Optional[xr.DataArray]:
+        return visit(node.operand, self)
+
+    def scenario_operator(self, node: ScenarioOperatorNode) -> Optional[xr.DataArray]:
+        return visit(node.operand, self)
+
+    def port_field_aggregator(
+        self, node: PortFieldAggregatorNode
+    ) -> Optional[xr.DataArray]:
+        return visit(node.operand, self)
+
+    # ------------------------------------------------------------------ #
+    # Leaf nodes — no time-shift constraints                                #
+    # ------------------------------------------------------------------ #
+
+    def literal(self, node: LiteralNode) -> Optional[xr.DataArray]:
+        return None
+
+    def parameter(self, node: ParameterNode) -> Optional[xr.DataArray]:
+        return None
+
+    def variable(self, node: VariableNode) -> Optional[xr.DataArray]:
+        return None
+
+    def port_field(self, node: PortFieldNode) -> Optional[xr.DataArray]:
+        return None
