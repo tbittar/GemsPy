@@ -37,9 +37,6 @@ class Study:
     provides the cross-validation logic that was previously spread between
     ``DataBase.requirements_consistency`` and the callers of
     ``build_problem``.
-
-    ``optim_config`` is optional; it is populated by :func:`~gems.study.folder.load_study`
-    when an ``optim-config.yml`` is present alongside the study inputs.
     """
 
     system: System
