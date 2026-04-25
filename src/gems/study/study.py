@@ -15,15 +15,12 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import Dict, List
 
 from gems.model.model import Model
 from gems.study.data import DataBase
 from gems.study.scenario_builder import ScenarioBuilder
 from gems.study.system import Component, System
-
-if TYPE_CHECKING:
-    from gems.optim_config.parsing import OptimConfig
 
 
 @dataclass
