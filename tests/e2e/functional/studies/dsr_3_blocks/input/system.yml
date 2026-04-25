@@ -26,7 +26,7 @@ system:
 
   components:
     - id: base_zone
-      model: antares-historic.area
+      model: test-lib.area
       scenario-group: sg
       parameters:
         - id: spillage_cost
@@ -39,7 +39,7 @@ system:
           value: 20000
 
     - id: load_base_zone
-      model: antares-historic.load
+      model: test-lib.load
       scenario-group: sg
       parameters:
         - id: load
@@ -48,7 +48,7 @@ system:
           value: load_ts_base028
 
     - id: wind_base_zone
-      model: antares-historic.renewable
+      model: test-lib.renewable
       scenario-group: sg
       parameters:
         - id: nominal_capacity
@@ -65,7 +65,7 @@ system:
           value: wind_ts_base028
 
     - id: dsr_base_zone
-      model: andromede-v1-models.dsr
+      model: test-lib.dsr
       scenario-group: sg
       parameters:
         - id: max_load
@@ -78,7 +78,7 @@ system:
           value: 42.7
 
     - id: gas_base_zone
-      model: andromede-v1-models.simple_generator
+      model: test-lib.simple_generator
       scenario-group: sg
       parameters:
         - id: p_min
@@ -99,7 +99,7 @@ system:
           value: 0
 
     - id: oil_base_zone
-      model: andromede-v1-models.simple_generator
+      model: test-lib.simple_generator
       scenario-group: sg
       parameters:
         - id: p_min
@@ -120,7 +120,7 @@ system:
           value: 0
 
     - id: coal_base_zone
-      model: andromede-v1-models.simple_generator
+      model: test-lib.simple_generator
       scenario-group: sg
       parameters:
         - id: p_min
