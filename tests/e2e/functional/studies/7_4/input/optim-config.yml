@@ -1,6 +1,6 @@
 time-scope:
-  start-timestep: 0
-  end-timestep: 167
+  first-time-step: 0
+  last-time-step: 167
 
 solver-options:
   solver: highs

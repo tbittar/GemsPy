@@ -15,7 +15,7 @@ E2E consistency test: frontal, parallel-subproblems, and sequential-subproblems
 resolution modes must produce identical per-timestep results for a fully
 time-separable LP problem.
 
-All three modes run on the dsr_3_blocks study over 504 timesteps (end-timestep=503).
+All three modes run on the dsr_3_blocks study over 504 timesteps (last-time-step=503).
 The sequential config uses block-length=168 and block-overlap=1, which produces
 4 blocks (3 full + 1 partial) over the shared time scope.
 Per-timestep values are compared after deduplicating overlap rows.
@@ -35,8 +35,8 @@ _STUDY_SRC = Path(__file__).parent / "studies" / "dsr_3_blocks"
 _FRONTAL_CONFIG = textwrap.dedent(
     """\
     time-scope:
-      start-timestep: 0
-      end-timestep: 503
+      first-time-step: 0
+      last-time-step: 503
     solver-options:
       solver: highs
       solver-logs: false
@@ -51,8 +51,8 @@ _FRONTAL_CONFIG = textwrap.dedent(
 _PARALLEL_CONFIG = textwrap.dedent(
     """\
     time-scope:
-      start-timestep: 0
-      end-timestep: 503
+      first-time-step: 0
+      last-time-step: 503
     solver-options:
       solver: highs
       solver-logs: false
@@ -68,8 +68,8 @@ _PARALLEL_CONFIG = textwrap.dedent(
 _SEQUENTIAL_CONFIG = textwrap.dedent(
     """\
     time-scope:
-      start-timestep: 0
-      end-timestep: 503
+      first-time-step: 0
+      last-time-step: 503
     solver-options:
       solver: highs
       solver-logs: false
