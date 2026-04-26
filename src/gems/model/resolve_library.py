@@ -242,9 +242,11 @@ def _to_expression_if_present(
 def _to_variable(var: VariableSchema, identifiers: ModelIdentifiers) -> Variable:
     return Variable(
         name=var.id,
-        data_type={"continuous": ValueType.CONTINUOUS, "integer": ValueType.INTEGER}[
-            var.variable_type
-        ],
+        data_type={
+            "continuous": ValueType.CONTINUOUS,
+            "integer": ValueType.INTEGER,
+            "binary": ValueType.BINARY,
+        }[var.variable_type],
         structure=IndexingStructure(var.time_dependent, var.scenario_dependent),
         lower_bound=_to_expression_if_present(var.lower_bound, identifiers),
         upper_bound=_to_expression_if_present(var.upper_bound, identifiers),

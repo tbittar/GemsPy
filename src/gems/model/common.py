@@ -20,4 +20,4 @@ from enum import Enum
 class ValueType(Enum):
     CONTINUOUS = "CONTINUOUS"
     INTEGER = "INTEGER"
-    BOOLEAN = "BOOLEAN"
+    BINARY = "BINARY"
