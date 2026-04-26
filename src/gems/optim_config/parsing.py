@@ -79,8 +79,8 @@ class ResolutionConfig(ModifiedBaseModel):
 
 
 class TimeScopeConfig(ModifiedBaseModel):
-    start_timestep: int = 0
-    end_timestep: int = 0
+    first_time_step: int = 0
+    last_time_step: int = 0
 
 
 class SolverOptionsConfig(ModifiedBaseModel):

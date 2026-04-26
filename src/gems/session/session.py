@@ -61,8 +61,8 @@ class SimulationSession:
             0,
             list(
                 range(
-                    self.optim_config.time_scope.start_timestep,
-                    self.optim_config.time_scope.end_timestep + 1,
+                    self.optim_config.time_scope.first_time_step,
+                    self.optim_config.time_scope.last_time_step + 1,
                 )
             ),
         )
@@ -76,14 +76,14 @@ class SimulationSession:
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
-            t_start = self.optim_config.time_scope.start_timestep
+            t_start = self.optim_config.time_scope.first_time_step
             block_id = 0
             carry_over: Dict[Tuple[str, str], xr.DataArray] = {}
 
-            while t_start < self.optim_config.time_scope.end_timestep:
+            while t_start < self.optim_config.time_scope.last_time_step:
                 end = min(
                     t_start + block_length,
-                    self.optim_config.time_scope.end_timestep + 1,
+                    self.optim_config.time_scope.last_time_step + 1,
                 )
                 timesteps = list(range(t_start, end))
                 block = TimeBlock(block_id, timesteps)
@@ -108,8 +108,8 @@ class SimulationSession:
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
             starts = range(
-                self.optim_config.time_scope.start_timestep,
-                self.optim_config.time_scope.end_timestep + 1,
+                self.optim_config.time_scope.first_time_step,
+                self.optim_config.time_scope.last_time_step + 1,
                 block_length,
             )
             blocks = [
@@ -120,7 +120,7 @@ class SimulationSession:
                             t,
                             min(
                                 t + block_length,
-                                self.optim_config.time_scope.end_timestep + 1,
+                                self.optim_config.time_scope.last_time_step + 1,
                             ),
                         )
                     ),
@@ -147,8 +147,8 @@ class SimulationSession:
             1,
             list(
                 range(
-                    self.optim_config.time_scope.start_timestep,
-                    self.optim_config.time_scope.end_timestep + 1,
+                    self.optim_config.time_scope.first_time_step,
+                    self.optim_config.time_scope.last_time_step + 1,
                 )
             ),
         )

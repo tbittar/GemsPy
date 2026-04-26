@@ -10,8 +10,8 @@
 #
 # This file is part of the Antares project.
 time-scope:
-  start-timestep: 0
-  end-timestep: 0
+  first-time-step: 0
+  last-time-step: 0
 
 solver-options:
   solver: highs
