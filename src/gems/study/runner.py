@@ -36,11 +36,12 @@ def run_study(
     validate_optim_config(optim_config, study.system)
 
     run_id = datetime.now().strftime("%Y%m%dT%H%M")
+    output_dir = study_dir / "output" / run_id
     session = SimulationSession(
         study=study,
         optim_config=optim_config,
         run_id=run_id,
-        output_dir=study_dir / "output" / run_id,
+        output_dir=output_dir,
     )
     table = session.run()
-    table.to_csv(session.output_dir)
+    table.to_csv(output_dir)
