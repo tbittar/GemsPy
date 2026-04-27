@@ -23,7 +23,7 @@ def test_run_study(tmp_path: Path) -> None:
 
     run_study(study_dir)
 
-    output_files = list((study_dir / "output").glob("simulation_table_*.csv"))
+    output_files = list((study_dir / "output").glob("**/simulation_table_*.csv"))
     assert len(output_files) == 1
     df = pd.read_csv(output_files[0])
     assert "objective-value" in df["output"].values
