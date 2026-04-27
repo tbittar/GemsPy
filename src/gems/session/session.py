@@ -220,6 +220,7 @@ class SimulationSession:
                 sol_da: xr.DataArray = solution[linopy_var.name]
                 carry_over[(model, var_name)] = sol_da.isel(time=local_index, drop=True)
         return carry_over
+<<<<<<< claude/fix-circular-dependency-pJhr8
 
 
 def load_session(
@@ -237,3 +238,5 @@ def load_session(
         run_id=run_id or str(uuid4()),
         output_dir=output_dir,
     )
+=======
+>>>>>>> claude/gemspy-issue-106-strategy-XZfgE
