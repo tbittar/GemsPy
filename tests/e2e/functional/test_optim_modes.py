@@ -38,9 +38,9 @@ _FRONTAL_CONFIG = textwrap.dedent(
       first-time-step: 0
       last-time-step: 503
     solver-options:
-      solver: highs
-      solver-logs: false
-      solver-parameters: ""
+      name: highs
+      logs: false
+      parameters: ""
     scenario-scope:
       nb-scenarios: 1
     resolution:
@@ -54,9 +54,9 @@ _PARALLEL_CONFIG = textwrap.dedent(
       first-time-step: 0
       last-time-step: 503
     solver-options:
-      solver: highs
-      solver-logs: false
-      solver-parameters: ""
+      name: highs
+      logs: false
+      parameters: ""
     scenario-scope:
       nb-scenarios: 1
     resolution:
@@ -71,9 +71,9 @@ _SEQUENTIAL_CONFIG = textwrap.dedent(
       first-time-step: 0
       last-time-step: 503
     solver-options:
-      solver: highs
-      solver-logs: false
-      solver-parameters: ""
+      name: highs
+      logs: false
+      parameters: ""
     scenario-scope:
       nb-scenarios: 1
     resolution:
