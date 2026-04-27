@@ -20,7 +20,7 @@ from gems.optim_config.parsing import OptimConfig
 from gems.simulation import DecomposedProblems, build_couplings, dump_couplings
 from gems.study import Study
 from gems.study.data import DataBase
-from gems.study.folder import run_study
+from gems.study.runner import run_study
 from gems.study.parsing import parse_cli, parse_yaml_components
 from gems.study.resolve_components import build_data_base, resolve_system
 from gems.study.system import System
