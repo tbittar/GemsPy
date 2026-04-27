@@ -92,7 +92,7 @@ _KEY_COLS = [
 
 
 def _load_csv(study_dir: Path) -> pd.DataFrame:
-    output_files = list((study_dir / "output").glob("simulation_table_*.csv"))
+    output_files = list((study_dir / "output").glob("**/simulation_table_*.csv"))
     assert len(output_files) == 1, f"Expected 1 output file, got {len(output_files)}"
     return pd.read_csv(output_files[0])
 
