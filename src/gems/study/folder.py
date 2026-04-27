@@ -46,7 +46,6 @@ def load_study(study_dir: Path) -> Study:
     system_file = study_dir / "input" / "system.yml"
     lib_folder = study_dir / "input" / "model-libraries"
     series_dir = study_dir / "input" / "data-series"
-    config_file = study_dir / "input" / "optim-config.yml"
 
     input_libraries = []
     for lib_file in lib_folder.glob("*.yml"):

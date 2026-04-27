@@ -50,9 +50,24 @@ class ModelDecompositionConfig(ModifiedBaseModel):
     objective_contributions: List[ElementLocationConfig] = Field(default_factory=list)
 
 
+class OutOfBoundsMode(str, Enum):
+    CYCLIC = "cyclic"
+    DROP = "drop"
+
+
+class OutOfBoundsConstraintConfig(ModifiedBaseModel):
+    id: str
+    mode: OutOfBoundsMode
+
+
+class OutOfBoundsProcessingConfig(ModifiedBaseModel):
+    constraints: List[OutOfBoundsConstraintConfig] = Field(default_factory=list)
+
+
 class ModelOptimConfig(ModifiedBaseModel):
     id: str
     model_decomposition: Optional[ModelDecompositionConfig] = None
+    out_of_bounds_processing: Optional[OutOfBoundsProcessingConfig] = None
 
 
 class ResolutionMode(str, Enum):
@@ -118,6 +133,22 @@ def _collect_variable_names(expr: ExpressionNode) -> Set[str]:
     if isinstance(expr, BinaryOperatorNode):
         return _collect_variable_names(expr.left) | _collect_variable_names(expr.right)
     return set()
+
+
+def _check_oob_constraint_ids(
+    oob_processing: OutOfBoundsProcessingConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
+) -> None:
+    for constraint_config in oob_processing.constraints:
+        if (
+            constraint_config.id not in model.constraints
+            and constraint_config.id not in model.binding_constraints
+        ):
+            errors.append(
+                f"Out-of-bounds constraint '{constraint_config.id}' not found in model '{model_config_id}'"
+            )
 
 
 def _check_id_existence(
@@ -235,18 +266,26 @@ def validate_optim_config(config: OptimConfig, system: "System") -> None:
         model = models_in_system.get(model_config.id)
         if model is None:
             errors.append(f"Model '{model_config.id}' not found in system")
-        elif model_config.model_decomposition is not None:
-            decomposition = model_config.model_decomposition
-            _check_id_existence(decomposition, model, model_config.id, errors)
-            _check_master_variables_not_time_dependent(
-                decomposition, model, model_config.id, errors
-            )
-            _check_master_constraints_use_master_variables(
-                decomposition, model, model_config.id, errors
-            )
-            _check_master_objectives_use_master_variables(
-                decomposition, model, model_config.id, errors
-            )
+        else:
+            if model_config.model_decomposition is not None:
+                decomposition = model_config.model_decomposition
+                _check_id_existence(decomposition, model, model_config.id, errors)
+                _check_master_variables_not_time_dependent(
+                    decomposition, model, model_config.id, errors
+                )
+                _check_master_constraints_use_master_variables(
+                    decomposition, model, model_config.id, errors
+                )
+                _check_master_objectives_use_master_variables(
+                    decomposition, model, model_config.id, errors
+                )
+            if model_config.out_of_bounds_processing is not None:
+                _check_oob_constraint_ids(
+                    model_config.out_of_bounds_processing,
+                    model,
+                    model_config.id,
+                    errors,
+                )
 
     if errors:
         raise ValueError(

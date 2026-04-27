@@ -43,7 +43,7 @@ import pytest
 
 from gems.model.parsing import LibrarySchema, parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.simulation import BlockBorderManagement, TimeBlock, build_problem
+from gems.simulation import TimeBlock, build_problem
 from gems.study.data import DataBase
 from gems.study.parsing import SystemSchema, parse_yaml_components
 from gems.study.resolve_components import (
@@ -130,7 +130,6 @@ def test_short_term_storage_base_with_yaml(
         study,
         time_blocks[0],
         list(range(scenarios)),
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"
@@ -179,7 +178,6 @@ def test_varying_down_time(
         study,
         TimeBlock(0, list(range(horizon))),
         list(range(scenarios)),
-        border_management=BlockBorderManagement.CYCLE,
     )
     problem.solve(solver_name="highs")
     assert problem.termination_condition == "optimal"

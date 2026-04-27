@@ -31,7 +31,7 @@ optimization problem in four phases:
 
 from collections import defaultdict
 from dataclasses import dataclass
-from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 
 import linopy
@@ -49,12 +49,13 @@ from gems.simulation.linearize import (
     _linopy_add,
 )
 from gems.simulation.time_block import TimeBlock
-from gems.study.data import ConstantData, DataBase, ScenarioSeriesData, TimeSeriesData
+from gems.simulation.vectorized_builder import ShiftValidityVisitor
+from gems.study.data import ConstantData, ScenarioSeriesData, TimeSeriesData
 from gems.study.study import Study
-from gems.study.system import Component, System
+from gems.study.system import Component
 
 if TYPE_CHECKING:
-    from gems.optim_config.parsing import ElementLocation, OptimConfig
+    from gems.optim_config.parsing import ElementLocation, OptimConfig, OutOfBoundsMode
 
 # ---------------------------------------------------------------------------
 # Public types
@@ -113,6 +114,50 @@ class DecompositionFilter:
     def include_objective(self, model_id: str, obj_id: str) -> bool:
         loc = self._objs.get((model_id, obj_id), self._default)
         return loc in self._target
+
+
+def _apply_validity_mask(expr: VectorizedExpr, mask: xr.DataArray) -> VectorizedExpr:
+    """Filter *expr* to valid (component, time) entries using *mask*.
+
+    When *expr* has both component and time dimensions the mask is applied
+    element-wise via ``where``.  When only the time dimension is present the
+    intersection across components is used (conservative fallback).
+    """
+    if not hasattr(expr, "dims"):
+        return expr
+    dims = expr.dims  # type: ignore[union-attr]
+    if "component" in dims and "time" in dims:
+        return expr.where(mask)  # type: ignore[union-attr,return-value]
+    if "time" in dims:
+        valid_times: List[int] = mask.all("component").values.nonzero()[0].tolist()
+        return expr.isel(time=valid_times)  # type: ignore[union-attr,return-value]
+    return expr
+
+
+class OutOfBoundsFilter:
+    """Maps (model_id, constraint_id) to its :class:`OutOfBoundsMode`.
+
+    Used by :class:`_OptimizationProblemBuilder` to determine whether a
+    constraint should be dropped at timesteps where a shifted term falls
+    outside the current block.
+
+    Parameters
+    ----------
+    config:
+        Parsed OptimConfig from optim-config.yml.
+    """
+
+    def __init__(self, config: "OptimConfig") -> None:
+        self._modes: Dict[Tuple[str, str], "OutOfBoundsMode"] = {}
+        for model_config in config.models:
+            if model_config.out_of_bounds_processing is not None:
+                for constraint in model_config.out_of_bounds_processing.constraints:
+                    self._modes[(model_config.id, constraint.id)] = constraint.mode
+
+    def get_mode(
+        self, model_id: str, constraint_name: str
+    ) -> "Optional[OutOfBoundsMode]":
+        return self._modes.get((model_id, constraint_name))
 
 
 def build_port_arrays(
@@ -248,18 +293,6 @@ def _build_slave_port_array(
     return total if total is not None else xr.DataArray(0.0)
 
 
-class BlockBorderManagement(Enum):
-    """
-    Specifies how the time horizon border is handled.
-
-    - CYCLE: All time steps are addressed modulo the horizon length (Antares default).
-    - IGNORE_OUT_OF_FRAME: Terms leading to out-of-horizon data are ignored.
-    """
-
-    CYCLE = "CYCLE"
-    IGNORE_OUT_OF_FRAME = "IGNORE"
-
-
 class OptimizationProblem:
     """
     Wraps a linopy.Model and provides the high-level API for solving and
@@ -312,6 +345,10 @@ class OptimizationProblem:
         """Objective function value after solving."""
         return float(self.linopy_model.objective.value) + self._objective_constant  # type: ignore[arg-type]
 
+    def export_lp(self, path: Path) -> None:
+        """Write the problem to an LP file at *path*."""
+        self.linopy_model.to_file(path, explicit_coordinate_names=True)
+
     def get_variable_labels(
         self, model_id: str, var_name: str
     ) -> Optional[xr.DataArray]:
@@ -347,6 +384,7 @@ class _OptimizationProblemBuilder:
         block: TimeBlock,
         scenario_ids: List[int],
         location_filter: Optional[DecompositionFilter] = None,
+        oob_filter: Optional[OutOfBoundsFilter] = None,
         initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
     ) -> None:
         self.name = name
@@ -354,6 +392,7 @@ class _OptimizationProblemBuilder:
         self.block = block
         self.scenario_ids = scenario_ids
         self._location_filter = location_filter
+        self._oob_filter = oob_filter
         self._initial_values = initial_values or {}
 
         self.block_length = len(block.timesteps)
@@ -648,7 +687,31 @@ class _OptimizationProblemBuilder:
             if not self._location_filter or self._location_filter.include_constraint(
                 model.id, constraint.name
             ):
+                # Compute a per-(component, time) validity mask for drop mode.
+                validity_mask: Optional[xr.DataArray] = None
+                if self._oob_filter is not None:
+                    from gems.optim_config.parsing import OutOfBoundsMode
+
+                    mode = self._oob_filter.get_mode(model.id, constraint.name)
+                    if mode == OutOfBoundsMode.DROP:
+                        validity_mask = visit(
+                            constraint.expression,
+                            ShiftValidityVisitor(
+                                model_id=model.id,
+                                param_arrays=self.param_arrays,
+                                block_length=self.block_length,
+                            ),
+                        )
+
                 lhs = visit(constraint.expression, builder)
+
+                # Skip constraints whose LHS evaluated to a pure DataArray (no
+                # decision variables — e.g. an unconnected port aggregation).
+                if isinstance(lhs, xr.DataArray):
+                    continue
+
+                if validity_mask is not None:
+                    lhs = _apply_validity_mask(lhs, validity_mask)
 
                 # Sanitize constraint name for LP format (spaces → underscores)
                 safe_name = constraint.name.replace(" ", "_").replace("-", "_")
@@ -656,6 +719,8 @@ class _OptimizationProblemBuilder:
                 # Lower bound constraint: lhs >= lb  (if lb != -inf)
                 if not is_unbounded(constraint.lower_bound):
                     lb = visit(constraint.lower_bound, builder)
+                    if validity_mask is not None:
+                        lb = _apply_validity_mask(lb, validity_mask)
                     name = f"{prefix}__{safe_name}__lb"
                     con_lb = lhs >= lb  # type: ignore[operator]
                     self.linopy_model.add_constraints(con_lb, name=name)  # type: ignore[arg-type]
@@ -663,6 +728,8 @@ class _OptimizationProblemBuilder:
                 # Upper bound constraint: lhs <= ub  (if ub != +inf)
                 if not is_unbounded(constraint.upper_bound):
                     ub = visit(constraint.upper_bound, builder)
+                    if validity_mask is not None:
+                        ub = _apply_validity_mask(ub, validity_mask)
                     name = f"{prefix}__{safe_name}__ub"
                     con_ub = lhs <= ub  # type: ignore[operator]
                     self.linopy_model.add_constraints(con_ub, name=name)  # type: ignore[arg-type]
@@ -749,7 +816,7 @@ def build_problem(
     scenario_ids: List[int],
     *,
     problem_name: str = "optimization_problem",
-    border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
+    optim_config: "Optional[OptimConfig]" = None,
     initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
 ) -> OptimizationProblem:
     """
@@ -767,25 +834,25 @@ def build_problem(
         time-series column via ``study.scenario_builder``.
     problem_name:
         Label for the linopy model.
-    border_management:
-        How to handle time steps at block borders (only CYCLE is implemented).
+    optim_config:
+        Optional parsed OptimConfig.  When provided, out-of-bounds-processing
+        rules are applied to constraint building.  The default cyclic border
+        behaviour (wrapping time shifts modulo the block length) is always
+        active; ``out-of-bounds-processing`` entries in the config can
+        override it per constraint.
     initial_values:
         Optional carry-over values keyed by ``(model_id, var_name)``.  For
         each entry a constraint ``var[time=0] == value`` is added, overriding
         the cyclic border condition for the first timestep.
     """
-    if border_management != BlockBorderManagement.CYCLE:
-        raise NotImplementedError(
-            f"Border management {border_management} is not yet implemented. "
-            "Only BlockBorderManagement.CYCLE is supported."
-        )
-
     study.check_consistency()
 
+    oob_filter = OutOfBoundsFilter(optim_config) if optim_config is not None else None
     builder = _OptimizationProblemBuilder(
         name=problem_name,
         study=study,
         block=block,
+        oob_filter=oob_filter,
         scenario_ids=scenario_ids,
         initial_values=initial_values,
     )
@@ -824,7 +891,6 @@ def build_decomposed_problems(
     *,
     subproblem_name: str = "subproblem",
     master_name: str = "master",
-    border_management: BlockBorderManagement = BlockBorderManagement.CYCLE,
 ) -> DecomposedProblems:
     """Build master and subproblem OptimizationProblems according to *optim_config*.
 
@@ -845,17 +911,8 @@ def build_decomposed_problems(
         Parsed ``OptimConfig`` from an ``optim-config.yml`` file.
     subproblem_name, master_name:
         Labels used for the underlying linopy models.
-    border_management:
-        Only ``CYCLE`` is implemented (identical restriction as in
-        :func:`build_problem`).
     """
     from gems.optim_config.parsing import ElementLocation
-
-    if border_management != BlockBorderManagement.CYCLE:
-        raise NotImplementedError(
-            f"Border management {border_management} is not yet implemented. "
-            "Only BlockBorderManagement.CYCLE is supported."
-        )
 
     study.check_consistency()
 
@@ -868,12 +925,15 @@ def build_decomposed_problems(
         ElementLocation.MASTER_AND_SUBPROBLEMS,
     }
 
+    oob_filter = OutOfBoundsFilter(optim_config)
+
     subproblem = _OptimizationProblemBuilder(
         name=subproblem_name,
         study=study,
         block=block,
         scenario_ids=scenario_ids,
         location_filter=DecompositionFilter(optim_config, sub_locs),
+        oob_filter=oob_filter,
     ).build()
 
     master: Optional[OptimizationProblem] = None
@@ -884,6 +944,7 @@ def build_decomposed_problems(
             block=block,
             scenario_ids=scenario_ids,
             location_filter=DecompositionFilter(optim_config, master_locs),
+            oob_filter=oob_filter,
         ).build()
 
     return DecomposedProblems(subproblem=subproblem, master=master)
