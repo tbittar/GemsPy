@@ -27,18 +27,6 @@ optimization problem in four phases:
    :class:`~gems.simulation.linearize.VectorizedLinearExprBuilder` to
    produce vectorized linopy constraints added in a single
    ``Model.add_constraints()`` call per constraint type.
-
-Out-of-bounds processing
-------------------------
-Constraints that involve time shifts (e.g. ``var[t-1]``) may reference
-timesteps outside the current block.  The default behaviour is *cyclic*
-wrap-around (indices taken modulo the block length).  When an
-``optim-config.yml`` file lists a constraint under
-``out-of-bounds-processing`` with ``mode: drop``, the corresponding
-constraint instances are silently omitted at timesteps where the shifted
-access falls outside ``[0, block_length)``.  Constraints not listed
-always use cyclic semantics.  See :class:`OutOfBoundsFilter` and
-:class:`~gems.simulation.vectorized_builder.ShiftValidityVisitor`.
 """
 
 from collections import defaultdict
