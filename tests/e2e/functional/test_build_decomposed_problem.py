@@ -11,13 +11,12 @@
 # This file is part of the Antares project.
 
 """
-End-to-end tests for study directories under tests/e2e/studies/.
+Tests for decomposed problems build.
 
 Each study directory contains:
   - input/system.yml           : network and component definitions
   - input/model-libraries/     : model library YAML files
   - input/optim-config.yml     : decomposition configuration
-  - parameters.yml             : run parameters (duration, scenarios, …)
   - expected_outputs/master.mps      : expected MPS for the master problem
   - expected_outputs/subproblem.mps  : expected MPS for the subproblem
   - expected_outputs/structure.txt   : expected Benders structure file
@@ -41,7 +40,7 @@ from gems.optim_config.parsing import load_optim_config, validate_optim_config
 from gems.simulation import TimeBlock, build_decomposed_problems
 from gems.study import Study
 
-STUDIES_DIR = Path(__file__).parent
+STUDIES_DIR = Path(__file__).parent / "studies"
 STUDY_IDS = ["13_1", "13_2"]
 
 
