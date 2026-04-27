@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -19,7 +20,7 @@ def run_study(
 
     Run parameters (time scope, solver options, scenario scope) are read from
     ``study_dir/input/optim-config.yml``; defaults apply when the file is absent.
-    Results are written to ``study_dir/output/``.
+    Results are written to ``study_dir/output/{run_id}/``.
 
     Args:
         study_dir: The path to the study directory.
@@ -34,9 +35,12 @@ def run_study(
     optim_config = load_optim_config(resolved_config_path) or OptimConfig()
     validate_optim_config(optim_config, study.system)
 
+    run_id = datetime.now().strftime("%Y%m%dT%H%M")
     session = SimulationSession(
         study=study,
         optim_config=optim_config,
+        run_id=run_id,
+        output_dir=study_dir / "output" / run_id,
     )
     table = session.run()
-    table.to_csv(study_dir / "output")
+    table.to_csv(session.output_dir)
