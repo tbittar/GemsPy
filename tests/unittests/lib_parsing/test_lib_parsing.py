@@ -9,6 +9,7 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # This file is part of the Antares project.
+import io
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,7 @@ from gems.model import (
     ModelPort,
     PortField,
     PortType,
+    ValueType,
     float_parameter,
     float_variable,
     model,
@@ -117,6 +119,22 @@ def test_library_parsing(libs_dir: Path) -> None:
             )
         ],
     )
+
+
+def test_binary_variable_parsing() -> None:
+    yaml_content = """
+library:
+  id: test
+  models:
+    - id: binary_model
+      variables:
+        - id: on_off
+          variable-type: binary
+"""
+    input_lib = parse_yaml_library(io.StringIO(yaml_content))
+    lib = resolve_library([input_lib])
+    on_off = lib["test"].models["test.binary_model"].variables["on_off"]
+    assert on_off.data_type == ValueType.BINARY
 
 
 def test_library_error_parsing(libs_dir: Path) -> None:

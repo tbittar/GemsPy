@@ -1,5 +1,5 @@
 """
-This module provides functions to load and run simulation studies.
+This module provides functions to load simulation studies from disk.
 
 A study is defined by a directory containing:
 - `input/system.yml`: A file describing the system to be simulated.
@@ -7,18 +7,11 @@ A study is defined by a directory containing:
 - `input/data-series/`: A folder containing data series files.
 """
 
-import time
 from pathlib import Path
-from typing import Optional
-
-import numpy as np
-import pandas as pd
 
 from gems.model.model import Model
 from gems.model.parsing import parse_yaml_library
 from gems.model.resolve_library import resolve_library
-from gems.simulation import TimeBlock, build_problem
-from gems.simulation.optimization import OptimizationProblem
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
     build_data_base,
@@ -46,7 +39,6 @@ def load_study(study_dir: Path) -> Study:
     system_file = study_dir / "input" / "system.yml"
     lib_folder = study_dir / "input" / "model-libraries"
     series_dir = study_dir / "input" / "data-series"
-    config_file = study_dir / "input" / "optim-config.yml"
 
     input_libraries = []
     for lib_file in lib_folder.glob("*.yml"):
@@ -70,46 +62,3 @@ def load_study(study_dir: Path) -> Study:
         else ScenarioBuilder()
     )
     return Study(system=system, database=database, scenario_builder=scenario_builder)
-
-
-def run_study(
-    study_dir: Path,
-    scenarios: int,
-    time_block: TimeBlock,
-    export_simulation_table: Optional[bool] = False,
-) -> OptimizationProblem:
-    """
-    Runs a simulation study.
-
-    This function loads a study, builds a simulation problem, and solves it.
-
-    Args:
-        study_dir: The path to the study directory.
-        scenarios: The number of scenarios to run.
-        time_block: The time block for the simulation.
-        export_simulation_table: Whether to export a simulation table CSV file.
-
-    Returns:
-        The solved simulation problem.
-    """
-
-    study = load_study(study_dir)
-    problem = build_problem(study, time_block, list(range(scenarios)))
-    problem.solve()
-    if export_simulation_table:
-        from gems.simulation.simulation_table import (
-            SimulationTableBuilder,
-            SimulationTableWriter,
-        )
-
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        builder = SimulationTableBuilder(simulation_id=study_dir.stem)
-        st = builder.build(problem)
-        writer = SimulationTableWriter(st)
-        writer.write_csv(
-            output_dir=study_dir / "output",
-            simulation_id=f"{study_dir.stem}_{timestamp}",
-            optim_nb=problem.block.id,
-        )
-
-    return problem

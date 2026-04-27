@@ -17,11 +17,7 @@ from uuid import uuid4
 
 import xarray as xr
 
-from gems.optim_config.parsing import (
-    OptimConfig,
-    ResolutionMode,
-    load_optim_config,
-)
+from gems.optim_config.parsing import OptimConfig, ResolutionMode, load_optim_config
 from gems.simulation.optimization import OptimizationProblem, build_problem
 from gems.simulation.simulation_table import (
     SimulationTable,
@@ -37,10 +33,12 @@ from gems.study.study import Study
 class SimulationSession:
     study: Study
     optim_config: OptimConfig
-    study_length: int
-    scenario_ids: List[int]
     run_id: str = field(default_factory=lambda: str(uuid4()))
     output_dir: Optional[Path] = None
+
+    @property
+    def scenario_ids(self) -> List[int]:
+        return list(range(self.optim_config.scenario_scope.nb_scenarios))
 
     def run(self) -> SimulationTable:
         """Entry point. Dispatches to the appropriate resolution strategy."""
@@ -60,8 +58,16 @@ class SimulationSession:
     # ------------------------------------------------------------------
 
     def _run_frontal(self) -> SimulationTable:
-        block = TimeBlock(0, list(range(self.study_length)))
-        _problem, table = self._run_block(block, scenario_ids=self.scenario_ids)
+        block = TimeBlock(
+            0,
+            list(
+                range(
+                    self.optim_config.time_scope.first_time_step,
+                    self.optim_config.time_scope.last_time_step + 1,
+                )
+            ),
+        )
+        _, table = self._run_block(block, scenario_ids=self.scenario_ids)
         return table
 
     def _run_sequential(self) -> SimulationTable:
@@ -71,12 +77,15 @@ class SimulationSession:
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
-            t_start = 0
+            t_start = self.optim_config.time_scope.first_time_step
             block_id = 0
             carry_over: Dict[Tuple[str, str], xr.DataArray] = {}
 
-            while t_start < self.study_length:
-                end = min(t_start + block_length, self.study_length)
+            while t_start < self.optim_config.time_scope.last_time_step:
+                end = min(
+                    t_start + block_length,
+                    self.optim_config.time_scope.last_time_step + 1,
+                )
                 timesteps = list(range(t_start, end))
                 block = TimeBlock(block_id, timesteps)
                 problem, table = self._run_block(
@@ -99,9 +108,24 @@ class SimulationSession:
 
         tables: List[SimulationTable] = []
         for scenario_id in self.scenario_ids:
-            starts = range(0, self.study_length, block_length)
+            starts = range(
+                self.optim_config.time_scope.first_time_step,
+                self.optim_config.time_scope.last_time_step + 1,
+                block_length,
+            )
             blocks = [
-                TimeBlock(i, list(range(t, min(t + block_length, self.study_length))))
+                TimeBlock(
+                    i,
+                    list(
+                        range(
+                            t,
+                            min(
+                                t + block_length,
+                                self.optim_config.time_scope.last_time_step + 1,
+                            ),
+                        )
+                    ),
+                )
                 for i, t in enumerate(starts)
             ]
             for block in blocks:
@@ -120,7 +144,15 @@ class SimulationSession:
             dump_couplings,
         )
 
-        block = TimeBlock(1, list(range(self.study_length)))
+        block = TimeBlock(
+            1,
+            list(
+                range(
+                    self.optim_config.time_scope.first_time_step,
+                    self.optim_config.time_scope.last_time_step + 1,
+                )
+            ),
+        )
         decomposed = build_decomposed_problems(
             self.study, block, self.scenario_ids, self.optim_config
         )
@@ -159,14 +191,19 @@ class SimulationSession:
             scenario_ids,
             initial_values=initial_values,
         )
-        problem.solve(solver_name="highs")
-        table = SimulationTableBuilder().build(problem, scenario_ids_remap=scenario_ids)
+        problem.solve(
+            solver_name=self.optim_config.solver_options.name,
+            solver_logs=self.optim_config.solver_options.logs,
+            **self.optim_config.solver_options.parsed_parameters(),
+        )
+        table = SimulationTableBuilder().build(
+            problem, scenario_ids_remap=scenario_ids, table_id=self.run_id
+        )
         return problem, table
 
-    @staticmethod
-    def _reduce(tables: List[SimulationTable]) -> SimulationTable:
+    def _reduce(self, tables: List[SimulationTable]) -> SimulationTable:
         """REDUCE: merge SimulationTables from one scenario's blocks into one."""
-        return merge_simulation_tables(tables)
+        return merge_simulation_tables(tables, table_id=self.run_id)
 
     @staticmethod
     def _extract_carry_over(
@@ -183,24 +220,3 @@ class SimulationSession:
                 sol_da: xr.DataArray = solution[linopy_var.name]
                 carry_over[(model, var_name)] = sol_da.isel(time=local_index, drop=True)
         return carry_over
-
-
-def load_session(
-    study_dir: Path,
-    study_length: int,
-    scenario_ids: List[int],
-    run_id: Optional[str] = None,
-    output_dir: Optional[Path] = None,
-) -> SimulationSession:
-    """Factory: load a study from disk and build a SimulationSession."""
-    study = load_study(study_dir)
-    config_path = study_dir / "input" / "optim-config.yml"
-    optim_config = load_optim_config(config_path) or OptimConfig()
-    return SimulationSession(
-        study=study,
-        optim_config=optim_config,
-        study_length=study_length,
-        scenario_ids=scenario_ids,
-        run_id=run_id or str(uuid4()),
-        output_dir=output_dir,
-    )

@@ -12,7 +12,6 @@
 
 from .couplings import CouplingRow, build_couplings, dump_couplings
 from .optimization import (
-    BlockBorderManagement,
     DecomposedProblems,
     DecompositionFilter,
     LinopyModel,
