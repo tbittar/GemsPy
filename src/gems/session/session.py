@@ -220,23 +220,3 @@ class SimulationSession:
                 sol_da: xr.DataArray = solution[linopy_var.name]
                 carry_over[(model, var_name)] = sol_da.isel(time=local_index, drop=True)
         return carry_over
-<<<<<<< claude/fix-circular-dependency-pJhr8
-
-
-def load_session(
-    study_dir: Path,
-    run_id: Optional[str] = None,
-    output_dir: Optional[Path] = None,
-) -> SimulationSession:
-    """Factory: load a study from disk and build a SimulationSession."""
-    study = load_study(study_dir)
-    config_path = study_dir / "input" / "optim-config.yml"
-    optim_config = load_optim_config(config_path) or OptimConfig()
-    return SimulationSession(
-        study=study,
-        optim_config=optim_config,
-        run_id=run_id or str(uuid4()),
-        output_dir=output_dir,
-    )
-=======
->>>>>>> claude/gemspy-issue-106-strategy-XZfgE
