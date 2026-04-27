@@ -1,7 +1,11 @@
 from pathlib import Path
 from typing import Optional
 
-from gems.optim_config.parsing import OptimConfig, load_optim_config, validate_optim_config
+from gems.optim_config.parsing import (
+    OptimConfig,
+    load_optim_config,
+    validate_optim_config,
+)
 from gems.session.session import SimulationSession
 from gems.study.folder import load_study
 
