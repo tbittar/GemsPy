@@ -852,7 +852,6 @@ def build_problem(
         block=block,
         oob_filter=oob_filter,
         scenario_ids=scenario_ids,
-        oob_filter=oob_filter,
         initial_values=initial_values,
     )
     return builder.build()
