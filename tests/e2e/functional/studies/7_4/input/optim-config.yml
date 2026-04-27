@@ -3,9 +3,9 @@ time-scope:
   last-time-step: 167
 
 solver-options:
-  solver: highs
-  solver-logs: false
-  solver-parameters: ""
+  name: highs
+  logs: false
+  parameters: ""
 
 scenario-scope:
   nb-scenarios: 1

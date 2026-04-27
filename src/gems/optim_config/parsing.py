@@ -84,18 +84,18 @@ class TimeScopeConfig(ModifiedBaseModel):
 
 
 class SolverOptionsConfig(ModifiedBaseModel):
-    solver: str = "highs"
-    solver_logs: bool = False
-    solver_parameters: str = ""
+    name: str = "highs"
+    logs: bool = False
+    parameters: str = ""
 
-    def parsed_solver_parameters(self) -> Dict[str, Any]:
+    def parsed_parameters(self) -> Dict[str, Any]:
         """Parse 'KEY VALUE KEY2 VALUE2 ...' into a dict with numeric coercion."""
-        if not self.solver_parameters.strip():
+        if not self.parameters.strip():
             return {}
-        tokens = self.solver_parameters.split()
+        tokens = self.parameters.split()
         if len(tokens) % 2 != 0:
             raise ValueError(
-                f"solver-parameters must be space-separated key-value pairs, got: {self.solver_parameters!r}"
+                f"parameters must be space-separated key-value pairs, got: {self.parameters!r}"
             )
         result: Dict[str, Any] = {}
         for i in range(0, len(tokens), 2):

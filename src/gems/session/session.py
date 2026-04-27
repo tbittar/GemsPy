@@ -191,9 +191,9 @@ class SimulationSession:
             initial_values=initial_values,
         )
         problem.solve(
-            solver_name=self.optim_config.solver_options.solver,
-            solver_logs=self.optim_config.solver_options.solver_logs,
-            **self.optim_config.solver_options.parsed_solver_parameters(),
+            solver_name=self.optim_config.solver_options.name,
+            solver_logs=self.optim_config.solver_options.logs,
+            **self.optim_config.solver_options.parsed_parameters(),
         )
         table = SimulationTableBuilder().build(
             problem, scenario_ids_remap=scenario_ids, table_id=self.run_id
