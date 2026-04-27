@@ -25,6 +25,7 @@ from gems.simulation.simulation_table import (
     merge_simulation_tables,
 )
 from gems.simulation.time_block import TimeBlock
+from gems.study.folder import load_study
 from gems.study.study import Study
 
 
@@ -227,10 +228,6 @@ def load_session(
     output_dir: Optional[Path] = None,
 ) -> SimulationSession:
     """Factory: load a study from disk and build a SimulationSession."""
-    from gems.study.folder import (  # local import to avoid circular dependency
-        load_study,
-    )
-
     study = load_study(study_dir)
     config_path = study_dir / "input" / "optim-config.yml"
     optim_config = load_optim_config(config_path) or OptimConfig()
