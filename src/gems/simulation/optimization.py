@@ -139,7 +139,8 @@ class OutOfBoundsFilter:
 
     Used by :class:`_OptimizationProblemBuilder` to determine whether a
     constraint should be dropped at timesteps where a shifted term falls
-    outside the current block.
+    outside the current block.  Constraints not listed in the config default
+    to cyclic wrap-around (no masking applied).
 
     Parameters
     ----------
@@ -814,9 +815,8 @@ def build_problem(
     study: Study,
     block: TimeBlock,
     scenario_ids: List[int],
-    *,
-    problem_name: str = "optimization_problem",
     optim_config: "Optional[OptimConfig]" = None,
+    problem_name: str = "optimization_problem",
     initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
 ) -> OptimizationProblem:
     """
@@ -832,14 +832,12 @@ def build_problem(
     scenario_ids:
         List of MC scenario IDs to include.  Each ID is resolved to a
         time-series column via ``study.scenario_builder``.
+    optim_config:
+        Optional parsed OptimConfig.  When provided, per-constraint
+        out-of-bounds-processing rules (cyclic vs. drop) are applied.
+        Constraints not listed default to cyclic.
     problem_name:
         Label for the linopy model.
-    optim_config:
-        Optional parsed OptimConfig.  When provided, out-of-bounds-processing
-        rules are applied to constraint building.  The default cyclic border
-        behaviour (wrapping time shifts modulo the block length) is always
-        active; ``out-of-bounds-processing`` entries in the config can
-        override it per constraint.
     initial_values:
         Optional carry-over values keyed by ``(model_id, var_name)``.  For
         each entry a constraint ``var[time=0] == value`` is added, overriding
@@ -900,6 +898,11 @@ def build_decomposed_problems(
     The master is built only when at least one element in *optim_config* has
     location ``master`` or ``master-and-subproblems``.
 
+    Per-constraint out-of-bounds-processing rules (cyclic vs. drop) defined
+    in the ``out-of-bounds-processing`` section of optim-config are applied
+    to both the subproblem and the master.  Constraints not listed default to
+    cyclic wrap-around.
+
     Parameters
     ----------
     study:
@@ -915,6 +918,8 @@ def build_decomposed_problems(
     from gems.optim_config.parsing import ElementLocation
 
     study.check_consistency()
+
+    oob_filter = OutOfBoundsFilter(optim_config)
 
     master_locs: Set["ElementLocation"] = {
         ElementLocation.MASTER,

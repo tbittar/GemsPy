@@ -10,11 +10,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from gems.simulation.simulation_table import (
-    SimulationColumns,
-    SimulationTableBuilder,
-    SimulationTableWriter,
-)
+from gems.simulation.simulation_table import SimulationColumns, SimulationTableBuilder
 
 
 @dataclass(frozen=True)
@@ -68,7 +64,7 @@ class FakeProblem:
 
 
 def test_simulation_table_builder_manual(tmp_path: Path) -> None:
-    """Test SimulationTableBuilder and SimulationTableWriter with fake data."""
+    """Test SimulationTableBuilder with fake data."""
     sol_da = xr.DataArray(
         np.array([[[10.0], [20.0]]]),
         dims=["component", "time", "scenario"],
@@ -89,7 +85,7 @@ def test_simulation_table_builder_manual(tmp_path: Path) -> None:
     )
 
     builder = SimulationTableBuilder(simulation_id="test")
-    df = builder.build(problem)  # type: ignore
+    df = builder.build(problem, table_id="test")  # type: ignore
 
     expected_rows = [
         {
@@ -140,8 +136,7 @@ def test_simulation_table_builder_manual(tmp_path: Path) -> None:
         check_dtype=False,
     )
 
-    writer = SimulationTableWriter(df)
-    csv_path = writer.write_csv(tmp_path, simulation_id="test", optim_nb=1)
+    csv_path = df.to_csv(tmp_path)
 
     assert csv_path.exists(), "CSV file was not created"
 
@@ -154,7 +149,7 @@ def test_simulation_table_builder_manual(tmp_path: Path) -> None:
     csv_path.unlink()
 
     pytest.importorskip("pyarrow")
-    parquet_path = writer.write_parquet(tmp_path, simulation_id="test", optim_nb=1)
+    parquet_path = df.to_parquet(tmp_path)
     assert parquet_path.exists(), "Parquet file was not created"
     loaded = pd.read_parquet(parquet_path)
     assert list(loaded.columns) == [col.value for col in SimulationColumns]

@@ -10,6 +10,6 @@
 #
 # This file is part of the Antares project.
 
-from .session import SimulationSession, load_session
+from .session import SimulationSession
 
-__all__ = ["SimulationSession", "load_session"]
+__all__ = ["SimulationSession"]

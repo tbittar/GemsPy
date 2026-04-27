@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -104,8 +103,9 @@ class SimulationTable:
     The underlying long-format DataFrame is accessible via the ``data`` property.
     """
 
-    def __init__(self, df: pd.DataFrame) -> None:
+    def __init__(self, df: pd.DataFrame, table_id: str = "") -> None:
         self._df = df
+        self.table_id = table_id
 
     @property
     def data(self) -> pd.DataFrame:
@@ -116,6 +116,27 @@ class SimulationTable:
         """Return a ComponentView filtered to the given component ID."""
         mask = self._df[SimulationColumns.COMPONENT.value] == component_id
         return ComponentView(self._df[mask])
+
+    def to_csv(self, output_dir: Path) -> Path:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / f"simulation_table_{self.table_id}.csv"
+        self._df.to_csv(path, index=False)
+        return path
+
+    def to_parquet(self, output_dir: Path) -> Path:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / f"simulation_table_{self.table_id}.parquet"
+        self._df.to_parquet(path, index=False)
+        return path
+
+    def to_netcdf(self, output_dir: Path) -> Path:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / f"simulation_table_{self.table_id}.nc"
+        self.to_dataset().to_netcdf(path)
+        return path
 
     def to_dataset(self) -> xr.Dataset:
         """Return simulation results as an xr.Dataset.
@@ -173,6 +194,7 @@ class SimulationTableBuilder:
         problem: OptimizationProblem,
         absolute_time_offset: Optional[int] = None,
         scenario_ids_remap: Optional[List[int]] = None,
+        table_id: str = "",
     ) -> SimulationTable:
         block = problem.block.id
         block_size = problem.block_length
@@ -192,7 +214,7 @@ class SimulationTableBuilder:
         )
         dfs.append(self._collect_objective_value(problem, block))
 
-        return SimulationTable(pd.concat(dfs, ignore_index=True))
+        return SimulationTable(pd.concat(dfs, ignore_index=True), table_id=table_id)
 
     # -------------------------------------------------------------------------
     # Solver outputs
@@ -379,55 +401,10 @@ class SimulationTableBuilder:
         )
 
 
-@dataclass
-class SimulationTableWriter:
-    """Handles writing simulation tables to CSV."""
-
-    simulation_table: SimulationTable
-
-    def write_csv(
-        self,
-        output_dir: Union[str, Path],
-        simulation_id: str,
-        optim_nb: int,
-    ) -> Path:
-        """Write the simulation table to CSV."""
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"simulation_table_{simulation_id}_{optim_nb}.csv"
-        filepath = output_dir / filename
-        self.simulation_table.data.to_csv(filepath, index=False)
-        return filepath
-
-    def write_parquet(
-        self,
-        output_dir: Union[str, Path],
-        simulation_id: str,
-        optim_nb: int,
-    ) -> Path:
-        """Write the simulation table to Parquet."""
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"simulation_table_{simulation_id}_{optim_nb}.parquet"
-        filepath = output_dir / filename
-        self.simulation_table.data.to_parquet(filepath, index=False)
-        return filepath
-
-    def write_netcdf(
-        self,
-        output_dir: Union[str, Path],
-        simulation_id: str,
-        optim_nb: int,
-    ) -> Path:
-        """Write the simulation table to NetCDF via xr.Dataset."""
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"simulation_table_{simulation_id}_{optim_nb}.nc"
-        filepath = output_dir / filename
-        self.simulation_table.to_dataset().to_netcdf(filepath)
-        return filepath
-
-
-def merge_simulation_tables(tables: List[SimulationTable]) -> SimulationTable:
+def merge_simulation_tables(
+    tables: List[SimulationTable], table_id: str = ""
+) -> SimulationTable:
     """Concatenate multiple SimulationTables into one."""
-    return SimulationTable(pd.concat([t.data for t in tables], ignore_index=True))
+    return SimulationTable(
+        pd.concat([t.data for t in tables], ignore_index=True), table_id=table_id
+    )
