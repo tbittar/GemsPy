@@ -294,22 +294,6 @@ def _check_master_objectives_use_master_variables(
                     )
 
 
-def _check_oob_constraint_ids(
-    oob_processing: OutOfBoundsProcessingConfig,
-    model: "Model",
-    model_config_id: str,
-    errors: List[str],
-) -> None:
-    for constraint_config in oob_processing.constraints:
-        if (
-            constraint_config.id not in model.constraints
-            and constraint_config.id not in model.binding_constraints
-        ):
-            errors.append(
-                f"Out-of-bounds constraint '{constraint_config.id}' not found in model '{model_config_id}'"
-            )
-
-
 def validate_optim_config(config: OptimConfig, system: "System") -> None:
     """Cross-validate optim-config entries against the resolved system.
 
