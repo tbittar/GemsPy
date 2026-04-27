@@ -178,6 +178,22 @@ def _collect_variable_names(expr: ExpressionNode) -> Set[str]:
     return set()
 
 
+def _check_oob_constraint_ids(
+    oob_processing: OutOfBoundsProcessingConfig,
+    model: "Model",
+    model_config_id: str,
+    errors: List[str],
+) -> None:
+    for constraint_config in oob_processing.constraints:
+        if (
+            constraint_config.id not in model.constraints
+            and constraint_config.id not in model.binding_constraints
+        ):
+            errors.append(
+                f"Out-of-bounds constraint '{constraint_config.id}' not found in model '{model_config_id}'"
+            )
+
+
 def _check_id_existence(
     decomposition: ModelDecompositionConfig,
     model: "Model",

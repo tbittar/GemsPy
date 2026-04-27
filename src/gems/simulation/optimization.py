@@ -688,13 +688,6 @@ class _OptimizationProblemBuilder:
             if not self._location_filter or self._location_filter.include_constraint(
                 model.id, constraint.name
             ):
-                lhs = visit(constraint.expression, builder)
-
-                # Skip constraints whose LHS evaluated to a pure DataArray (no
-                # decision variables — e.g. an unconnected port aggregation).
-                if isinstance(lhs, xr.DataArray):
-                    continue
-
                 # Compute a per-(component, time) validity mask for drop mode.
                 validity_mask: Optional[xr.DataArray] = None
                 if self._oob_filter is not None:
@@ -710,6 +703,13 @@ class _OptimizationProblemBuilder:
                                 block_length=self.block_length,
                             ),
                         )
+
+                lhs = visit(constraint.expression, builder)
+
+                # Skip constraints whose LHS evaluated to a pure DataArray (no
+                # decision variables — e.g. an unconnected port aggregation).
+                if isinstance(lhs, xr.DataArray):
+                    continue
 
                 if validity_mask is not None:
                     lhs = _apply_validity_mask(lhs, validity_mask)
@@ -816,7 +816,6 @@ def build_problem(
     block: TimeBlock,
     scenario_ids: List[int],
     optim_config: "Optional[OptimConfig]" = None,
-    *,
     problem_name: str = "optimization_problem",
     initial_values: Optional[Dict[Tuple[str, str], xr.DataArray]] = None,
 ) -> OptimizationProblem:
@@ -847,11 +846,11 @@ def build_problem(
     study.check_consistency()
 
     oob_filter = OutOfBoundsFilter(optim_config) if optim_config is not None else None
-
     builder = _OptimizationProblemBuilder(
         name=problem_name,
         study=study,
         block=block,
+        oob_filter=oob_filter,
         scenario_ids=scenario_ids,
         oob_filter=oob_filter,
         initial_values=initial_values,
@@ -931,6 +930,8 @@ def build_decomposed_problems(
         ElementLocation.SUBPROBLEMS,
         ElementLocation.MASTER_AND_SUBPROBLEMS,
     }
+
+    oob_filter = OutOfBoundsFilter(optim_config)
 
     subproblem = _OptimizationProblemBuilder(
         name=subproblem_name,
