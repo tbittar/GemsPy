@@ -70,7 +70,7 @@ from typing import Dict
 import linopy
 import pytest
 
-from gems.optim_config.parsing import OptimConfig, load_optim_config
+from gems.optim_config.parsing import load_optim_config
 from gems.simulation import TimeBlock, build_decomposed_problems
 from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.study.folder import load_study
