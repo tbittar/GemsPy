@@ -128,9 +128,9 @@ def _get_value(raw, component: str, output: str, timestep: int) -> float:
         & (raw["absolute-time-index"] == timestep)
     )
     rows = raw[mask]
-    assert len(rows) >= 1, (
-        f"No row for component={component} output={output} t={timestep}"
-    )
+    assert (
+        len(rows) >= 1
+    ), f"No row for component={component} output={output} t={timestep}"
     return float(rows.iloc[0]["value"])
 
 
@@ -159,13 +159,15 @@ def test_rolling_horizon_suboptimality(tmp_path: Path) -> None:
     frontal_obj = _total_objective(frontal_raw)
     seq_obj = _total_objective(seq_raw)
 
-    assert frontal_obj == pytest.approx(10.0, rel=1e-6), (
-        f"Frontal objective should be 10.0, got {frontal_obj}"
-    )
-    assert seq_obj == pytest.approx(406.0, rel=1e-6), (
-        f"Sequential sum of block objectives should be 406.0, got {seq_obj}"
-    )
-    assert seq_obj > frontal_obj, "Sequential mode must be strictly suboptimal vs frontal"
+    assert frontal_obj == pytest.approx(
+        10.0, rel=1e-6
+    ), f"Frontal objective should be 10.0, got {frontal_obj}"
+    assert seq_obj == pytest.approx(
+        406.0, rel=1e-6
+    ), f"Sequential sum of block objectives should be 406.0, got {seq_obj}"
+    assert (
+        seq_obj > frontal_obj
+    ), "Sequential mode must be strictly suboptimal vs frontal"
 
     # ── SoC carry-over assertions ─────────────────────────────────────────────
     # Frontal recharges at t=2 and t=4 (zero-demand steps); sequential does not
