@@ -72,10 +72,7 @@ import pytest
 
 from gems.optim_config.parsing import OptimConfig, load_optim_config
 from gems.simulation import TimeBlock, build_decomposed_problems
-from gems.simulation.simulation_table import (
-    SimulationTableBuilder,
-    SimulationTableWriter,
-)
+from gems.simulation.simulation_table import SimulationTableBuilder
 from gems.study.folder import load_study
 
 STUDIES_DIR = Path(__file__).parent / "studies"
@@ -130,8 +127,7 @@ def test_out_of_bounds_processing(study_id: str, expected_objective: float) -> N
             )
             builder = SimulationTableBuilder(simulation_id=study_path.stem)
             st = builder.build(decomposed.subproblem)
-            writer = SimulationTableWriter(st)
-            writer.write_csv(
+            st.write_csv(
                 output_dir=output_dir,
                 simulation_id=f"{study_path.stem}_{timestamp}",
                 optim_nb=decomposed.subproblem.block.id,
