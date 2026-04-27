@@ -456,6 +456,14 @@ class VectorizedBuilderBase(ExpressionVisitor[VectorizedExpr], Generic[T_expr]):
 # ---------------------------------------------------------------------------
 
 
+class _TimeDependentShiftError(ValueError):
+    """Raised when a shift amount resolves to a time-dependent parameter."""
+
+
+class _ScenarioDependentShiftError(ValueError):
+    """Raised when a shift amount resolves to a scenario-dependent parameter."""
+
+
 @dataclass(kw_only=True)
 class _ShiftAmountEvaluator(ExpressionVisitorOperations[xr.DataArray]):
     """Evaluate a shift-amount sub-expression to an xr.DataArray.
@@ -472,7 +480,18 @@ class _ShiftAmountEvaluator(ExpressionVisitorOperations[xr.DataArray]):
         return xr.DataArray(node.value)
 
     def parameter(self, node: ParameterNode) -> xr.DataArray:
-        return self.param_arrays[(self.model_id, node.name)]
+        da = self.param_arrays[(self.model_id, node.name)]
+        if "time" in da.dims:
+            raise _TimeDependentShiftError(
+                f"Parameter '{node.name}' depends on time and cannot be used as a"
+                " shift amount."
+            )
+        if "scenario" in da.dims:
+            raise _ScenarioDependentShiftError(
+                f"Parameter '{node.name}' depends on scenario and cannot be used as a"
+                " shift amount."
+            )
+        return da
 
     def variable(self, node: VariableNode) -> xr.DataArray:
         raise ValueError("VariableNode cannot appear in a time-shift amount")
@@ -569,6 +588,8 @@ class ShiftValidityVisitor(ExpressionVisitor[Optional[xr.DataArray]]):
                     model_id=self.model_id, param_arrays=self.param_arrays
                 ),
             )
+        except (_TimeDependentShiftError, _ScenarioDependentShiftError):
+            raise
         except (KeyError, ValueError, NotImplementedError):
             return None
 

@@ -194,3 +194,50 @@ def test_unevaluable_shift_raises():
     expr = var("x").shift(shift_expr)
     with pytest.raises(ValueError, match="not evaluable"):
         visit(expr, _visitor(block_length=4))
+
+
+# ---------------------------------------------------------------------------
+# Time- or scenario-dependent parameter in shift — raises specific error
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def time_dependent_lag():
+    """Lag parameter that varies over both component and time."""
+    return {
+        ("m", "lag"): xr.DataArray(
+            [[1.0, 2.0, 1.0, 2.0], [2.0, 1.0, 2.0, 1.0]],
+            dims=["component", "time"],
+            coords={"component": ["c1", "c2"], "time": [0, 1, 2, 3]},
+        )
+    }
+
+
+@pytest.fixture
+def scenario_dependent_lag():
+    """Lag parameter that varies over scenario."""
+    return {
+        ("m", "lag"): xr.DataArray(
+            [1.0, 2.0],
+            dims=["scenario"],
+            coords={"scenario": ["s1", "s2"]},
+        )
+    }
+
+
+def test_time_dependent_param_in_shift_raises(time_dependent_lag):
+    expr = var("x").shift(param("lag"))
+    with pytest.raises(ValueError, match="depends on time"):
+        visit(expr, _visitor(time_dependent_lag, block_length=4))
+
+
+def test_time_dependent_param_in_time_sum_bound_raises(time_dependent_lag):
+    expr = var("x").time_sum(-param("lag"), 0)
+    with pytest.raises(ValueError, match="depends on time"):
+        visit(expr, _visitor(time_dependent_lag, block_length=4))
+
+
+def test_scenario_dependent_param_in_shift_raises(scenario_dependent_lag):
+    expr = var("x").shift(param("lag"))
+    with pytest.raises(ValueError, match="depends on scenario"):
+        visit(expr, _visitor(scenario_dependent_lag, block_length=4))
