@@ -5,9 +5,6 @@ A study is defined by a directory containing:
 - `input/system.yml`: A file describing the system to be simulated.
 - `input/model-libraries/`: A folder containing model library files in YAML format.
 - `input/data-series/`: A folder containing data series files.
-- `input/optim-config.yml` (optional): Run parameters (time scope, solver options,
-  scenario scope, decomposition configuration, and per-constraint
-  out-of-bounds-processing rules (cyclic wrap-around vs. drop at block borders)).
 """
 
 from pathlib import Path
