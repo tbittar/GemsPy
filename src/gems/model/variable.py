@@ -66,7 +66,7 @@ def bool_var(
     name: str,
     structure: IndexingStructure = IndexingStructure(True, True),
 ) -> Variable:
-    return Variable(name, ValueType.BOOLEAN, literal(0), literal(1), structure)
+    return Variable(name, ValueType.BINARY, literal(0), literal(1), structure)
 
 
 def float_variable(
