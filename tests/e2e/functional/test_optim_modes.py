@@ -32,8 +32,7 @@ from gems.study.runner import run_study
 
 _STUDY_SRC = Path(__file__).parent / "studies" / "dsr_3_blocks"
 
-_FRONTAL_CONFIG = textwrap.dedent(
-    """\
+_FRONTAL_CONFIG = textwrap.dedent("""\
     time-scope:
       first-time-step: 0
       last-time-step: 503
@@ -45,11 +44,9 @@ _FRONTAL_CONFIG = textwrap.dedent(
       nb-scenarios: 1
     resolution:
       mode: frontal
-"""
-)
+""")
 
-_PARALLEL_CONFIG = textwrap.dedent(
-    """\
+_PARALLEL_CONFIG = textwrap.dedent("""\
     time-scope:
       first-time-step: 0
       last-time-step: 503
@@ -62,11 +59,9 @@ _PARALLEL_CONFIG = textwrap.dedent(
     resolution:
       mode: parallel-subproblems
       block-length: 168
-"""
-)
+""")
 
-_SEQUENTIAL_CONFIG = textwrap.dedent(
-    """\
+_SEQUENTIAL_CONFIG = textwrap.dedent("""\
     time-scope:
       first-time-step: 0
       last-time-step: 503
@@ -80,8 +75,7 @@ _SEQUENTIAL_CONFIG = textwrap.dedent(
       mode: sequential-subproblems
       block-length: 168
       block-overlap: 1
-"""
-)
+""")
 
 _KEY_COLS = [
     "component",
