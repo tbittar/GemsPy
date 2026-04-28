@@ -33,7 +33,6 @@ from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import _build_data, build_data_base
 from gems.study.scenario_builder import ScenarioBuilder
 
-
 # ---------------------------------------------------------------------------
 # load_ts_from_file
 # ---------------------------------------------------------------------------
