@@ -28,7 +28,7 @@ jobs:
         run: uv run isort --profile black --check-only --diff src tests
 
       - name: Check formatting
-        run: uv run black --check --diff .
+        run: uv run black --check --diff src tests
 
       - name: Check typing
         run: uv run mypy
