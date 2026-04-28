@@ -68,8 +68,7 @@ from gems.study.runner import run_study
 
 _STUDY_SRC = Path(__file__).parent / "studies" / "rolling_horizon_suboptimality"
 
-_BASE_CONFIG = textwrap.dedent(
-    """\
+_BASE_CONFIG = textwrap.dedent("""\
     time-scope:
       first-time-step: 0
       last-time-step: 5
@@ -85,24 +84,19 @@ _BASE_CONFIG = textwrap.dedent(
           constraints:
             - id: soc_balance
               mode: drop
-"""
-)
+""")
 
-_FRONTAL_CONFIG = _BASE_CONFIG + textwrap.dedent(
-    """\
+_FRONTAL_CONFIG = _BASE_CONFIG + textwrap.dedent("""\
     resolution:
       mode: frontal
-"""
-)
+""")
 
-_SEQUENTIAL_CONFIG = _BASE_CONFIG + textwrap.dedent(
-    """\
+_SEQUENTIAL_CONFIG = _BASE_CONFIG + textwrap.dedent("""\
     resolution:
       mode: sequential-subproblems
       block-length: 3
       block-overlap: 1
-"""
-)
+""")
 
 
 def _run_with_config(study_dir: Path, config_yaml: str):
