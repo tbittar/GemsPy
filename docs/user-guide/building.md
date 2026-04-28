@@ -26,7 +26,7 @@ components.append(
                 value=40000  # €/MWh
             ),
             ComponentParameterSchema(
-                id="spread_cost",
+                id="spillage_cost",
                 time_dependent=False,
                 scenario_dependent=False,
                 value=3000  # €/MWh
