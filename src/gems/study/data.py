@@ -83,9 +83,13 @@ class TimeSeriesData(AbstractDataStructure):
     ) -> np.ndarray:
         if timestep is None:
             raise KeyError("Time series data requires a time index.")
-        result = self.time_series.values[np.asarray(timestep)]  # (T,) — skips pandas Series intermediary
+        result = self.time_series.values[
+            np.asarray(timestep)
+        ]  # (T,) — skips pandas Series intermediary
         if scenario is not None:
-            return np.broadcast_to(result[:, np.newaxis], (len(timestep), len(scenario)))
+            return np.broadcast_to(
+                result[:, np.newaxis], (len(timestep), len(scenario))
+            )
         return result
 
     def check_requirement(self, time: bool, scenario: bool) -> bool:
@@ -112,7 +116,9 @@ class ScenarioSeriesData(AbstractDataStructure):
             raise KeyError("Scenario series data requires a scenario index.")
         result = self.scenario_series[scenario]  # (S,)
         if timestep is not None:
-            return np.broadcast_to(result[np.newaxis, :], (len(timestep), len(scenario)))
+            return np.broadcast_to(
+                result[np.newaxis, :], (len(timestep), len(scenario))
+            )
         return result
 
     def check_requirement(self, time: bool, scenario: bool) -> bool:
