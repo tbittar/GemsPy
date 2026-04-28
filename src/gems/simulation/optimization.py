@@ -187,9 +187,9 @@ def _build_slave_port_array(
     incidence matrix A[i, j] for each group, and accumulates
     ``sum_j A[i,j] * expr_master[j]`` into the result.
     """
-    per_master: Dict[
-        Tuple[str, PortFieldId], List[Tuple[int, Component]]
-    ] = defaultdict(list)
+    per_master: Dict[Tuple[str, PortFieldId], List[Tuple[int, Component]]] = (
+        defaultdict(list)
+    )
 
     comp_index = {comp_id: i for i, comp_id in enumerate(comp_ids)}
     comp_id_set = set(comp_ids)
