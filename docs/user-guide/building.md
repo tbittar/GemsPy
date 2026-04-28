@@ -1,6 +1,6 @@
 # Building systems with the Python API
 
-Instead of reading a `.yml` file, one can build a system with GemsPy by using the API of the package.
+Instead of reading a `.yml` file, one can also build a system with GemsPy by using the API of the package.
 
 The Pydantic schema classes used to describe systems programmatically follow the `*Schema` naming convention.
 
