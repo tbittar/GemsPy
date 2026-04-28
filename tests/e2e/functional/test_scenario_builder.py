@@ -12,7 +12,6 @@
 
 from pathlib import Path
 
-import pandas as pd
 import pytest
 
 from gems.model.parsing import parse_yaml_library
@@ -21,28 +20,28 @@ from gems.simulation import build_problem
 from gems.simulation.time_block import TimeBlock
 from gems.study import Study
 from gems.study.data import DataBase
-from gems.study.parsing import parse_scenario_builder, parse_yaml_components
+from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import (
-    build_scenarized_data_base,
+    build_data_base,
     consistency_check,
     resolve_system,
 )
+from gems.study.scenario_builder import ScenarioBuilder
 
 
 @pytest.fixture
-def scenario_builder(series_dir: Path) -> pd.DataFrame:
-    buider_path = series_dir / "scenario_builder.csv"
-    return parse_scenario_builder(buider_path)
+def scenario_builder(series_dir: Path) -> ScenarioBuilder:
+    return ScenarioBuilder.load(series_dir / "scenariobuilder.dat")
 
 
 @pytest.fixture
 def database(
-    series_dir: Path, systems_dir: Path, scenario_builder: pd.DataFrame
+    series_dir: Path, systems_dir: Path, scenario_builder: ScenarioBuilder
 ) -> DataBase:
     system_path = systems_dir / "with_scenarization.yml"
     with system_path.open() as components:
-        return build_scenarized_data_base(
-            parse_yaml_components(components), scenario_builder, series_dir
+        return build_data_base(
+            parse_yaml_components(components), series_dir, scenario_builder
         )
 
 

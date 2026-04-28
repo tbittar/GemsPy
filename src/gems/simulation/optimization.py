@@ -50,7 +50,6 @@ from gems.simulation.linearize import (
 )
 from gems.simulation.time_block import TimeBlock
 from gems.simulation.vectorized_builder import ShiftValidityVisitor
-from gems.study.data import ConstantData, ScenarioSeriesData, TimeSeriesData
 from gems.study.study import Study
 from gems.study.system import Component
 
@@ -511,47 +510,22 @@ class _OptimizationProblemBuilder:
                 dims = ["component"]
                 coords = {"component": comp_ids}
 
+            mc_scenarios = self.scenario_ids if use_scenario else None
             for i, c in enumerate(components):
-                param_data = self.study.database.get_data(c.id, param.name)
-                if isinstance(param_data, ConstantData):
-                    data[i] = param_data.value  # broadcasts into remaining dims
-                elif isinstance(param_data, TimeSeriesData):
-                    v = param_data.get_value(abs_timesteps, None)
-                    if use_time and use_scenario:
-                        data[i, :, :] = v[:, np.newaxis]  # broadcast T across S
-                    elif use_time:
-                        data[i, :] = v
-                    else:
-                        data[i] = v  # constant in time
-                elif isinstance(param_data, ScenarioSeriesData):
-                    for s_pos in range(S):
-                        s_col = self.study.scenario_builder.resolve(
-                            c.scenario_group, self.scenario_ids[s_pos]
-                        )
-                        v = param_data.get_value(None, s_col)  # type: ignore[assignment]
-                        if use_time and use_scenario:
-                            data[i, :, s_pos] = v
-                        elif use_scenario:
-                            data[i, s_pos] = v
-                        else:
-                            data[i] = v  # constant in scenario
+                v = self.study.database.get_values(
+                    c.id,
+                    param.name,
+                    abs_timesteps if use_time else None,
+                    mc_scenarios,
+                )
+                if use_time and use_scenario:
+                    data[i, :, :] = v  # (T, S)
+                elif use_time:
+                    data[i, :] = v  # (T,) or scalar
+                elif use_scenario:
+                    data[i, :] = v  # (S,) or scalar
                 else:
-                    # TimeScenarioSeriesData
-                    for s_pos in range(S):
-                        s_col = self.study.scenario_builder.resolve(
-                            c.scenario_group, self.scenario_ids[s_pos]
-                        )
-                        v = param_data.get_value(  # type: ignore[assignment]
-                            abs_timesteps, s_col
-                        )
-                        if use_time and use_scenario:
-                            data[i, :, s_pos] = v
-                        elif use_time:
-                            data[i, :] = v
-                        elif use_scenario:
-                            data[i, s_pos] = v
-                        else:
-                            data[i] = v  # take any single value
+                    data[i] = v  # scalar
 
             arr = xr.DataArray(data, dims=dims, coords=coords)
             self.param_arrays[(model.id, param.name)] = arr
@@ -830,8 +804,8 @@ def build_problem(
     block:
         The time block to optimize.
     scenario_ids:
-        List of MC scenario IDs to include.  Each ID is resolved to a
-        time-series column via ``study.scenario_builder``.
+        List of MC scenario indices to include.  Resolution to data-series
+        column indices is handled transparently by the DataBase.
     optim_config:
         Optional parsed OptimConfig.  When provided, per-constraint
         out-of-bounds-processing rules (cyclic vs. drop) are applied.

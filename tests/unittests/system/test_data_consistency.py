@@ -12,6 +12,7 @@
 from pathlib import Path
 from typing import Union
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -31,7 +32,6 @@ from gems.study import (
     ConstantData,
     DataBase,
     PortRef,
-    ScenarioIndex,
     ScenarioSeriesData,
     Study,
     System,
@@ -231,7 +231,7 @@ def test_requirements_consistency_time_varying_parameter_with_correct_data_passe
 @pytest.mark.parametrize(
     "cost_data",
     [
-        (ScenarioSeriesData({ScenarioIndex(0): 100, ScenarioIndex(1): 50})),
+        (ScenarioSeriesData(np.array([100, 50], dtype=float))),
         (
             TimeScenarioSeriesData(
                 pd.DataFrame(
@@ -320,7 +320,7 @@ def test_requirements_consistency_scenario_varying_parameter_with_correct_data_p
         model=mock_generator_with_scenario_varying_fixed_time_param, id="G"
     )
 
-    cost_data = ScenarioSeriesData({ScenarioIndex(0): 100, ScenarioIndex(1): 50})
+    cost_data = ScenarioSeriesData(np.array([100, 50], dtype=float))
 
     database = DataBase()
     database.add_data("G", "p_max", ConstantData(100))
