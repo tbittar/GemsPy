@@ -24,7 +24,9 @@ from gems.expression.expression import (
 )
 from gems.expression.indexing_structure import IndexingStructure
 from gems.model import Constraint, float_variable, model
+from gems.model.common import ValueType
 from gems.model.port import port_field_def
+from gems.model.variable import bool_var, int_variable
 
 
 @pytest.mark.parametrize(
@@ -300,3 +302,36 @@ def test_objective_with_time_dimension_remaining_is_still_rejected() -> None:
             # No time_sum() — still has time dimension → rejected regardless
             objective_contributions={"operational": var("generation")},
         )
+
+
+# --- Variable factory functions ---
+
+
+def test_bool_var_has_binary_type_and_unit_bounds() -> None:
+    """bool_var() creates a Variable with BINARY type and bounds [0, 1]."""
+    v = bool_var("on_off")
+    assert v.name == "on_off"
+    assert v.data_type == ValueType.BINARY
+    assert v.lower_bound == literal(0)
+    assert v.upper_bound == literal(1)
+
+
+def test_bool_var_default_structure_is_time_and_scenario() -> None:
+    v = bool_var("flag")
+    assert v.structure == IndexingStructure(True, True)
+
+
+def test_int_variable_has_integer_type() -> None:
+    """int_variable() creates a Variable with INTEGER type."""
+    v = int_variable("count", lower_bound=literal(0), upper_bound=literal(10))
+    assert v.data_type == ValueType.INTEGER
+    assert v.lower_bound == literal(0)
+    assert v.upper_bound == literal(10)
+
+
+def test_variable_eq_with_non_variable_returns_false() -> None:
+    """Variable.__eq__ returns False when compared with a non-Variable object."""
+    v = float_variable("x")
+    assert v != "x"
+    assert v != 42
+    assert v != None  # noqa: E711
