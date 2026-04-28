@@ -123,9 +123,6 @@ resolution:
   block-overlap: 0
 ~~~
 
-**When to use**: Long horizons with inter-block state (e.g. hydro reservoirs,
-batteries).  Reduces peak memory at the cost of sub-optimality at block
-boundaries.
 
 ### `parallel-subproblems`
 
@@ -138,9 +135,7 @@ resolution:
   block-length: 168
 ~~~
 
-**When to use**: Long horizons without inter-block dependencies.  Allows
-parallelism and produces the same result as `frontal` when there are no
-inter-block dynamics.
+
 
 ### `benders-decomposition`
 
@@ -151,10 +146,6 @@ are placed in a master problem; operational subproblems are solved per scenario.
 resolution:
   mode: benders-decomposition
 ~~~
-
-**When to use**: Studies with investment variables (e.g. capacity expansion)
-that must be shared across all scenarios.  Requires AntaresXpansion to be
-installed.
 
 ---
 
