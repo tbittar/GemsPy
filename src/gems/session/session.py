@@ -189,6 +189,7 @@ class SimulationSession:
             self.study,
             block,
             scenario_ids,
+            optim_config=self.optim_config,
             initial_values=initial_values,
         )
         problem.solve(
