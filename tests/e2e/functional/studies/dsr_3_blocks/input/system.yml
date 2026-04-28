@@ -27,7 +27,6 @@ system:
   components:
     - id: base_zone
       model: test-lib.area
-      scenario-group: sg
       parameters:
         - id: spillage_cost
           time-dependent: false
@@ -40,7 +39,6 @@ system:
 
     - id: load_base_zone
       model: test-lib.load
-      scenario-group: sg
       parameters:
         - id: load
           time-dependent: true
@@ -49,7 +47,6 @@ system:
 
     - id: wind_base_zone
       model: test-lib.renewable
-      scenario-group: sg
       parameters:
         - id: nominal_capacity
           time-dependent: false
@@ -66,7 +63,6 @@ system:
 
     - id: dsr_base_zone
       model: test-lib.dsr
-      scenario-group: sg
       parameters:
         - id: max_load
           time-dependent: false
@@ -79,7 +75,6 @@ system:
 
     - id: gas_base_zone
       model: test-lib.simple_generator
-      scenario-group: sg
       parameters:
         - id: p_min
           time-dependent: false
@@ -100,7 +95,6 @@ system:
 
     - id: oil_base_zone
       model: test-lib.simple_generator
-      scenario-group: sg
       parameters:
         - id: p_min
           time-dependent: false
@@ -121,7 +115,6 @@ system:
 
     - id: coal_base_zone
       model: test-lib.simple_generator
-      scenario-group: sg
       parameters:
         - id: p_min
           time-dependent: false
