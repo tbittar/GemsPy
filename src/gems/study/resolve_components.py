@@ -22,7 +22,6 @@ from gems.study import (
     DataBase,
     PortRef,
     PortsConnection,
-    Scenarization,
     System,
 )
 from gems.study.data import (
@@ -35,6 +34,7 @@ from gems.study.data import (
     load_ts_from_file,
 )
 from gems.study.parsing import ComponentSchema, PortConnectionsSchema, SystemSchema
+from gems.study.scenario_builder import ScenarioBuilder
 
 
 def resolve_system(input_system: SystemSchema, libraries: dict[str, Library]) -> System:
@@ -106,19 +106,27 @@ def consistency_check(system: System, input_models: Dict[str, Model]) -> bool:
 
 
 def build_data_base(
-    input_system: SystemSchema, timeseries_dir: Optional[Path]
+    input_system: SystemSchema,
+    timeseries_dir: Optional[Path],
+    scenario_builder: Optional[ScenarioBuilder] = None,
 ) -> DataBase:
-    database = DataBase()
+    """Build a DataBase from the system description and optional ScenarioBuilder.
+
+    When a ``ScenarioBuilder`` is provided, each parameter's ``scenario_group``
+    is recorded so that ``DataBase.get_values()`` can resolve MC scenario indices
+    to data-series column indices at use time.
+    """
+    database = DataBase(scenario_builder=scenario_builder)
     for comp in input_system.components:
-        # This idiom allows mypy to 'ignore' the fact that comp.parameter can be None
         for param in comp.parameters or []:
+            group = param.scenario_group or comp.scenario_group
             param_value = _build_data(
                 param.time_dependent,
                 param.scenario_dependent,
                 param.value,
                 timeseries_dir,
             )
-            database.add_data(comp.id, param.id, param_value)
+            database.add_data(comp.id, param.id, param_value, scenario_group=group)
 
     return database
 
@@ -128,67 +136,22 @@ def _build_data(
     scenario_dependent: bool,
     param_value: Union[float, str],
     timeseries_dir: Optional[Path],
-    scenarization: Optional[Scenarization] = None,
 ) -> AbstractDataStructure:
     if isinstance(param_value, str):
-        # Should happen only if time-dependent or scenario-dependent
         ts_data = load_ts_from_file(param_value, timeseries_dir)
         if time_dependent and scenario_dependent:
-            return TimeScenarioSeriesData(ts_data, scenarization)
+            return TimeScenarioSeriesData(ts_data)
         elif time_dependent:
             return TimeSeriesData(dataframe_to_time_series(ts_data))
         elif scenario_dependent:
-            return ScenarioSeriesData(
-                dataframe_to_scenario_series(ts_data), scenarization
-            )
+            return ScenarioSeriesData(dataframe_to_scenario_series(ts_data))
         else:
             raise ValueError(
                 f"A float value is expected for constant data, got {param_value}"
             )
-    else:  # param_value is a float, we should be in the constant data case
+    else:
         if time_dependent or scenario_dependent:
             raise ValueError(
                 f"A timeseries name is expected for time or scenario dependent data, got {param_value}"
             )
         return ConstantData(float(param_value))
-
-
-def _resolve_scenarization(
-    scenario_builder_data: pd.DataFrame,
-) -> Dict[str, Scenarization]:
-    output: Dict[str, Scenarization] = {}
-    for i, row in scenario_builder_data.iterrows():
-        if row["name"] in output:
-            output[row["name"]].add_year(row["year"], row["scenario"])
-        else:
-            output[row["name"]] = Scenarization({row["year"]: row["scenario"]})
-    return output
-
-
-def build_scenarized_data_base(
-    input_comp: SystemSchema,
-    scenario_builder_data: pd.DataFrame,
-    timeseries_dir: Optional[Path],
-) -> DataBase:
-    database = DataBase()
-    scenarizations = _resolve_scenarization(scenario_builder_data)
-
-    for comp in input_comp.components:
-        scenarization = None
-        if comp.scenario_group:
-            scenarization = scenarizations[comp.scenario_group]
-
-        # This idiom allows mypy to 'ignore' the fact that comp.parameter can be None
-        for param in comp.parameters or []:
-            if param.scenario_group:
-                scenarization = scenarizations[param.scenario_group]
-            param_value = _build_data(
-                param.time_dependent,
-                param.scenario_dependent,
-                param.value,
-                timeseries_dir,
-                scenarization,
-            )
-            database.add_data(comp.id, param.id, param_value)
-
-    return database

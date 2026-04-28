@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, TextIO, Union
 
-import pandas as pd
 from pydantic import Field, ValidationError
 from yaml import safe_load
 
@@ -34,11 +33,6 @@ def parse_yaml_components(input_study: TextIO) -> "SystemSchema":
     tree = safe_load(input_study)
     return SystemSchema.model_validate(tree["system"])
 
-
-def parse_scenario_builder(file: Path) -> pd.DataFrame:
-    sb = pd.read_csv(file, names=("name", "year", "scenario"))
-    sb.rename(columns={0: "name", 1: "year", 2: "scenario"})
-    return sb
 
 
 class AreaConnectionsSchema(ModifiedBaseModel):

@@ -10,39 +10,72 @@
 #
 # This file is part of the Antares project.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
+
+import numpy as np
 
 
 @dataclass
 class ScenarioBuilder:
-    """Maps Monte-Carlo scenario IDs to time-series column indices.
+    """Maps MC scenario indices to data-series column indices (0-based).
 
-    Each component carries a ``scenario_group`` key.  The builder holds a
-    table loaded from a three-column ``.dat`` file
-    (``scenario_group``, ``scenario_id``, ``column_id``) and resolves a
-    (scenario_group, MC scenario ID) pair to the corresponding column index.
+    Loaded from a ``scenariobuilder.dat`` file whose lines have the form::
 
-    Currently a pass-through: ``scenario_id == column_id`` for every group.
-    The .dat file format and the resolution logic are not yet implemented.
+        scenario_group, mc_scenario = time_serie_number
+
+    where ``time_serie_number`` is 1-based (column 1 = first column of the
+    data-series file).  Internally the mapping is stored as one numpy array
+    per group so that ``resolve_vectorized`` is a pure array index — no
+    Python loop over scenarios.
+
+    When no file is present the builder is empty and ``resolve_vectorized``
+    returns the MC scenario indices unchanged (identity mapping).
     """
 
-    def resolve(self, scenario_group: Optional[str], scenario_id: int) -> int:
-        """Return the time-series column index for a given MC scenario ID.
+    _group_arrays: Dict[str, np.ndarray] = field(default_factory=dict)
 
-        Pass-through for now.  Future implementation will look up
-        ``column_id`` in the (scenario_group, scenario_id) → column_id table
-        parsed from the scenariobuilder.dat file.
+    def resolve_vectorized(
+        self, scenario_group: Optional[str], mc_scenarios: np.ndarray
+    ) -> np.ndarray:
+        """Return 0-based col_idx array for a vector of MC scenario indices.
+
+        Falls back to identity (col_idx == mc_scenario) when the group is
+        absent from the mapping.  No Python loop — pure numpy array indexing.
         """
-        return scenario_id
+        if scenario_group is None or scenario_group not in self._group_arrays:
+            return mc_scenarios
+        return self._group_arrays[scenario_group][mc_scenarios]
 
     @classmethod
     def load(cls, path: Path) -> "ScenarioBuilder":
-        """Load from a .dat file (not yet implemented — returns pass-through).
+        """Parse a ``scenariobuilder.dat`` file.
 
-        Future: parse rows of (scenario_group, scenario_id, column_id) and
-        build the internal mapping table.
+        Each non-blank, non-comment line must follow::
+
+            group_name, mc_scenario = time_serie_number
+
+        ``time_serie_number`` is 1-based; it is stored internally as a
+        0-based column index.
         """
-        # TODO: parse (scenario_group, scenario_id, column_id) rows
-        return cls()
+        raw: Dict[str, Dict[int, int]] = {}
+        with path.open() as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                left, _, right = line.partition("=")
+                parts = [p.strip() for p in left.split(",")]
+                group, mc_scenario = parts[0], int(parts[1])
+                raw.setdefault(group, {})[mc_scenario] = int(right.strip()) - 1
+
+        group_arrays: Dict[str, np.ndarray] = {}
+        for group, mapping in raw.items():
+            max_mc = max(mapping)
+            arr = np.arange(max_mc + 1, dtype=int)  # identity by default
+            for mc, col in mapping.items():
+                arr[mc] = col
+            group_arrays[group] = arr
+
+        return cls(group_arrays)
