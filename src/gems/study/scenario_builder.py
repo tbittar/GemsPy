@@ -85,7 +85,14 @@ class ScenarioBuilder:
         group_arrays: Dict[str, np.ndarray] = {}
         for group, mapping in raw.items():
             max_mc = max(mapping)
-            arr = np.arange(max_mc + 1, dtype=int)  # identity by default
+            expected = set(range(max_mc + 1))
+            missing = sorted(expected - set(mapping.keys()))
+            if missing:
+                raise ValueError(
+                    f"Scenario group '{group}' has no mapping for MC scenarios {missing}. "
+                    f"All {max_mc + 1} MC scenarios (0..{max_mc}) must be explicitly mapped."
+                )
+            arr = np.empty(max_mc + 1, dtype=int)
             for mc, col in mapping.items():
                 arr[mc] = col
             group_arrays[group] = arr
