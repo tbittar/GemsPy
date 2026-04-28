@@ -83,7 +83,7 @@ class TimeSeriesData(AbstractDataStructure):
     ) -> np.ndarray:
         if timestep is None:
             raise KeyError("Time series data requires a time index.")
-        result = self.time_series.iloc[np.array(timestep)].to_numpy()  # (T,)
+        result = self.time_series.values[np.asarray(timestep)]  # (T,) — skips pandas Series intermediary
         if scenario is not None:
             return np.broadcast_to(result[:, np.newaxis], (len(timestep), len(scenario)))
         return result
@@ -136,7 +136,7 @@ class TimeScenarioSeriesData(AbstractDataStructure):
             raise KeyError("Time scenario data requires a time index.")
         if scenario is None:
             raise KeyError("Time scenario data requires a scenario index.")
-        return self.time_scenario_series.values[np.ix_(np.array(timestep), scenario)]
+        return self.time_scenario_series.values[np.ix_(np.asarray(timestep), scenario)]
 
     def check_requirement(self, time: bool, scenario: bool) -> bool:
         if not isinstance(self, TimeScenarioSeriesData):
@@ -248,7 +248,7 @@ class DataBase:
 
         cols: Optional[np.ndarray] = None
         if mc_scenarios is not None:
-            mc_arr = np.array(mc_scenarios, dtype=int)
+            mc_arr = np.asarray(mc_scenarios, dtype=int)
             cols = (
                 self._scenario_builder.resolve_vectorized(group, mc_arr)
                 if self._scenario_builder
