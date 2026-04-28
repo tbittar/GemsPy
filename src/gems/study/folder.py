@@ -54,11 +54,11 @@ def load_study(study_dir: Path) -> Study:
         model_dict |= library.models
     consistency_check(system, model_dict)
 
-    database = build_data_base(input_study, series_dir, scenario_builder)
     scenario_builder_path = study_dir / "input" / "scenariobuilder.dat"
     scenario_builder = (
         ScenarioBuilder.load(scenario_builder_path)
         if scenario_builder_path.exists()
         else ScenarioBuilder()
     )
+    database = build_data_base(input_study, series_dir, scenario_builder)
     return Study(system=system, database=database, scenario_builder=scenario_builder)

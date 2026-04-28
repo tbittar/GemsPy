@@ -15,9 +15,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from gems.study.scenario_builder import ScenarioBuilder
 from gems.study.parsing import parse_yaml_components
 from gems.study.resolve_components import build_data_base
+from gems.study.scenario_builder import ScenarioBuilder
 
 
 @pytest.fixture(scope="session")
@@ -30,9 +30,7 @@ def dispatch_series_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     # MC scenario 1 → column 1 (1-based) → col_idx 0 → value 10
     # MC scenario 2 → column 2 (1-based) → col_idx 1 → value 20
     (d / "scenariobuilder.dat").write_text(
-        "load, 0 = 3\n"
-        "load, 1 = 1\n"
-        "load, 2 = 2\n"
+        "load, 0 = 3\n" "load, 1 = 1\n" "load, 2 = 2\n"
     )
     return d
 
@@ -68,6 +66,7 @@ def test_dispatch_mc_scenarios_to_columns(
     sb = ScenarioBuilder.load(dispatch_series_dir / "scenariobuilder.dat")
 
     import io
+
     db = build_data_base(
         parse_yaml_components(io.StringIO(dispatch_system_yml)),
         dispatch_series_dir,

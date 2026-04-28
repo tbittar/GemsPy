@@ -519,13 +519,13 @@ class _OptimizationProblemBuilder:
                     mc_scenarios,
                 )
                 if use_time and use_scenario:
-                    data[i, :, :] = v        # (T, S)
+                    data[i, :, :] = v  # (T, S)
                 elif use_time:
-                    data[i, :] = v           # (T,) or scalar
+                    data[i, :] = v  # (T,) or scalar
                 elif use_scenario:
-                    data[i, :] = v           # (S,) or scalar
+                    data[i, :] = v  # (S,) or scalar
                 else:
-                    data[i] = v              # scalar
+                    data[i] = v  # scalar
 
             arr = xr.DataArray(data, dims=dims, coords=coords)
             self.param_arrays[(model.id, param.name)] = arr

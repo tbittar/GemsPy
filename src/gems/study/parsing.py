@@ -34,7 +34,6 @@ def parse_yaml_components(input_study: TextIO) -> "SystemSchema":
     return SystemSchema.model_validate(tree["system"])
 
 
-
 class AreaConnectionsSchema(ModifiedBaseModel):
     component: str
     port: str
