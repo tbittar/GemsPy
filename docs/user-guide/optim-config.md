@@ -161,7 +161,7 @@ strategies are available:
 
 | Mode | Behaviour |
 |---|---|
-| `cyclic` (default) | Wrap around: `t = -1` maps to the last timestep |
+| `cyclic` (default) | Wrap around: time shift are defined modulo `block-length` |
 | `drop` | Skip the constraint entirely for out-of-bounds timesteps |
 
 ~~~ yaml
