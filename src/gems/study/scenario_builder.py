@@ -58,7 +58,14 @@ class ScenarioBuilder:
                 f"Scenario group '{scenario_group}' is not defined in the scenario builder. "
                 f"Known groups: {list(self._group_arrays.keys())}."
             )
-        return self._group_arrays[scenario_group][mc_scenarios]
+        arr = self._group_arrays[scenario_group]
+        out_of_bounds = mc_scenarios[mc_scenarios >= len(arr)]
+        if len(out_of_bounds):
+            raise ValueError(
+                f"MC scenario indices {list(out_of_bounds)} are not defined for group "
+                f"'{scenario_group}' (defined range: 0–{len(arr) - 1})."
+            )
+        return arr[mc_scenarios]
 
     @classmethod
     def load(cls, path: Path) -> "ScenarioBuilder":

@@ -55,3 +55,28 @@ def test_data_base_with_scenario_builder(database: DataBase) -> None:
     assert database.get_value(load_index, 0, 1) == 100
     assert database.get_value(load_index, 0, 2) == 50
     assert database.get_value(load_index, 0, 3) == 100
+
+
+def test_resolve_vectorized_subset_playlist(scenario_builder: ScenarioBuilder) -> None:
+    """A subset (playlist) of MC scenarios resolves to the correct columns."""
+    mc = np.array([0, 2], dtype=int)  # skip scenarios 1 and 3
+    assert list(scenario_builder.resolve_vectorized("load", mc)) == [0, 0]
+    assert list(scenario_builder.resolve_vectorized("cost-group", mc)) == [0, 1]
+
+
+def test_resolve_vectorized_out_of_bounds_raises(
+    scenario_builder: ScenarioBuilder,
+) -> None:
+    """Requesting an MC scenario index beyond the defined range raises ValueError."""
+    mc = np.array([0, 99], dtype=int)
+    with pytest.raises(ValueError, match="not defined for group"):
+        scenario_builder.resolve_vectorized("load", mc)
+
+
+def test_resolve_vectorized_unknown_group_raises(
+    scenario_builder: ScenarioBuilder,
+) -> None:
+    """Requesting an unknown scenario group raises ValueError."""
+    mc = np.array([0, 1], dtype=int)
+    with pytest.raises(ValueError, match="not defined in the scenario builder"):
+        scenario_builder.resolve_vectorized("nonexistent-group", mc)
