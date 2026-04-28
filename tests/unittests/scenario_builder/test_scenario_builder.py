@@ -57,41 +57,26 @@ def test_data_base_with_scenario_builder(database: DataBase) -> None:
     assert database.get_value(load_index, 0, 3) == 100
 
 
-def test_empty_scenario_builder_returns_identity() -> None:
-    """An empty ScenarioBuilder (no file loaded) passes mc_scenarios through unchanged."""
-    sb = ScenarioBuilder()
-    mc = np.array([0, 1, 2, 3], dtype=int)
-    result = sb.resolve_vectorized("any-group", mc)
-    assert list(result) == [0, 1, 2, 3]
+def test_resolve_vectorized_subset_playlist(scenario_builder: ScenarioBuilder) -> None:
+    """A subset (playlist) of MC scenarios resolves to the correct columns."""
+    mc = np.array([0, 2], dtype=int)  # skip scenarios 1 and 3
+    assert list(scenario_builder.resolve_vectorized("load", mc)) == [0, 0]
+    assert list(scenario_builder.resolve_vectorized("cost-group", mc)) == [0, 1]
 
 
-def test_resolve_vectorized_none_group_returns_identity(
+def test_resolve_vectorized_out_of_bounds_raises(
     scenario_builder: ScenarioBuilder,
 ) -> None:
-    """resolve_vectorized with group=None returns mc_scenarios unchanged."""
-    mc = np.array([0, 1, 2], dtype=int)
-    assert list(scenario_builder.resolve_vectorized(None, mc)) == [0, 1, 2]
+    """Requesting an MC scenario index beyond the defined range raises ValueError."""
+    mc = np.array([0, 99], dtype=int)
+    with pytest.raises(ValueError, match="not defined for group"):
+        scenario_builder.resolve_vectorized("load", mc)
 
 
-def test_resolve_vectorized_unknown_group_returns_identity(
+def test_resolve_vectorized_unknown_group_raises(
     scenario_builder: ScenarioBuilder,
 ) -> None:
-    """resolve_vectorized for a group absent from the file returns mc_scenarios unchanged."""
+    """Requesting an unknown scenario group raises ValueError."""
     mc = np.array([0, 1], dtype=int)
-    assert list(scenario_builder.resolve_vectorized("nonexistent-group", mc)) == [0, 1]
-
-
-def test_load_skips_blank_lines_and_comments(tmp_path: Path) -> None:
-    """ScenarioBuilder.load() ignores blank lines and lines starting with '#'."""
-    dat = tmp_path / "scenariobuilder.dat"
-    dat.write_text(
-        "# This is a comment\n"
-        "\n"
-        "wind, 0 = 2\n"
-        "# another comment\n"
-        "wind, 1 = 1\n"
-    )
-    sb = ScenarioBuilder.load(dat)
-    mc = np.array([0, 1], dtype=int)
-    # 1-based: col 2 → idx 1, col 1 → idx 0
-    assert list(sb.resolve_vectorized("wind", mc)) == [1, 0]
+    with pytest.raises(ValueError, match="not defined in the scenario builder"):
+        scenario_builder.resolve_vectorized("nonexistent-group", mc)

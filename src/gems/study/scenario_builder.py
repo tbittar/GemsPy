@@ -31,7 +31,8 @@ class ScenarioBuilder:
     Python loop over scenarios.
 
     When no file is present the builder is empty and ``resolve_vectorized``
-    returns the MC scenario indices unchanged (identity mapping).
+    returns the MC scenario indices unchanged (identity mapping) for parameters
+    whose ``scenario_group`` is ``None``.
     """
 
     _group_arrays: Dict[str, np.ndarray] = field(default_factory=dict)
@@ -41,12 +42,30 @@ class ScenarioBuilder:
     ) -> np.ndarray:
         """Return 0-based col_idx array for a vector of MC scenario indices.
 
-        Falls back to identity (col_idx == mc_scenario) when the group is
-        absent from the mapping.  No Python loop — pure numpy array indexing.
+        When ``scenario_group`` is ``None`` the parameter carries no group and
+        the identity mapping (col_idx == mc_scenario) is returned.
+
+        Raises ``ValueError`` when a non-None group is not present in the
+        scenario builder — this is always a misconfiguration (e.g. a typo in
+        ``system.yml`` or a missing entry in ``scenariobuilder.dat``).
+
+        No Python loop — pure numpy array indexing.
         """
-        if scenario_group is None or scenario_group not in self._group_arrays:
+        if scenario_group is None:
             return mc_scenarios
-        return self._group_arrays[scenario_group][mc_scenarios]
+        if scenario_group not in self._group_arrays:
+            raise ValueError(
+                f"Scenario group '{scenario_group}' is not defined in the scenario builder. "
+                f"Known groups: {list(self._group_arrays.keys())}."
+            )
+        arr = self._group_arrays[scenario_group]
+        out_of_bounds = mc_scenarios[mc_scenarios >= len(arr)]
+        if len(out_of_bounds):
+            raise ValueError(
+                f"MC scenario indices {list(out_of_bounds)} are not defined for group "
+                f"'{scenario_group}' (defined range: 0–{len(arr) - 1})."
+            )
+        return arr[mc_scenarios]
 
     @classmethod
     def load(cls, path: Path) -> "ScenarioBuilder":
@@ -73,7 +92,14 @@ class ScenarioBuilder:
         group_arrays: Dict[str, np.ndarray] = {}
         for group, mapping in raw.items():
             max_mc = max(mapping)
-            arr = np.arange(max_mc + 1, dtype=int)  # identity by default
+            expected = set(range(max_mc + 1))
+            missing = sorted(expected - set(mapping.keys()))
+            if missing:
+                raise ValueError(
+                    f"Scenario group '{group}' has no mapping for MC scenarios {missing}. "
+                    f"All {max_mc + 1} MC scenarios (0..{max_mc}) must be explicitly mapped."
+                )
+            arr = np.empty(max_mc + 1, dtype=int)
             for mc, col in mapping.items():
                 arr[mc] = col
             group_arrays[group] = arr
