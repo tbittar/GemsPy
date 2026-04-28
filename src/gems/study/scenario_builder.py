@@ -31,7 +31,8 @@ class ScenarioBuilder:
     Python loop over scenarios.
 
     When no file is present the builder is empty and ``resolve_vectorized``
-    returns the MC scenario indices unchanged (identity mapping).
+    returns the MC scenario indices unchanged (identity mapping) for parameters
+    whose ``scenario_group`` is ``None``.
     """
 
     _group_arrays: Dict[str, np.ndarray] = field(default_factory=dict)
@@ -41,11 +42,22 @@ class ScenarioBuilder:
     ) -> np.ndarray:
         """Return 0-based col_idx array for a vector of MC scenario indices.
 
-        Falls back to identity (col_idx == mc_scenario) when the group is
-        absent from the mapping.  No Python loop — pure numpy array indexing.
+        When ``scenario_group`` is ``None`` the parameter carries no group and
+        the identity mapping (col_idx == mc_scenario) is returned.
+
+        Raises ``ValueError`` when a non-None group is not present in the
+        scenario builder — this is always a misconfiguration (e.g. a typo in
+        ``system.yml`` or a missing entry in ``scenariobuilder.dat``).
+
+        No Python loop — pure numpy array indexing.
         """
-        if scenario_group is None or scenario_group not in self._group_arrays:
+        if scenario_group is None:
             return mc_scenarios
+        if scenario_group not in self._group_arrays:
+            raise ValueError(
+                f"Scenario group '{scenario_group}' is not defined in the scenario builder. "
+                f"Known groups: {list(self._group_arrays.keys())}."
+            )
         return self._group_arrays[scenario_group][mc_scenarios]
 
     @classmethod
