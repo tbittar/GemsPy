@@ -24,10 +24,12 @@ system:
         - id: cost
           time-dependent: false
           scenario-dependent: false
-          value: 10
+          value: 5
       properties:
         - key: technology
           value: nuclear
+        - key: company
+          value: rhonepower
 
     - id: nuclear_2
       model: basic_lib.generator_basic
@@ -43,6 +45,8 @@ system:
       properties:
         - key: technology
           value: nuclear
+        - key: company
+          value: britishnuke
 
     - id: gas_1
       model: basic_lib.generator_basic
@@ -58,6 +62,8 @@ system:
       properties:
         - key: technology
           value: gas
+        - key: company
+          value: rhonepower
 
     - id: gas_2
       model: basic_lib.generator_basic
@@ -69,10 +75,12 @@ system:
         - id: cost
           time-dependent: false
           scenario-dependent: false
-          value: 50
+          value: 100
       properties:
         - key: technology
           value: gas
+        - key: company
+          value: rhonepower
 
     - id: load
       model: basic_lib.load
