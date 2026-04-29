@@ -10,6 +10,7 @@ library:
 
   models:
     - id: area
+      taxonomy-category: balance
       parameters:
         - id: spillage_cost
           time-dependent: false
@@ -37,6 +38,7 @@ library:
           expression: expec(sum(spillage_cost * spillage + unsupplied_energy_cost * unsupplied_energy))
 
     - id: generator_basic
+      taxonomy-category: production
       parameters:
         - id: p_max
           time-dependent: false
@@ -61,6 +63,7 @@ library:
           expression: expec(sum(cost * generation))
 
     - id: load
+      taxonomy-category: consumption
       parameters:
         - id: load
           time-dependent: true
