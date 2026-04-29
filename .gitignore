@@ -10,6 +10,7 @@ venv
 .coverage
 coverage.xml
 bin
+output
 outputs
 build
 src/gems.egg-info/
