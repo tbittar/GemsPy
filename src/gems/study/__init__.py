@@ -22,4 +22,11 @@ from .data import (
 )
 from .scenario_builder import ScenarioBuilder
 from .study import Study
-from .system import Component, PortRef, PortsConnection, System, create_component
+from .system import (
+    Component,
+    ComponentProperty,
+    PortRef,
+    PortsConnection,
+    System,
+    create_component,
+)

@@ -16,12 +16,18 @@ including components and connections.
 """
 
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from gems.model import PortField, PortType
 from gems.model.model import Model
 from gems.model.port import PortFieldId
 from gems.utils import require_not_none
+
+
+@dataclass(frozen=True)
+class ComponentProperty:
+    key: str
+    value: str
 
 
 @dataclass(frozen=True)
@@ -33,6 +39,7 @@ class Component:
     model: Model
     id: str
     scenario_group: Optional[str] = None
+    properties: Tuple[ComponentProperty, ...] = field(default_factory=tuple)
 
     def is_variable_in_model(self, var_id: str) -> bool:
         return var_id in self.model.variables.keys()
@@ -42,9 +49,17 @@ class Component:
 
 
 def create_component(
-    model: Model, id: str, scenario_group: Optional[str] = None
+    model: Model,
+    id: str,
+    scenario_group: Optional[str] = None,
+    properties: Optional[Tuple[ComponentProperty, ...]] = None,
 ) -> Component:
-    return Component(model=model, id=id, scenario_group=scenario_group)
+    return Component(
+        model=model,
+        id=id,
+        scenario_group=scenario_group,
+        properties=properties or (),
+    )
 
 
 @dataclass(frozen=True)

@@ -18,6 +18,7 @@ from gems.model import Model
 from gems.model.library import Library
 from gems.study import (
     Component,
+    ComponentProperty,
     ConstantData,
     DataBase,
     PortRef,
@@ -64,10 +65,15 @@ def _resolve_component(
     lib_id, model_id = component.model.split(".")
     model = libraries[lib_id].models[f"{lib_id}.{model_id}"]
 
+    properties = tuple(
+        ComponentProperty(key=p.key, value=p.value)
+        for p in (component.properties or [])
+    )
     return Component(
         model=model,
         id=component.id,
         scenario_group=component.scenario_group,
+        properties=properties,
     )
 
 
