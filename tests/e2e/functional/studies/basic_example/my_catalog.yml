@@ -65,3 +65,14 @@ catalog:
     filter:
     - key: technology
       value: nuclear
+
+  - id: PRODUCTION_BY_TECH_AND_COMPANY
+    terms:
+      - taxonomy-category: production
+        output-id: generation
+        location-ports: balance_port
+    terms-operator: sum
+    time-operator: sum
+    breakdown:
+    - key: company
+    - key: technology
