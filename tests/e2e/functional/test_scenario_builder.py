@@ -31,7 +31,7 @@ from gems.study.scenario_builder import ScenarioBuilder
 
 @pytest.fixture
 def scenario_builder(series_dir: Path) -> ScenarioBuilder:
-    return ScenarioBuilder.load(series_dir / "scenariobuilder.dat")
+    return ScenarioBuilder.load(series_dir / "modeler-scenariobuilder.dat")
 
 
 @pytest.fixture

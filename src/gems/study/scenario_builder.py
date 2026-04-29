@@ -21,7 +21,7 @@ import numpy as np
 class ScenarioBuilder:
     """Maps MC scenario indices to data-series column indices (0-based).
 
-    Loaded from a ``scenariobuilder.dat`` file whose lines have the form::
+    Loaded from a ``modeler-scenariobuilder.dat`` file whose lines have the form::
 
         scenario_group, mc_scenario = time_serie_number
 
@@ -47,7 +47,7 @@ class ScenarioBuilder:
 
         Raises ``ValueError`` when a non-None group is not present in the
         scenario builder — this is always a misconfiguration (e.g. a typo in
-        ``system.yml`` or a missing entry in ``scenariobuilder.dat``).
+        ``system.yml`` or a missing entry in ``modeler-scenariobuilder.dat``).
 
         No Python loop — pure numpy array indexing.
         """
@@ -69,7 +69,7 @@ class ScenarioBuilder:
 
     @classmethod
     def load(cls, path: Path) -> "ScenarioBuilder":
-        """Parse a ``scenariobuilder.dat`` file.
+        """Parse a ``modeler-scenariobuilder.dat`` file.
 
         Each non-blank, non-comment line must follow::
 

@@ -7,8 +7,19 @@ an entire study at once, and a file-by-file approach for programmatic control.
 
 ## Directory-based loading (recommended)
 
-When your study follows the standard directory layout
-(`input/`, `input/series/`, etc.), use `load_study()`:
+When your study follows the standard directory layout, use `load_study()`:
+
+```
+my_study/
+├── input/
+│   ├── system.yml
+│   ├── optim-config.yml
+│   ├── model-libraries/
+│   │   └── *.yml
+│   └── data-series/
+│       ├── modeler-scenariobuilder.dat   ← optional
+│       └── *.txt / *.csv
+```
 
 ~~~ python
 from pathlib import Path
@@ -19,7 +30,7 @@ study = load_study(Path("my_study"))
 
 `load_study()` returns a `Study` object that bundles the resolved `System`,
 the `DataBase` with all parameter values, and the `ScenarioBuilder` loaded
-from `input/scenariobuilder.dat` (if present).
+from `input/data-series/modeler-scenariobuilder.dat` (if present).
 
 ---
 

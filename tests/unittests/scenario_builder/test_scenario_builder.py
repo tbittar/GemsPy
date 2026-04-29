@@ -29,7 +29,7 @@ def series_dir() -> Path:
 
 @pytest.fixture(scope="session")
 def scenario_builder(series_dir: Path) -> ScenarioBuilder:
-    return ScenarioBuilder.load(series_dir / "scenariobuilder.dat")
+    return ScenarioBuilder.load(series_dir / "modeler-scenariobuilder.dat")
 
 
 @pytest.fixture
