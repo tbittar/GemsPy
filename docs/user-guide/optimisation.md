@@ -38,7 +38,7 @@ and lets you inspect the returned `SimulationTable` in memory.
 
 ~~~ python
 from pathlib import Path
-from gems.study import load_study
+from gems.study.folder import load_study
 from gems.session import SimulationSession
 from gems.optim_config import load_optim_config
 

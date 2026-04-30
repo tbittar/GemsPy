@@ -15,6 +15,9 @@ from .parsing import (
     OptimConfig,
     ResolutionConfig,
     ResolutionMode,
+    ScenarioScopeConfig,
+    SolverOptionsConfig,
+    TimeScopeConfig,
     load_optim_config,
     validate_optim_config,
 )
@@ -24,6 +27,9 @@ __all__ = [
     "OptimConfig",
     "ResolutionConfig",
     "ResolutionMode",
+    "ScenarioScopeConfig",
+    "SolverOptionsConfig",
+    "TimeScopeConfig",
     "load_optim_config",
     "validate_optim_config",
 ]
