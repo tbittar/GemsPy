@@ -241,3 +241,67 @@ def test_scenario_dependent_param_in_shift_raises(scenario_dependent_lag):
     expr = var("x").shift(param("lag"))
     with pytest.raises(ValueError, match="depends on scenario"):
         visit(expr, _visitor(scenario_dependent_lag, block_length=4))
+
+
+# ---------------------------------------------------------------------------
+# time_sum with a time-shifted expression as operand
+# ---------------------------------------------------------------------------
+
+
+def test_time_sum_with_shifted_operand_both_bounds_constrain():
+    # time_sum(-2, 0) of var("x").shift(-1), block=4
+    # At time t the expression evaluates x[t-2-1] + x[t-1-1] + x[t+0-1]
+    #   = x[t-3] + x[t-2] + x[t-1]
+    # All three accesses must be in [0,4): need t-3 >= 0 → t >= 3
+    # Only t=3 is valid → [F, F, F, T]
+    expr = var("x").shift(-1).time_sum(-2, 0)
+    mask = visit(expr, _visitor(block_length=4))
+    assert mask is not None
+    assert mask.dims == ("time",)
+    np.testing.assert_array_equal(mask.values, [False, False, False, True])
+
+
+def test_time_sum_with_shifted_operand_inner_shift_dominates():
+    # time_sum(-1, 0) of var("x").shift(-2), block=4
+    # At time t the expression evaluates x[t-1-2] + x[t+0-2]
+    #   = x[t-3] + x[t-2]
+    # Need t-3 >= 0 → t >= 3; only t=3 is valid → [F, F, F, T]
+    # (own_mask alone would only block t=0; composition of inner shift drives the result)
+    expr = var("x").shift(-2).time_sum(-1, 0)
+    mask = visit(expr, _visitor(block_length=4))
+    assert mask is not None
+    assert mask.dims == ("time",)
+    np.testing.assert_array_equal(mask.values, [False, False, False, True])
+
+
+def test_time_sum_with_per_component_shifted_operand(per_comp_lag):
+    # time_sum(-1, 0) of var("x").shift(-lag), block=4, c1 lag=1, c2 lag=2
+    # c1 (lag=1): accesses x[t-1-1] + x[t+0-1] = x[t-2] + x[t-1]; need t >= 2 → [F,F,T,T]
+    # c2 (lag=2): accesses x[t-1-2] + x[t+0-2] = x[t-3] + x[t-2]; need t >= 3 → [F,F,F,T]
+    expr = var("x").shift(-param("lag")).time_sum(-1, 0)
+    mask = visit(expr, _visitor(per_comp_lag, block_length=4))
+    assert mask is not None
+    assert "component" in mask.dims
+    assert "time" in mask.dims
+    np.testing.assert_array_equal(
+        mask.sel(component="c1").values, [False, False, True, True]
+    )
+    np.testing.assert_array_equal(
+        mask.sel(component="c2").values, [False, False, False, True]
+    )
+
+
+def test_time_sum_non_scalar_bound_with_shifted_operand(per_comp_lag):
+    # var("x").shift(-1).time_sum(-lag, 0), block=4, c1 lag=1, c2 lag=2
+    # c1: sum from -1 to 0 of x[t-1] → x[t-2]+x[t-1]; need t >= 2 → [F,F,T,T]
+    # c2: sum from -2 to 0 of x[t-1] → x[t-3]+x[t-2]+x[t-1]; need t >= 3 → [F,F,F,T]
+    expr = var("x").shift(-1).time_sum(-param("lag"), 0)
+    mask = visit(expr, _visitor(per_comp_lag, block_length=4))
+    assert mask is not None
+    assert "component" in mask.dims
+    np.testing.assert_array_equal(
+        mask.sel(component="c1").values, [False, False, True, True]
+    )
+    np.testing.assert_array_equal(
+        mask.sel(component="c2").values, [False, False, False, True]
+    )

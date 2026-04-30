@@ -549,6 +549,34 @@ def _and_mask(
     return a & b  # type: ignore[operator]
 
 
+def _shift_mask_by(mask: xr.DataArray, k_da: xr.DataArray) -> xr.DataArray:
+    """Return mask evaluated at time t+k for each t, padding with False.
+
+    k_da may be scalar (ndim=0) or per-component (ndim=1).
+    """
+    if k_da.ndim == 0:
+        return mask.shift(time=-int(round(float(k_da.values))), fill_value=False)
+
+    def _shift_1d(m: np.ndarray, k: float) -> np.ndarray:
+        ki = int(round(k))
+        T = len(m)
+        out = np.zeros(T, dtype=bool)
+        if ki >= 0:
+            out[: T - ki] = m[ki:]
+        else:
+            out[-ki:] = m[: T + ki]
+        return out
+
+    return xr.apply_ufunc(
+        _shift_1d,
+        mask,
+        k_da,
+        input_core_dims=[["time"], []],
+        output_core_dims=[["time"]],
+        vectorize=True,
+    )
+
+
 @dataclass(kw_only=True)
 class ShiftValidityVisitor(ExpressionVisitor[Optional[xr.DataArray]]):
     """Walk an expression AST and compute a boolean [component, time] validity mask.
@@ -625,7 +653,16 @@ class ShiftValidityVisitor(ExpressionVisitor[Optional[xr.DataArray]]):
         t = xr.DataArray(np.arange(T), dims="time")
         # Every offset in [from, to] must be in bounds; the extreme values are binding.
         own_mask = (t + from_da >= 0) & (t + to_da < T)
-        return _and_mask(operand_mask, own_mask)
+        if operand_mask is None:
+            return _and_mask(operand_mask, own_mask)
+        # The operand contains time-shifted accesses. Validity masks are contiguous
+        # boolean intervals, so only the two extreme offsets need to be composed:
+        # every intermediate shift produces a mask that is a superset of their AND.
+        composed = _and_mask(
+            _shift_mask_by(operand_mask, from_da),
+            _shift_mask_by(operand_mask, to_da),
+        )
+        return _and_mask(composed, own_mask)
 
     # ------------------------------------------------------------------ #
     # Structural nodes — AND-propagate children                             #
