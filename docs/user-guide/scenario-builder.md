@@ -33,7 +33,7 @@ Each non-empty, non-comment line has the form:
 ```
 
 - `<scenario_group>` — a group name you assign to one or more components
-- `<mc_scenario>` — the MC scenario index (1-based in the file)
+- `<mc_scenario>` — the MC scenario index (**0-based** in the file)
 - `<time_serie_number>` — the column of the timeseries file to use (1-based)
 
 ### Example
@@ -42,20 +42,20 @@ Suppose you have 4 MC scenarios, 2 wind-power columns, and 4 load columns:
 
 ```
 # Wind turbines: map 4 MC scenarios onto 2 data columns (round-robin)
-wind, 1 = 1
-wind, 2 = 2
-wind, 3 = 1
-wind, 4 = 2
+wind, 0 = 1
+wind, 1 = 2
+wind, 2 = 1
+wind, 3 = 2
 
 # Demand: one distinct column per scenario
-demand, 1 = 1
-demand, 2 = 2
-demand, 3 = 3
-demand, 4 = 4
+demand, 0 = 1
+demand, 1 = 2
+demand, 2 = 3
+demand, 3 = 4
 ```
 
 !!! note
-    All MC scenario indices (`1` to `nb-scenarios`) must be listed for every
+    All MC scenario indices (`0` to `nb-scenarios - 1`) must be listed for every
     group that appears in the file.  Missing entries raise a `ValueError` at
     load time.
 

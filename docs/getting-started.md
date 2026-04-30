@@ -164,7 +164,7 @@ If your inputs are organised in a study directory (see [Reading input files](use
 
 ~~~ python
 from pathlib import Path
-from gems.study import load_study
+from gems.study.folder import load_study
 from gems.session import SimulationSession
 from gems.optim_config import load_optim_config
 
