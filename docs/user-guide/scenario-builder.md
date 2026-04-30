@@ -15,14 +15,15 @@ the right column for each component and scenario.
 
 ---
 
-## The `scenariobuilder.dat` file
+## The `modeler-scenariobuilder.dat` file
 
 Place the file at:
 
 ```
 my_study/
 └── input/
-    └── scenariobuilder.dat
+    └── data-series/
+        └── modeler-scenariobuilder.dat
 ```
 
 Each non-empty, non-comment line has the form:
@@ -95,7 +96,7 @@ Components without a `scenario-group` use the identity mapping (MC scenario `i`
 
 ## How `load_study()` handles the file
 
-`load_study()` automatically reads `input/scenariobuilder.dat` if present and
+`load_study()` automatically reads `input/data-series/modeler-scenariobuilder.dat` if present and
 attaches the resulting `ScenarioBuilder` to the returned `Study` object:
 
 ~~~ python
@@ -103,7 +104,7 @@ from pathlib import Path
 from gems.study import load_study
 
 study = load_study(Path("my_study"))
-# study.scenario_builder is populated from scenariobuilder.dat
+# study.scenario_builder is populated from modeler-scenariobuilder.dat
 ~~~
 
 When the file is absent, `study.scenario_builder` is an empty `ScenarioBuilder`
@@ -119,7 +120,7 @@ from pathlib import Path
 from gems.study.scenario_builder import ScenarioBuilder
 
 # Load from file
-sb = ScenarioBuilder.load(Path("my_study/input/scenariobuilder.dat"))
+sb = ScenarioBuilder.load(Path("my_study/input/data-series/modeler-scenariobuilder.dat"))
 
 # Resolve a batch of MC scenarios for the "wind" group
 mc_scenarios = np.array([0, 1, 2, 3])          # 0-based internally

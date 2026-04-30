@@ -173,6 +173,50 @@ models:
           mode: drop   # do not enforce at t=0 where previous state is unknown
 ~~~
 
+### `model-decomposition`
+
+The `model-decomposition` block assigns individual model elements to the master
+problem or subproblems when using Benders decomposition
+(`resolution.mode: benders-decomposition`).  It is ignored for other resolution
+modes.
+
+Each element (variable, constraint, or objective contribution) can be placed in
+one of three locations:
+
+| Location | Description |
+|---|---|
+| `subproblems` (default) | Element lives in each operational subproblem |
+| `master` | Element lives only in the investment master problem |
+| `master-and-subproblems` | Variable is decided in the master problem and used in the subproblems (coupling variable) |
+
+Elements not listed keep their default location (`subproblems`).
+
+~~~ yaml
+models:
+  - id: my_lib.generator_with_invest
+    model-decomposition:
+      variables:
+        - id: nb_units
+          location: master
+        - id: p_max
+          location: master-and-subproblems
+        # unlisted variables default to subproblems
+      constraints:
+        - id: p_max_nb_units_relation
+          location: master
+      objective-contributions:
+        - id: invest_objective
+          location: master
+        - id: operational_objective
+          location: subproblems
+~~~
+
+!!! note
+    Master variables must be time-independent.  Master constraints and objective
+    contributions may only reference variables whose location is `master` or
+    `master-and-subproblems`.  GemsPy validates these rules at config-load time
+    and raises an error for any violation.
+
 ---
 
 ## Python API
