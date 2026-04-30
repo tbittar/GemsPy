@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**GemsPy** is a Python interpreter for the GEMS (Generic Energy Modeling System) framework — a high-level modeling language for simulating energy systems under uncertainty. It allows users to define energy system models via YAML without writing solver code directly.
+**GemsPy** is a Python interpreter for the GEMS (Generic Energy Systems Modelling Schema) framework — a high-level modeling language for simulating energy systems under uncertainty. It allows users to define energy system models via YAML without writing solver code directly.
 
 ## Commands
 
