@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**GemsPy** is a Python interpreter for the GEMS (Generic Energy Modeling System) framework — a high-level modeling language for simulating energy systems under uncertainty. It allows users to define energy system models via YAML without writing solver code directly.
+**GemsPy** is a Python interpreter for the GEMS (Generic Energy Systems Modelling Schema) framework — a high-level modeling language for simulating energy systems under uncertainty. It allows users to define energy system models via YAML without writing solver code directly.
 
 ## Commands
 
 **Install:**
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+uv sync          # installs all dependencies including dev group
+# or: pip install -e ".[dev]"
 ```
 
 **Test:**
@@ -38,11 +39,11 @@ gemspy \
   --scenarios    1
 
 # Python API — directory-based study
-from gems.study.folder import load_study, run_study
-from gems.simulation import TimeBlock
+from gems.study.folder import load_study
+from gems.study.runner import run_study
 
 study = load_study(Path("path/to/study_dir"))   # reads input/, model-libraries/, data-series/
-problem = run_study(Path("path/to/study_dir"), scenarios=1, time_block=TimeBlock(1, list(range(8760))))
+run_study(Path("path/to/study_dir"))            # loads study, solves, writes CSV to output/
 
 # Python API — programmatic study
 from gems.study import Study
@@ -86,7 +87,7 @@ An optional `optim-config.yml` activates decomposition: variables and constraint
 
 **`optim_config/`** — Optional decomposition configuration.
 - `OptimConfig` (`parsing.py`): top-level config loaded from `optim-config.yml`
-- `ResolutionMode` (`parsing.py`): `SEQUENTIAL_SUBPROBLEMS` (default) or `BENDERS_DECOMPOSITION`
+- `ResolutionMode` (`parsing.py`): `FRONTAL` (default), `SEQUENTIAL_SUBPROBLEMS`, `PARALLEL_SUBPROBLEMS`, or `BENDERS_DECOMPOSITION`
 - `ModelDecompositionConfig` (`parsing.py`): per-model assignment of variables/constraints/objective contributions to master or subproblems
 
 **`libs/`** — Resolves the path to bundled YAML model libraries shipped with the package.
