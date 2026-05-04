@@ -98,6 +98,10 @@ An optional `optim-config.yml` activates decomposition: variables and constraint
 - **Template-method via single abstract method**: `VectorizedBuilderBase` implements all 18+ visitor methods once with `xr.DataArray`-compatible semantics; concrete subclasses only override `variable()` (and optionally a few linopy-specific methods).
 - **Indexing dimensions**: parameters and variables carry time and scenario indices explicitly via `IndexingStructure`; expressions track these automatically.
 
+## Format changes tracking
+
+File `docs/user-guide/antares-format-comparison.md` keeps track of differences between the GEMS study format of Antares and of GemsPy. Update it whenever there are changes in the grammar, the allowed expressions or the study format.
+
 ## Further Reading
 
 - [Python Convention](docs/agents/python-convention.md) — Code style, conventions, and agent guardrails
