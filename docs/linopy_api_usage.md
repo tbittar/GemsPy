@@ -210,6 +210,37 @@ expected payoff.
 
 ### linopy
 
+- **Dual values — `Model.dual`, `Constraint.dual`, `Variable.dual`,
+  `LinearExpression.dual`.** This is the most impactful gap today.
+  GemsPy reads only primal solution values
+  (`Model.solution[name]` in `session.py:216` and
+  `simulation_table.py:231`, `270`) and never accesses dual
+  information. linopy populates a parallel `Model.dual` (an
+  `xr.Dataset` keyed by constraint name) after a solve with a
+  dual-capable solver, and exposes per-object accessors:
+    - **Constraint duals** — `Model.dual[constraint_name]` (or
+      `constraint.dual`) returns an `xr.DataArray` of shadow prices
+      shaped along the constraint's dims. Adding this would let
+      GemsPy surface marginal costs of every constraint built at
+      `optimization.py:701` (`lhs >= lb`) and `:710` (`lhs <= ub`),
+      including coupling/equality constraints created at
+      `optimization.py:436` for carry-over between blocks.
+      Domain consumers (energy prices from balance constraints,
+      capacity rents, water values, …) currently have to be
+      back-computed by hand from the primal.
+    - **Variable reduced costs** — `Variable.dual` gives reduced
+      costs along the variable's coords; useful for sensitivity
+      analysis and for detecting which bounds are binding at the
+      `lower`/`upper` set in `Model.add_variables`
+      (`optimization.py:615`).
+    - **Expression duals** — `LinearExpression.dual` is the
+      natural counterpart for derived quantities returned by
+      `VectorizedLinearExprBuilder` (`linearize.py`).
+  Implementation-wise this slots into the same flow as
+  `Model.solution`: a new `OptimizationProblem.dual_values`
+  accessor returning an `xr.Dataset`, plus per-constraint /
+  per-variable lookups on `_linopy_vars` and on the constraint
+  names already tracked at `optimization.py:701`/`710`.
 - **`Model.add_variables(mask=…)`** — partial-domain variables.
   Would replace the current `_apply_validity_mask`
   (`optimization.py:118–132`) trick, which currently rebuilds an
@@ -234,14 +265,10 @@ expected payoff.
 - **`Model.to_netcdf()` / `Model.from_netcdf()`** — persist a fully
   built model. Today only LP-format export through `Model.to_file`
   (`optimization.py:350`) is exposed.
-- **`Variable.solution` / `Variable.dual`,
-  `LinearExpression.solution`** — per-variable solution and dual
-  accessors. GemsPy currently always goes through
+- **`Variable.solution` / `LinearExpression.solution`** —
+  per-variable primal accessors. GemsPy currently always goes through
   `Model.solution[name]`; per-variable access would simplify the
   carry-over and simulation-table code paths.
-- **`linopy.merge(...)`** — combine expressions across subproblems;
-  a natural fit for Benders-style decomposition on top of the
-  existing master/sub setup (`optimization.py:271–293`).
 - **Solver-specific kwargs forwarded through `Model.solve(**kwargs)`**
   — HiGHS presolve, Gurobi MIP gap, Mosek params, etc. The plumbing
   already exists (`optimization.py:325–331`); only documentation and
