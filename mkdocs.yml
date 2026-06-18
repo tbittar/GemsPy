@@ -12,6 +12,7 @@ nav:
     - 'Optimisation configuration & resolution modes': 'user-guide/optim-config.md'
     - 'Scenario builder': 'user-guide/scenario-builder.md'
     - 'Data converters': 'user-guide/converters.md'
+    - 'Antares format comparison': 'user-guide/antares-format-comparison.md'
   - Developer guide: developer-guide.md
   - Changelog: CHANGELOG.md
 
